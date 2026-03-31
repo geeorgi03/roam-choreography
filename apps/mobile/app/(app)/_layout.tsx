@@ -19,6 +19,12 @@ export default function AppStackLayout() {
         }}
       />
       <Stack.Screen
+        name="session/song-map"
+        options={{
+          title: 'Song Map',
+        }}
+      />
+      <Stack.Screen
         name="session/clip-player"
         options={{
           presentation: 'modal',

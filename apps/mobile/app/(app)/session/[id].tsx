@@ -624,6 +624,17 @@ export default function SessionWorkbenchScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.chip}
+          onPress={() =>
+            router.push({
+              pathname: './song-map',
+              params: { sessionId: id },
+            })
+          }
+        >
+          <Text style={styles.chipText}>Song map</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.chip}
           onPress={() => captureSheetRef.current?.snapToIndex(0)}
         >
           <Text style={styles.chipText}>+ Track</Text>
