@@ -7,18 +7,21 @@ Based on `docs/V3_COVERAGE_AUDIT.md`.
 ## P0 (critical path)
 
 1. `song-map` first-class screen
+   - Status: baseline route shipped (`apps/mobile/app/(app)/session/song-map.tsx`)
    - Add dedicated route and navigation entry in session flow
    - Reuse `AssemblyCanvas` for first shipping baseline
    - Align section strip + clip assignment + floor/scrub interaction with Figma
    - Dependencies: existing session and assembly endpoints
 
 2. `spatial` screen
+   - Status: baseline route shipped (`apps/mobile/app/(app)/session/spatial.tsx`)
    - Build dedicated spatial route (tablet landscape primary)
    - Progressive tool unlock (position -> path -> relationship)
    - Add moment strip and quality side panel persistence
    - Dependencies: song-map data model extension and stable moment schema
 
 3. `group` role-based screens
+   - Status: baseline route shipped (`apps/mobile/app/(app)/session/group.tsx`)
    - Choreographer tablet view + dancer phone view
    - Shared realtime layer (presence, clips, formation, broadcast notes)
    - Dependencies: spatial foundation and robust realtime channel model
