@@ -412,6 +412,14 @@ export default function SessionWorkbenchScreen() {
     return clips.filter((c) => !c.server_id || sectionIds.has(c.server_id));
   }, [clips, sectionClips, activeSection, hasActiveMusicSection]);
 
+  const sectionClipCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const sc of sectionClips) {
+      counts.set(sc.section_label, (counts.get(sc.section_label) ?? 0) + 1);
+    }
+    return counts;
+  }, [sectionClips]);
+
   // ── Time ruler markers ───────────────────────────────────────────────────
   const timeMarkers = useMemo(() => ['0:00', '0:15', '0:30', '0:45', '1:00', '1:15'], []);
 
@@ -461,14 +469,24 @@ export default function SessionWorkbenchScreen() {
                 onPress={() => handleSectionPress(s)}
                 activeOpacity={0.75}
               >
-                <Text
-                  style={[
-                    styles.sectionChipText,
-                    s.label === activeSection && styles.sectionChipTextActive,
-                  ]}
-                >
-                  {s.label}
-                </Text>
+                <View style={styles.sectionChipInner}>
+                  <Text
+                    style={[
+                      styles.sectionChipText,
+                      s.label === activeSection && styles.sectionChipTextActive,
+                    ]}
+                  >
+                    {s.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sectionChipCount,
+                      s.label === activeSection && styles.sectionChipTextActive,
+                    ]}
+                  >
+                    {sectionClipCounts.get(s.label) ?? 0}
+                  </Text>
+                </View>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -956,13 +974,16 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   sectionChip: {
-    paddingVertical: 6,
+    minWidth: 118,
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 999,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#2A2A32',
     backgroundColor: '#1B1B22',
   },
+  sectionChipInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionChipCount: { color: theme.textSecondary, fontSize: 10, fontFamily: 'monospace' },
   sectionChipActive: { borderColor: '#C8F135', backgroundColor: '#1a2300' },
   sectionChipText: { color: theme.textSecondary, fontSize: 11, fontWeight: '700', fontFamily: 'monospace' },
   sectionChipTextActive: { color: '#C8F135' },
@@ -1118,8 +1139,14 @@ const styles = StyleSheet.create({
   chipText: { color: theme.textPrimary, fontWeight: '800', fontSize: 11, fontFamily: 'monospace' },
 
   // Workspace
-  workspace: { flex: 1, marginTop: 4 },
-  workspaceHeader: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+  workspace: {
+    flex: 1,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#2A2A32',
+    backgroundColor: '#141418',
+  },
+  workspaceHeader: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8 },
   workspaceSectionGesture: { alignSelf: 'flex-start', paddingVertical: 2, paddingRight: 8 },
   workspaceTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '900' },
   workspaceMeta: { color: theme.textSecondary, fontSize: 11, marginTop: 2, fontFamily: 'monospace' },

@@ -96,3 +96,15 @@
   - `docs/V3_PROGRESS_LOG.md`
 - **Remaining gaps:**
   - Workbench still needs final visual composition tuning (left/right panel proportions and some spacing details).
+
+### Step 8 - Workbench section-pill and panel spacing polish
+- **Page:** `workbench · light/night` right-side composition alignment
+- **Decision notes:**
+  - Add section clip counts directly into section pills to better match the locked panel semantics.
+  - Tune section chip shape/spacing and workspace panel separation for clearer right-panel hierarchy.
+  - Keep count source deterministic via `section_clips` mapping where available.
+- **Files changed:**
+  - `apps/mobile/app/(app)/session/[id].tsx`
+  - `docs/V3_PROGRESS_LOG.md`
+- **Remaining gaps:**
+  - Final micro-spacing and typography calibration against locked comp still remains.
