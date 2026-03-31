@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import {
   FlatList,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,7 +30,6 @@ import { supabase } from '../../../lib/supabase';
 import { API_BASE } from '../../../lib/api';
 import { ShareSheet } from '../../../components/ShareSheet';
 import { CaptureSheet } from '../../../components/CaptureSheet';
-import { ClipCard } from '../../../components/ClipCard';
 import { ClipShareSheet } from '../../../components/ClipShareSheet';
 import { NotePinSheet } from '../../../components/NotePinSheet';
 import type { SectionClip } from '@roam/types';
@@ -45,6 +45,15 @@ function formatTimecode(ms: number): string {
   const m = Math.floor(s / 60);
   const ss = String(s % 60).padStart(2, '0');
   return `${m}:${ss}`;
+}
+
+function isReferenceClip(clip: {
+  label?: string | null;
+  move_name?: string | null;
+  notes?: string | null;
+}): boolean {
+  const haystack = `${clip.label ?? ''} ${clip.move_name ?? ''} ${clip.notes ?? ''}`.toLowerCase();
+  return haystack.includes('ref') || haystack.includes('reference');
 }
 
 export default function SessionWorkbenchScreen() {
@@ -409,32 +418,35 @@ export default function SessionWorkbenchScreen() {
 
       {/* Section chips — shown when music analysis has produced sections */}
       {musicTrack?.sections && musicTrack.sections.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.sectionChips}
-        >
-          {musicTrack.sections.map((s) => (
-            <TouchableOpacity
-              key={s.label}
-              style={[
-                styles.sectionChip,
-                s.label === activeSection && styles.sectionChipActive,
-              ]}
-              onPress={() => handleSectionPress(s)}
-              activeOpacity={0.75}
-            >
-              <Text
+        <>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.sectionChips}
+          >
+            {musicTrack.sections.map((s) => (
+              <TouchableOpacity
+                key={s.label}
                 style={[
-                  styles.sectionChipText,
-                  s.label === activeSection && styles.sectionChipTextActive,
+                  styles.sectionChip,
+                  s.label === activeSection && styles.sectionChipActive,
                 ]}
+                onPress={() => handleSectionPress(s)}
+                activeOpacity={0.75}
               >
-                {s.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Text
+                  style={[
+                    styles.sectionChipText,
+                    s.label === activeSection && styles.sectionChipTextActive,
+                  ]}
+                >
+                  {s.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
+        </>
       ) : null}
 
       {/* Track timeline */}
@@ -704,12 +716,48 @@ export default function SessionWorkbenchScreen() {
             contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 40 }}
             renderItem={({ item, index }) => (
               <View style={styles.clipCell}>
-                <ClipCard
-                  clip={item}
+                <TouchableOpacity
+                  style={[
+                    styles.clipThumb,
+                    isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
+                  ]}
                   onPress={() => openClipPlayer(index)}
-                  onLongPress={() => {}}
-                  onRetry={() => retryClip(item.local_id)}
-                />
+                  activeOpacity={0.85}
+                >
+                  {item.mux_playback_id ? (
+                    <Image
+                      source={{
+                        uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
+                      }}
+                      style={styles.clipThumbImage}
+                    />
+                  ) : null}
+                  <View
+                    style={[
+                      styles.clipTypeBadge,
+                      isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.clipTypeBadgeText,
+                        isReferenceClip(item)
+                          ? styles.clipTypeBadgeTextRef
+                          : styles.clipTypeBadgeTextMine,
+                      ]}
+                    >
+                      {isReferenceClip(item) ? 'REF' : 'MINE'}
+                    </Text>
+                  </View>
+                  {item.upload_status === 'failed' ? (
+                    <TouchableOpacity
+                      style={styles.retryPill}
+                      onPress={() => retryClip(item.local_id)}
+                    >
+                      <Text style={styles.retryPillText}>Retry</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={[
                     styles.clipShareIcon,
@@ -840,6 +888,12 @@ const styles = StyleSheet.create({
 
   // Section chips row
   sectionChips: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
+  sectionSwipeHint: {
+    color: '#8A8278',
+    fontSize: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
   sectionChip: {
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -1004,6 +1058,42 @@ const styles = StyleSheet.create({
   workspaceTabText: { color: theme.textSecondary, fontWeight: '800' },
   workspaceTabTextActive: { color: theme.textPrimary },
   clipCell: { flex: 1, position: 'relative' },
+  clipThumb: {
+    minHeight: 120,
+    borderRadius: theme.borderRadius,
+    borderWidth: 1,
+    borderColor: '#2A2A32',
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  clipThumbRef: { backgroundColor: '#F1E0CC' },
+  clipThumbMine: { backgroundColor: '#82B7A8' },
+  clipThumbImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.35,
+  },
+  clipTypeBadge: {
+    alignSelf: 'flex-start',
+    margin: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  clipTypeBadgeRef: { backgroundColor: '#EBDCC3' },
+  clipTypeBadgeMine: { backgroundColor: '#B8DFD1' },
+  clipTypeBadgeText: { fontSize: 10, fontWeight: '800' },
+  clipTypeBadgeTextRef: { color: '#8B6027' },
+  clipTypeBadgeTextMine: { color: '#085041' },
+  retryPill: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  retryPillText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   addClipCard: {
     marginTop: 10,
     borderWidth: 1,

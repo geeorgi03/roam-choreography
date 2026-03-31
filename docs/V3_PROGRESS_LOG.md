@@ -61,3 +61,14 @@
 - **Remaining gaps:**
   - Group realtime sync (presence, broadcast delivery, clip updates) still needs implementation.
   - Visual parity for locked group comps remains pending.
+
+### Step 5 - Workbench parity pass (targeted visual fixes)
+- **Page:** `workbench · light/night` targeted alignment
+- **Decision notes:**
+  - Address immediate design mismatches from locked comp: reference clip warm-fill treatment and section swipe hint placement.
+  - Keep behavior unchanged where possible while improving visual semantics in Ideas grid and section controls.
+- **Files changed:**
+  - `apps/mobile/app/(app)/session/[id].tsx`
+  - `docs/V3_PROGRESS_LOG.md`
+- **Remaining gaps:**
+  - Workbench still needs deeper parity (left/right composition, bottom transport details, typography tuning).
