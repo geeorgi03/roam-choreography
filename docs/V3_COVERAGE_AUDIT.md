@@ -25,7 +25,7 @@ None yet at strict acceptance level.
 | `home · light` / `home · night` | Yes | Partial | `apps/mobile/app/(app)/index.tsx` | Session row visual system differs; top-bar behavior and spacing not yet matched to locked comps | P1 |
 | `workbench · light` / `workbench · night` | Yes | Partial | `apps/mobile/app/(app)/session/[id].tsx` | Core structure exists but major spec deltas remain (left/right split, typography, chips/controls, visual polish) | P0 |
 | `ref-viewer · light` / `ref-viewer · night` | Yes | Partial | `apps/mobile/app/(app)/session/clip-player.tsx`, `apps/mobile/app/(app)/session/youtube-player.tsx` | Implemented as full screens/modals, not locked bottom-sheet composition; loop-chip/save-actions flow not aligned | P1 |
-| `group · light` / `group · night` | Yes | Missing | no dedicated route yet (partial primitives in `apps/mobile/components/AssemblyView.tsx`) | No choreographer vs dancer grouped experience route; no realtime group layout parity with locked frame | P0 |
+| `group · light` / `group · night` | Yes | Partial | `apps/mobile/app/(app)/session/group.tsx`, `apps/mobile/components/AssemblyView.tsx` | Baseline route now exists with choreographer/dancer modes; still missing realtime sync and locked visual parity | P0 |
 
 ## C) Not in v3-locked (must be implemented in V3 app)
 
@@ -35,7 +35,7 @@ All entries below are explicitly tagged as: **Needs implementation in V3 app**.
 |---|---|---|---|---|---|
 | `song-map · tablet · landscape` / `song-map · tablet · landscape · night` | No | Partial | `apps/mobile/app/(app)/session/song-map.tsx`, `apps/mobile/components/AssemblyCanvas.tsx` | First-class route exists; still missing full Figma parity (moments strip, dedicated controls, visual polish) | P0 |
 | `spatial · tablet · landscape` / `spatial · tablet · landscape · night` | No | Partial | `apps/mobile/app/(app)/session/spatial.tsx`, `apps/mobile/components/AssemblyView.tsx` | First-class route exists; still missing spatial-specific UX parity (tool progression, relationships, quality layer, moments strip) | P0 |
-| `group · choreographer · tablet` / `group · dancer · phone` (+ night variants) | No | Missing | No route; partial assignment components only | Dedicated role-based group screens not shipped | P0 |
+| `group · choreographer · tablet` / `group · dancer · phone` (+ night variants) | No | Partial | `apps/mobile/app/(app)/session/group.tsx` | Dedicated route now exists with baseline role modes; still missing full interaction/realtime parity | P0 |
 | `workbench · tablet · landscape` / `workbench · tablet · landscape · night` | No | Partial | `apps/mobile/app/(app)/session/[id].tsx` | Some functional overlap, but locked visual and interaction parity not complete | P0 |
 | `ref-viewer · bottom sheet` / `ref-viewer · bottom sheet · night` | No | Partial | `apps/mobile/app/(app)/session/clip-player.tsx`, `apps/mobile/app/(app)/session/youtube-player.tsx` | Bottom-sheet architecture and controls differ from target | P1 |
 | `library · tablet · landscape` / `library · tablet · landscape · night` | No | Partial | `apps/mobile/app/(app)/library.tsx` | Information architecture and visual style differ; needs parity pass | P1 |

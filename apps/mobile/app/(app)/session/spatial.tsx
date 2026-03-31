@@ -1,10 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AssemblyView } from '../../../components/AssemblyView';
 import { theme } from '../../../lib/theme';
 
 export default function SpatialScreen() {
+  const router = useRouter();
   const { sessionId, id } = useLocalSearchParams<{ sessionId?: string; id?: string }>();
   const resolvedSessionId =
     typeof sessionId === 'string' && sessionId.length > 0
@@ -26,6 +27,17 @@ export default function SpatialScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Spatial</Text>
+        <TouchableOpacity
+          style={styles.nextBtn}
+          onPress={() =>
+            router.push({
+              pathname: './group',
+              params: { sessionId: resolvedSessionId },
+            })
+          }
+        >
+          <Text style={styles.nextBtnText}>Group</Text>
+        </TouchableOpacity>
       </View>
       <AssemblyView sessionId={resolvedSessionId} />
     </View>
@@ -45,6 +57,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: { color: theme.textPrimary, fontSize: 16, fontWeight: '900' },
+  nextBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#2A2A32',
+    backgroundColor: '#1B1B22',
+  },
+  nextBtnText: { color: theme.textPrimary, fontSize: 12, fontWeight: '800' },
   emptyWrap: {
     flex: 1,
     backgroundColor: theme.background,

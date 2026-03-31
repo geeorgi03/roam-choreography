@@ -45,3 +45,19 @@
 - **Remaining gaps:**
   - Spatial tool progression and quality-layer interactions are not yet implemented.
   - Group page remains missing as dedicated app route.
+
+### Step 4 - Third page implementation started (`group`)
+- **Page:** `group` baseline (choreographer + dancer modes)
+- **Decision notes:**
+  - Add a dedicated group route to close the last P0 "missing route" page.
+  - Start with a pragmatic baseline: mode toggle, dancer roster, shared clip visibility scaffold, and composition reuse via `AssemblyView`.
+  - Wire `spatial` -> `group` navigation to keep cross-page flow connected.
+- **Files changed:**
+  - `apps/mobile/app/(app)/session/group.tsx`
+  - `apps/mobile/app/(app)/session/spatial.tsx`
+  - `apps/mobile/app/(app)/_layout.tsx`
+  - `docs/V3_COVERAGE_AUDIT.md`
+  - `docs/V3_PROGRESS_LOG.md`
+- **Remaining gaps:**
+  - Group realtime sync (presence, broadcast delivery, clip updates) still needs implementation.
+  - Visual parity for locked group comps remains pending.

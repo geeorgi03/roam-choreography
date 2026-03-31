@@ -31,6 +31,12 @@ export default function AppStackLayout() {
         }}
       />
       <Stack.Screen
+        name="session/group"
+        options={{
+          title: 'Group',
+        }}
+      />
+      <Stack.Screen
         name="session/clip-player"
         options={{
           presentation: 'modal',
