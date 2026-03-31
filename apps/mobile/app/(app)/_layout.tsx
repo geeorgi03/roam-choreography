@@ -25,6 +25,12 @@ export default function AppStackLayout() {
         }}
       />
       <Stack.Screen
+        name="session/spatial"
+        options={{
+          title: 'Spatial',
+        }}
+      />
+      <Stack.Screen
         name="session/clip-player"
         options={{
           presentation: 'modal',

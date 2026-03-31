@@ -29,3 +29,19 @@
 - **Remaining gaps:**
   - Song-map still needs full Figma parity (moment strip, dedicated waveform strip, detailed controls).
   - Spatial and group dedicated pages remain missing.
+
+### Step 3 - Second page implementation started (`spatial`)
+- **Page:** `spatial · tablet · landscape` baseline
+- **Decision notes:**
+  - Add a dedicated spatial route now and reuse `AssemblyView` as baseline to keep momentum on P0 route coverage.
+  - Wire Song Map -> Spatial navigation so choreo flow is no longer blocked by missing route.
+  - Keep this pass page-scoped; deeper spatial interaction parity remains a follow-up implementation pass.
+- **Files changed:**
+  - `apps/mobile/app/(app)/session/spatial.tsx`
+  - `apps/mobile/app/(app)/_layout.tsx`
+  - `apps/mobile/app/(app)/session/song-map.tsx`
+  - `docs/V3_COVERAGE_AUDIT.md`
+  - `docs/V3_PROGRESS_LOG.md`
+- **Remaining gaps:**
+  - Spatial tool progression and quality-layer interactions are not yet implemented.
+  - Group page remains missing as dedicated app route.

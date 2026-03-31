@@ -33,8 +33,8 @@ All entries below are explicitly tagged as: **Needs implementation in V3 app**.
 
 | Figma page/frame | v3-locked | app status | route/screen mapping | key gaps | priority |
 |---|---|---|---|---|---|
-| `song-map · tablet · landscape` / `song-map · tablet · landscape · night` | No | Missing | No dedicated route before this pass; related tooling in `apps/mobile/app/(app)/session/beat-grid.tsx`, `apps/mobile/components/AssemblyCanvas.tsx` | Dedicated song-map experience absent as a first-class route/screen | P0 |
-| `spatial · tablet · landscape` / `spatial · tablet · landscape · night` | No | Missing | No route; partial data/assignment primitives in `apps/mobile/components/AssemblyCanvas.tsx` and `apps/mobile/components/AssemblyView.tsx` | No spatial canvas UX parity (tool progression, relationships, quality layer, moments strip) | P0 |
+| `song-map · tablet · landscape` / `song-map · tablet · landscape · night` | No | Partial | `apps/mobile/app/(app)/session/song-map.tsx`, `apps/mobile/components/AssemblyCanvas.tsx` | First-class route exists; still missing full Figma parity (moments strip, dedicated controls, visual polish) | P0 |
+| `spatial · tablet · landscape` / `spatial · tablet · landscape · night` | No | Partial | `apps/mobile/app/(app)/session/spatial.tsx`, `apps/mobile/components/AssemblyView.tsx` | First-class route exists; still missing spatial-specific UX parity (tool progression, relationships, quality layer, moments strip) | P0 |
 | `group · choreographer · tablet` / `group · dancer · phone` (+ night variants) | No | Missing | No route; partial assignment components only | Dedicated role-based group screens not shipped | P0 |
 | `workbench · tablet · landscape` / `workbench · tablet · landscape · night` | No | Partial | `apps/mobile/app/(app)/session/[id].tsx` | Some functional overlap, but locked visual and interaction parity not complete | P0 |
 | `ref-viewer · bottom sheet` / `ref-viewer · bottom sheet · night` | No | Partial | `apps/mobile/app/(app)/session/clip-player.tsx`, `apps/mobile/app/(app)/session/youtube-player.tsx` | Bottom-sheet architecture and controls differ from target | P1 |
