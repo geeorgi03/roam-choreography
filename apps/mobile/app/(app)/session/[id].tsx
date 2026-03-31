@@ -9,6 +9,7 @@ import React, {
 import {
   FlatList,
   Image,
+  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
@@ -89,6 +90,7 @@ export default function SessionWorkbenchScreen() {
       ? sectionNameParam
       : 'Section'
   );
+  const [showSectionSwipeHint, setShowSectionSwipeHint] = useState(true);
   const [workspaceTab, setWorkspaceTab] = useState<'ideas' | 'notes'>('ideas');
 
   // ── Playback state ───────────────────────────────────────────────────────
@@ -308,6 +310,7 @@ export default function SessionWorkbenchScreen() {
   const handleSectionPress = useCallback(
     async (section: { label: string; start_ms: number }) => {
       setActiveSection(section.label);
+      setShowSectionSwipeHint(false);
       const sound = soundRef.current;
       if (sound) {
         try {
@@ -320,6 +323,43 @@ export default function SessionWorkbenchScreen() {
     },
     []
   );
+
+  const handleSectionSwipe = useCallback(
+    (direction: 'next' | 'prev') => {
+      const sections = musicTrack?.sections ?? [];
+      if (sections.length < 2) return;
+      const currIdx = sections.findIndex((s) => s.label === activeSection);
+      if (currIdx < 0) return;
+      const delta = direction === 'next' ? 1 : -1;
+      const nextIdx = (currIdx + delta + sections.length) % sections.length;
+      handleSectionPress(sections[nextIdx]);
+      setShowSectionSwipeHint(false);
+    },
+    [musicTrack?.sections, activeSection, handleSectionPress]
+  );
+
+  const sectionSwipePan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_evt, gestureState) =>
+          Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dy) < 18,
+        onPanResponderRelease: (_evt, gestureState) => {
+          if (gestureState.dx < -35) {
+            handleSectionSwipe('next');
+          } else if (gestureState.dx > 35) {
+            handleSectionSwipe('prev');
+          }
+        },
+      }),
+    [handleSectionSwipe]
+  );
+
+  useEffect(() => {
+    const sections = musicTrack?.sections ?? [];
+    if (sections.length === 0) return;
+    const found = sections.some((s) => s.label === activeSection);
+    if (!found) setActiveSection(sections[0]!.label);
+  }, [musicTrack?.sections, activeSection]);
 
   // ── Loop region handler ──────────────────────────────────────────────────
   const handleLoopToggle = useCallback(() => {
@@ -445,7 +485,9 @@ export default function SessionWorkbenchScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-          <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
+          {showSectionSwipeHint ? (
+            <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
+          ) : null}
         </>
       ) : null}
 
@@ -656,7 +698,9 @@ export default function SessionWorkbenchScreen() {
       {/* Section workspace */}
       <View style={styles.workspace}>
         <View style={styles.workspaceHeader}>
-          <Text style={styles.workspaceTitle}>{activeSection}</Text>
+          <View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
+            <Text style={styles.workspaceTitle}>{activeSection}</Text>
+          </View>
           <Text style={styles.workspaceMeta}>
             {formatTimecode(playheadMs)} · …
           </Text>
@@ -1033,6 +1077,7 @@ const styles = StyleSheet.create({
   // Workspace
   workspace: { flex: 1, marginTop: 4 },
   workspaceHeader: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+  workspaceSectionGesture: { alignSelf: 'flex-start', paddingVertical: 2, paddingRight: 8 },
   workspaceTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '900' },
   workspaceMeta: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
   workspaceBtn: {

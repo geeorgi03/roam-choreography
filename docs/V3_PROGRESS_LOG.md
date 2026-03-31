@@ -72,3 +72,15 @@
   - `docs/V3_PROGRESS_LOG.md`
 - **Remaining gaps:**
   - Workbench still needs deeper parity (left/right composition, bottom transport details, typography tuning).
+
+### Step 6 - Workbench section-swipe interaction parity
+- **Page:** `workbench · light/night` interaction alignment
+- **Decision notes:**
+  - Implement left/right swipe gestures on the active section label to cycle analyzed sections.
+  - Keep swipe hint visible only until first section interaction for cleaner ongoing use.
+  - Add fallback to first available section if active section becomes invalid after data refresh.
+- **Files changed:**
+  - `apps/mobile/app/(app)/session/[id].tsx`
+  - `docs/V3_PROGRESS_LOG.md`
+- **Remaining gaps:**
+  - Workbench visual tuning and transport details still need deeper parity pass.
