@@ -84,3 +84,15 @@
   - `docs/V3_PROGRESS_LOG.md`
 - **Remaining gaps:**
   - Workbench visual tuning and transport details still need deeper parity pass.
+
+### Step 7 - Workbench transport and typography polish
+- **Page:** `workbench · light/night` transport parity
+- **Decision notes:**
+  - Replace single speed-toggle chip with explicit speed presets (0.5x-1.5x) to match locked transport behavior.
+  - Introduce dedicated loop action button styling in transport and refine mono-style label typography.
+  - Keep existing navigation controls while tightening visual hierarchy toward the Figma frame.
+- **Files changed:**
+  - `apps/mobile/app/(app)/session/[id].tsx`
+  - `docs/V3_PROGRESS_LOG.md`
+- **Remaining gaps:**
+  - Workbench still needs final visual composition tuning (left/right panel proportions and some spacing details).

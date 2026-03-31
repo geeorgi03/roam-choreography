@@ -35,8 +35,8 @@ import { ClipShareSheet } from '../../../components/ClipShareSheet';
 import { NotePinSheet } from '../../../components/NotePinSheet';
 import type { SectionClip } from '@roam/types';
 
-// Playback speed steps cycled by the speed chip
-const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+// Playback speed presets aligned with workbench transport controls
+const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5];
 
 // Visible timeline span when no audio is loaded (75 s)
 const FALLBACK_DURATION_MS = 75_000;
@@ -299,13 +299,6 @@ export default function SessionWorkbenchScreen() {
     }
   }, [playheadMs]);
 
-  const handleSpeedToggle = useCallback(() => {
-    setPlaybackSpeed((s) => {
-      const idx = SPEEDS.indexOf(s);
-      return SPEEDS[(idx + 1) % SPEEDS.length];
-    });
-  }, []);
-
   // ── Section chip handler ─────────────────────────────────────────────────
   const handleSectionPress = useCallback(
     async (section: { label: string; start_ms: number }) => {
@@ -428,12 +421,6 @@ export default function SessionWorkbenchScreen() {
       params: { sessionId: id, clipIndex: String(index) },
     });
   };
-
-  // ── Speed label ──────────────────────────────────────────────────────────
-  const speedLabel =
-    playbackSpeed % 1 === 0
-      ? `${playbackSpeed.toFixed(1)}×`
-      : `${playbackSpeed}×`;
 
   return (
     <View style={styles.container}>
@@ -670,8 +657,37 @@ export default function SessionWorkbenchScreen() {
           <Text style={styles.transportText}>⏭</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.chip} onPress={handleSpeedToggle}>
-          <Text style={styles.chipText}>{speedLabel}</Text>
+        <Text style={styles.spdLabel}>spd</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.speedChips}
+        >
+          {SPEED_OPTIONS.map((opt) => (
+            <TouchableOpacity
+              key={opt}
+              style={[
+                styles.speedChip,
+                Math.abs(playbackSpeed - opt) < 0.001 && styles.speedChipActive,
+              ]}
+              onPress={() => setPlaybackSpeed(opt)}
+            >
+              <Text
+                style={[
+                  styles.speedChipText,
+                  Math.abs(playbackSpeed - opt) < 0.001 && styles.speedChipTextActive,
+                ]}
+              >
+                {opt % 1 === 0 ? `${opt.toFixed(0)}×` : `${opt}×`}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        <TouchableOpacity
+          style={[styles.loopBtn, loopRegion ? styles.loopBtnClosing : styles.loopBtnReady]}
+          onPress={handleLoopToggle}
+        >
+          <Text style={styles.loopBtnText}>{loopRegion ? 'tap to close' : 'set loop'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.chip}>
           <Text style={styles.chipText}>Mirror</Text>
@@ -928,13 +944,14 @@ const styles = StyleSheet.create({
   headerIcon: { color: '#fff', fontSize: 22 },
 
   ruler: { paddingHorizontal: 16, paddingBottom: 8, gap: 16 },
-  rulerTick: { color: theme.textSecondary, fontSize: 12 },
+  rulerTick: { color: theme.textSecondary, fontSize: 11, fontFamily: 'monospace' },
 
   // Section chips row
   sectionChips: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
   sectionSwipeHint: {
     color: '#8A8278',
     fontSize: 10,
+    fontFamily: 'monospace',
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
@@ -947,7 +964,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1B1B22',
   },
   sectionChipActive: { borderColor: '#C8F135', backgroundColor: '#1a2300' },
-  sectionChipText: { color: theme.textSecondary, fontSize: 12, fontWeight: '700' },
+  sectionChipText: { color: theme.textSecondary, fontSize: 11, fontWeight: '700', fontFamily: 'monospace' },
   sectionChipTextActive: { color: '#C8F135' },
 
   timeline: { paddingHorizontal: 16, paddingTop: 6, gap: 10 },
@@ -1038,9 +1055,11 @@ const styles = StyleSheet.create({
   transport: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#2A2A32',
   },
   transportBtn: {
     width: 36,
@@ -1063,6 +1082,30 @@ const styles = StyleSheet.create({
   },
   playBtnDisabled: { opacity: 0.45 },
   playBtnText: { color: '#0b0b0f', fontSize: 18, fontWeight: '900' },
+  spdLabel: { color: '#8A8278', fontSize: 10, fontFamily: 'monospace' },
+  speedChips: { gap: 6, paddingRight: 4 },
+  speedChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E8E3DC',
+    backgroundColor: 'transparent',
+  },
+  speedChipActive: { backgroundColor: '#332B24', borderColor: '#332B24' },
+  speedChipText: { color: '#786D61', fontSize: 10, fontFamily: 'monospace' },
+  speedChipTextActive: { color: '#FDF9F3' },
+  loopBtn: {
+    marginLeft: 2,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#7DB9A8',
+  },
+  loopBtnReady: { backgroundColor: '#E1F5EE' },
+  loopBtnClosing: { backgroundColor: '#FFF8EE' },
+  loopBtnText: { color: '#345449', fontSize: 11, fontFamily: 'monospace' },
   chip: {
     marginLeft: 4,
     paddingVertical: 8,
@@ -1072,14 +1115,14 @@ const styles = StyleSheet.create({
     borderColor: '#2A2A32',
     backgroundColor: '#1B1B22',
   },
-  chipText: { color: theme.textPrimary, fontWeight: '800', fontSize: 12 },
+  chipText: { color: theme.textPrimary, fontWeight: '800', fontSize: 11, fontFamily: 'monospace' },
 
   // Workspace
   workspace: { flex: 1, marginTop: 4 },
   workspaceHeader: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
   workspaceSectionGesture: { alignSelf: 'flex-start', paddingVertical: 2, paddingRight: 8 },
   workspaceTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '900' },
-  workspaceMeta: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
+  workspaceMeta: { color: theme.textSecondary, fontSize: 11, marginTop: 2, fontFamily: 'monospace' },
   workspaceBtn: {
     position: 'absolute',
     right: 16,
