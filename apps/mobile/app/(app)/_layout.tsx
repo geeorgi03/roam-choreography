@@ -15,7 +15,7 @@ export default function AppStackLayout() {
       <Stack.Screen
         name="session/[id]"
         options={{
-          title: 'New Session',
+          headerShown: false,
         }}
       />
       <Stack.Screen

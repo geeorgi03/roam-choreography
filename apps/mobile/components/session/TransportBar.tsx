@@ -53,57 +53,28 @@ const getThemeStyles = () => ({
   activeSpeedButtonText: {
     color: '#ffffff',
   },
-  loopButton: {
-    borderLeftColor: theme.light.mine,
-  },
-  loopButtonText: {
-    fontFamily: theme.typography.monoFamily,
-    color: theme.light.mine,
-  },
-  waveformBarInactive: theme.light.border,
-  waveformBarActive: 'rgba(125,185,168,0.6)',
 });
 
 export function TransportBar({ variant }: TransportBarProps) {
   const {
     isPlaying,
+    playheadMs,
+    durationMs,
     playbackSpeed,
     setPlaybackSpeed,
+    loopRegion,
+    loopOpenAt,
     handlePlayPause,
     handleSeekBack,
     handleSeekForward,
     handleLoopToggle,
-    loopRegion,
-    loopOpenAt,
-    playheadMs,
-    durationMs,
   } = useSessionContext();
-
-  const formatTime = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  const handleSpeedControl = () => {
-    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5];
-    const currentIndex = speeds.indexOf(playbackSpeed);
-    const nextIndex = (currentIndex + 1) % speeds.length;
-    setPlaybackSpeed(speeds[nextIndex]);
-  };
 
   const getLoopButtonStyle = () => {
     if (loopOpenAt !== null) {
       return {
         backgroundColor: '#fff8ee',
         borderColor: '#e8a87c',
-      };
-    }
-    if (loopRegion) {
-      return {
-        backgroundColor: '#e1f5ee',
-        borderColor: '#7db9a8',
       };
     }
     return {
@@ -116,9 +87,6 @@ export function TransportBar({ variant }: TransportBarProps) {
     if (loopOpenAt !== null) {
       return 'tap to close';
     }
-    if (loopRegion) {
-      return 'set loop';
-    }
     return 'set loop';
   };
 
@@ -127,6 +95,40 @@ export function TransportBar({ variant }: TransportBarProps) {
       return '#e8a87c'; // amber
     }
     return '#085041'; // teal
+  };
+
+  const getLoopDotSize = () => {
+    return 9; // 9dp
+  };
+
+  const generateWaveformBars = () => {
+    const bars = [];
+    for (let i = 0; i < 20; i++) {
+      let height = 8 + Math.sin(i * 0.5) * 8; // Deterministic height based on position
+      
+      // Highlight bars within loop region
+      let backgroundColor = '#e8e3dc';
+      if (loopRegion && durationMs > 0) {
+        const barPosition = (i / 20) * durationMs;
+        if (barPosition >= loopRegion.start && barPosition <= loopRegion.end) {
+          backgroundColor = 'rgba(125,185,168,0.6)';
+        }
+      }
+      
+      bars.push(
+        <View
+          key={i}
+          style={[
+            styles.waveformBar,
+            {
+              height,
+              backgroundColor,
+            },
+          ]}
+        />
+      );
+    }
+    return bars;
   };
 
   if (variant === 'reduced') {
@@ -145,24 +147,7 @@ export function TransportBar({ variant }: TransportBarProps) {
         {/* Mini waveform decorative */}
         <View style={styles.miniWaveformContainer}>
           <View style={styles.miniWaveform}>
-            {[...Array(20)].map((_, i) => {
-              const height = 8 + 16 * Math.abs(Math.sin(i * 0.3 + 0.5));
-              const isInLoopRegion = loopRegion && durationMs > 0 && 
-                (i * (durationMs / 20) >= loopRegion.start && i * (durationMs / 20) <= loopRegion.end);
-              
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.waveformBar,
-                    {
-                      height,
-                      backgroundColor: isInLoopRegion ? 'rgba(125,185,168,0.6)' : theme.light.border,
-                    },
-                  ]}
-                />
-              );
-            })}
+            {generateWaveformBars()}
           </View>
         </View>
 
@@ -171,7 +156,12 @@ export function TransportBar({ variant }: TransportBarProps) {
           style={[styles.loopButton, styles.reducedLoopButton, getLoopButtonStyle()]}
           onPress={handleLoopToggle}
         >
-          <View style={[styles.loopDot, { backgroundColor: getLoopDotColor() }]} />
+          <View style={[styles.loopDot, { 
+            backgroundColor: getLoopDotColor(),
+            width: getLoopDotSize(),
+            height: getLoopDotSize(),
+            borderRadius: getLoopDotSize() / 2,
+          }]} />
           <Text style={[styles.loopButtonText, styles.reducedLoopButtonText]}>
             {getLoopButtonText()}
           </Text>
@@ -187,7 +177,7 @@ export function TransportBar({ variant }: TransportBarProps) {
         style={styles.seekButton}
         onPress={handleSeekBack}
       >
-        <Text style={styles.seekButtonText}>⏪</Text>
+        <Text style={styles.seekButtonText}>←</Text>
       </TouchableOpacity>
 
       {/* Play/pause button */}
@@ -205,7 +195,7 @@ export function TransportBar({ variant }: TransportBarProps) {
         style={styles.seekButton}
         onPress={handleSeekForward}
       >
-        <Text style={styles.seekButtonText}>⏩</Text>
+        <Text style={styles.seekButtonText}>→</Text>
       </TouchableOpacity>
 
       {/* Speed controls */}
@@ -239,29 +229,34 @@ export function TransportBar({ variant }: TransportBarProps) {
         style={[styles.loopButton, styles.fullLoopButton, getLoopButtonStyle()]}
         onPress={handleLoopToggle}
       >
-        <View style={[styles.loopDot, { backgroundColor: getLoopDotColor() }]} />
+        <View style={[styles.loopDot, { 
+          backgroundColor: getLoopDotColor(),
+          width: getLoopDotSize(),
+          height: getLoopDotSize(),
+          borderRadius: getLoopDotSize() / 2,
+        }]} />
         <Text style={[styles.loopButtonText, styles.fullLoopButtonText]}>
           {getLoopButtonText()}
         </Text>
       </TouchableOpacity>
-
     </View>
   );
 }
 
-const themeStyles = getThemeStyles();
-
 const styles = StyleSheet.create({
   container: {
-    ...themeStyles.container,
+    height: 52,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 0.5,
+    borderTopColor: '#e8e3dc',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   fullContainer: {
-    height: 52,
     paddingHorizontal: 16,
     gap: 12,
   },
   reducedContainer: {
-    height: 52,
     paddingHorizontal: 12,
     gap: 8,
   },
@@ -269,22 +264,20 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    ...themeStyles.playButton,
+    backgroundColor: '#3a342d',
     justifyContent: 'center',
     alignItems: 'center',
   },
   fullPlayButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
   },
   reducedPlayButton: {
     width: 36,
     height: 36,
-    borderRadius: 18,
   },
   playButtonText: {
-    ...themeStyles.playButtonText,
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -292,21 +285,23 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    ...themeStyles.seekButton,
+    backgroundColor: '#3a342d',
     justifyContent: 'center',
     alignItems: 'center',
   },
   seekButtonText: {
-    ...themeStyles.seekButtonText,
-    fontSize: 14,
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   speedContainer: {
     flex: 1,
     alignItems: 'center',
   },
   speedLabel: {
-    ...themeStyles.speedLabel,
     fontSize: 9,
+    fontFamily: 'JetBrainsMono',
+    color: '#8a8278',
     marginBottom: 2,
   },
   speedButtons: {
@@ -314,21 +309,24 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   speedButton: {
-    ...themeStyles.speedButton,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     borderWidth: 1,
+    borderColor: '#e8e3dc',
+    backgroundColor: '#ffffff',
   },
   activeSpeedButton: {
-    ...themeStyles.activeSpeedButton,
+    backgroundColor: '#3a342d',
+    borderColor: '#3a342d',
   },
   speedButtonText: {
-    ...themeStyles.speedButtonText,
-    fontSize: 8,
+    fontSize: 9,
+    fontFamily: 'JetBrainsMono',
+    color: '#8a8278',
   },
   activeSpeedButtonText: {
-    ...themeStyles.activeSpeedButtonText,
+    color: '#ffffff',
   },
   loopButton: {
     width: 110,
@@ -338,28 +336,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     borderLeftWidth: 0.5,
-    ...themeStyles.loopButton,
   },
   fullLoopButton: {
-    borderLeftColor: theme.light.mine,
+    borderLeftColor: '#7db9a8',
   },
   reducedLoopButton: {
-    borderLeftColor: theme.light.mine,
+    borderLeftColor: '#7db9a8',
   },
   loopDot: {
-    width: 9,
-    height: 9,
     borderRadius: 4.5,
   },
   loopButtonText: {
-    ...themeStyles.loopButtonText,
-    fontSize: 10,
+    fontSize: 11,
+    fontFamily: 'JetBrainsMono',
+    color: '#085041',
   },
   fullLoopButtonText: {
-    fontSize: 10,
+    fontSize: 11,
   },
   reducedLoopButtonText: {
-    fontSize: 8,
+    fontSize: 9,
   },
   miniWaveformContainer: {
     flex: 1,

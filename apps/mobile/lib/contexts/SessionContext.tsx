@@ -11,39 +11,48 @@ import { supabase } from '../supabase';
 import { API_BASE } from '../api';
 
 export interface SessionContextValue {
-  // State
   sessionId: string;
   sessionName: string;
   setSessionName: (name: string) => void;
-  activeTab: 'workbench' | 'map' | 'spatial' | 'group';
+  activeTab: 'workbench' | 'spatial' | 'beat-grid' | 'song-map' | 'group';
   setActiveTab: (tab: SessionContextValue['activeTab']) => void;
+  activeSection: string;
+  setActiveSection: (section: string) => void;
   activeMoment: string | null;
   setActiveMoment: (moment: string | null) => void;
-  activeSheetId: string | null;
-  setActiveSheetId: (sheetId: string | null) => void;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
-  playbackSpeed: number;
-  setPlaybackSpeed: (speed: number) => void;
   playheadMs: number;
   setPlayheadMs: (ms: number) => void;
   durationMs: number;
   setDurationMs: (ms: number) => void;
-  musicUrl: string | null;
-  setMusicUrl: (url: string | null) => void;
+  playbackSpeed: number;
+  setPlaybackSpeed: (speed: number) => void;
   loopRegion: { start: number; end: number } | null;
   setLoopRegion: (region: { start: number; end: number } | null) => void;
   loopOpenAt: number | null;
   setLoopOpenAt: (ms: number | null) => void;
-  activeSection: string;
-  setActiveSection: (section: string) => void;
-  selectedClipForSheet: ClipRow | null;
-  setSelectedClipForSheet: (clip: ClipRow | null) => void;
+  musicUrl: string | null;
+  activeSheetId: string | null;
+  setActiveSheetId: (id: string | null) => void;
   wasPlayingBeforeSheet: boolean;
   setWasPlayingBeforeSheet: (playing: boolean) => void;
-  
-  // Refs
+  selectedClipForSheet: ClipRow | null;
+  setSelectedClipForSheet: (clip: ClipRow | null) => void;
+  sectionClips: SectionClip[];
+  setSectionClips: (clips: SectionClip[]) => void;
   soundRef: React.RefObject<Audio.Sound | null>;
+  
+  // Hooks data
+  clips: ClipRow[];
+  retryClip: (local_id: string) => void;
+  musicTrack: any;
+  isAnalysing: boolean;
+  notes: any[];
+  createNote: (note: any) => void;
+  deleteNote: (id: string) => void;
+  inboxCount: number;
+  refreshCount: () => Promise<void>;
   
   // Handlers
   handlePlayPause: () => void;
@@ -52,23 +61,9 @@ export interface SessionContextValue {
   handleLoopToggle: () => void;
   
   // Sheet functions
-  openSheet: (sheet: string) => void;
+  openSheet: (id: string) => void;
   closeSheet: () => void;
   openClipSheet: (clip: ClipRow) => void;
-  
-  // Derived values
-  clips: ClipRow[];
-  musicTrack: any;
-  notes: any[];
-  inboxCount: number;
-  sectionClips: SectionClip[];
-  
-  // Additional context values
-  retryClip: (clipId: string) => void;
-  isAnalysing: boolean;
-  createNote: (content: string, position?: { x: number; y: number }) => void;
-  deleteNote: (noteId: string) => void;
-  refreshCount: () => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -77,18 +72,18 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   // State
   const [sessionName, setSessionName] = useState('Session');
   const [activeTab, setActiveTab] = useState<SessionContextValue['activeTab']>('workbench');
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
-  const [playheadMs, setPlayheadMs] = useState(0);
-  const [durationMs, setDurationMs] = useState(0);
-  const [musicUrl, setMusicUrl] = useState<string | null>(null);
-  const [loopRegion, setLoopRegion] = useState<{ start: number; end: number } | null>(null);
-  const [loopOpenAt, setLoopOpenAt] = useState<number | null>(null);
   const [activeSection, setActiveSection] = useState('Section');
   const [activeMoment, setActiveMoment] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playheadMs, setPlayheadMs] = useState(0);
+  const [durationMs, setDurationMs] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [loopRegion, setLoopRegion] = useState<{ start: number; end: number } | null>(null);
+  const [loopOpenAt, setLoopOpenAt] = useState<number | null>(null);
+  const [musicUrl, setMusicUrl] = useState<string | null>(null);
   const [activeSheetId, setActiveSheetId] = useState<string | null>(null);
-  const [selectedClipForSheet, setSelectedClipForSheet] = useState<ClipRow | null>(null);
   const [wasPlayingBeforeSheet, setWasPlayingBeforeSheet] = useState(false);
+  const [selectedClipForSheet, setSelectedClipForSheet] = useState<ClipRow | null>(null);
   const [sectionClips, setSectionClips] = useState<SectionClip[]>([]);
   
   // Refs
@@ -143,7 +138,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     }
     supabase.storage
       .from('audio')
-      .createSignedUrl(path, 60 * 60 * 24) // 24h expiry
+      .createSignedUrl(path, 86400)
       .then(({ data, error }) => {
         if (error) {
           setMusicUrl(null);
@@ -177,7 +172,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
             shouldPlay: isPlaying,
             volume: 1.0,
             rate: playbackSpeed,
-            isLooping: false,
+            isLooping: !!loopRegion,
           }
         );
 
@@ -191,13 +186,18 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
             setPlayheadMs(position);
             setDurationMs(duration);
             
+            if (loopRegion) {
+              if (position >= loopRegion.end) {
+                sound.setPositionAsync(loopRegion.start);
+              }
+            }
+            
             if (status.didJustFinish && !loopRegion) {
               setIsPlaying(false);
             }
           }
         });
 
-        // Set initial playback speed
         await sound.setRateAsync(playbackSpeed, true);
       } catch (error) {
         console.error('Error loading audio:', error);
@@ -207,7 +207,6 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     loadAudio();
   }, [musicUrl]);
 
-  // Update playback speed
   useEffect(() => {
     if (soundRef.current) {
       soundRef.current.setRateAsync(playbackSpeed, true);
@@ -220,8 +219,10 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     
     if (isPlaying) {
       soundRef.current.pauseAsync();
+      setIsPlaying(false);
     } else {
       soundRef.current.playAsync();
+      setIsPlaying(true);
     }
   }, [isPlaying]);
 
@@ -243,24 +244,23 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
 
   const handleLoopToggle = useCallback(() => {
     if (loopOpenAt === null) {
-      // First tap: set loop start at current position
       setLoopOpenAt(playheadMs);
     } else {
-      // Second tap: set loop region
       const start = Math.min(loopOpenAt, playheadMs);
       const end = Math.max(loopOpenAt, playheadMs);
       setLoopRegion({ start, end });
       setLoopOpenAt(null);
       
       if (soundRef.current) {
-        soundRef.current.setPositionAsync(loopRegion.start);
+        soundRef.current.setPositionAsync(start);
+        soundRef.current.setIsLoopingAsync(true);
       }
     }
   }, [loopOpenAt, playheadMs]);
 
   // Sheet functions
-  const openSheet = useCallback((sheet: string) => {
-    setActiveSheetId(sheet);
+  const openSheet = useCallback((id: string) => {
+    setActiveSheetId(id);
   }, []);
 
   const closeSheet = useCallback(() => {
@@ -268,51 +268,63 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setSelectedClipForSheet(null);
     
     if (wasPlayingBeforeSheet) {
-      soundRef.current?.playAsync();
+      handlePlayPause();
+      setWasPlayingBeforeSheet(false);
     }
-  }, [wasPlayingBeforeSheet]);
+  }, [wasPlayingBeforeSheet, handlePlayPause]);
 
   const openClipSheet = useCallback((clip: ClipRow) => {
     setWasPlayingBeforeSheet(isPlaying);
-    soundRef.current?.pauseAsync();
+    if (isPlaying) {
+      handlePlayPause();
+    }
     setSelectedClipForSheet(clip);
     openSheet('clip-viewer');
-  }, [isPlaying, openSheet]);
+  }, [isPlaying, handlePlayPause, openSheet]);
 
   const value: SessionContextValue = {
-    // State
     sessionId,
     sessionName,
     setSessionName,
     activeTab,
     setActiveTab,
+    activeSection,
+    setActiveSection,
     activeMoment,
     setActiveMoment,
-    activeSheetId,
-    setActiveSheetId,
     isPlaying,
     setIsPlaying,
-    playbackSpeed,
-    setPlaybackSpeed,
     playheadMs,
     setPlayheadMs,
     durationMs,
     setDurationMs,
-    musicUrl,
-    setMusicUrl,
+    playbackSpeed,
+    setPlaybackSpeed,
     loopRegion,
     setLoopRegion,
     loopOpenAt,
     setLoopOpenAt,
-    activeSection,
-    setActiveSection,
-    selectedClipForSheet,
-    setSelectedClipForSheet,
+    musicUrl,
+    activeSheetId,
+    setActiveSheetId,
     wasPlayingBeforeSheet,
     setWasPlayingBeforeSheet,
-    
-    // Refs
+    selectedClipForSheet,
+    setSelectedClipForSheet,
+    sectionClips,
+    setSectionClips,
     soundRef,
+    
+    // Hooks data
+    clips,
+    retryClip,
+    musicTrack,
+    isAnalysing,
+    notes,
+    createNote,
+    deleteNote,
+    inboxCount,
+    refreshCount,
     
     // Handlers
     handlePlayPause,
@@ -324,20 +336,6 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     openSheet,
     closeSheet,
     openClipSheet,
-    
-    // Derived values
-    clips,
-    musicTrack,
-    notes,
-    inboxCount,
-    sectionClips,
-    
-    // Additional context values
-    retryClip,
-    isAnalysing,
-    createNote,
-    deleteNote,
-    refreshCount,
   };
 
   return (
