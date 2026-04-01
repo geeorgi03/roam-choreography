@@ -3,6 +3,7 @@ import { supabase } from '../supabase';
 import {
   getClipsForSession,
   updateClipFromServer,
+  upsertClipFromServer,
   type ClipRow,
 } from '../database';
 import {
@@ -27,6 +28,95 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
   const retryClip = useCallback((local_id: string) => {
     uploadQueue.retryClip(local_id);
   }, []);
+
+  const mergeServerClipRow = useCallback(
+    (prev: ClipRow[], row: Record<string, unknown>) => {
+      if (!sessionId) return prev;
+
+      const persistedLocalId = upsertClipFromServer({
+        local_id: (row?.local_id as string | null | undefined) ?? null,
+        server_id: (row?.id as string | null | undefined) ?? null,
+        session_id: sessionId,
+        label: (row?.label as string | null | undefined) ?? null,
+        recorded_at: (row?.recorded_at as string | null | undefined) ?? null,
+        upload_status: (row?.upload_status as string | null | undefined) ?? null,
+        mux_playback_id: (row?.mux_playback_id as string | null | undefined) ?? null,
+        move_name: (row?.move_name as string | null | undefined) ?? null,
+        style: (row?.style as string | null | undefined) ?? null,
+        energy: (row?.energy as string | null | undefined) ?? null,
+        difficulty: (row?.difficulty as string | null | undefined) ?? null,
+        bpm: (row?.bpm as number | null | undefined) ?? null,
+        notes: (row?.notes as string | null | undefined) ?? null,
+      });
+
+      const server_id = (row?.id as string | null | undefined) ?? null;
+      const local_id = (row?.local_id as string | null | undefined) ?? null;
+      const idx = prev.findIndex(
+        (c) =>
+          c.local_id === persistedLocalId ||
+          (Boolean(server_id) && c.server_id === server_id) ||
+          (Boolean(local_id) && c.local_id === local_id)
+      );
+
+      const nextClip: ClipRow = {
+        local_id: persistedLocalId,
+        server_id: server_id ?? null,
+        session_id: sessionId,
+        label: (row?.label as string | null | undefined) ?? null,
+        recorded_at: (row?.recorded_at as string | null | undefined) ?? null,
+        file_uri: null,
+        upload_status: (row?.upload_status as string | undefined) ?? 'ready',
+        upload_progress:
+          typeof row?.upload_progress === 'number'
+            ? (row.upload_progress as number)
+            : (row?.upload_status as string | undefined) === 'ready'
+              ? 100
+              : 0,
+        mux_playback_id: (row?.mux_playback_id as string | null | undefined) ?? null,
+        move_name: (row?.move_name as string | null | undefined) ?? null,
+        style: (row?.style as string | null | undefined) ?? null,
+        energy: (row?.energy as string | null | undefined) ?? null,
+        difficulty: (row?.difficulty as string | null | undefined) ?? null,
+        bpm: (row?.bpm as number | null | undefined) ?? null,
+        notes: (row?.notes as string | null | undefined) ?? null,
+      };
+
+      if (idx < 0) {
+        return [nextClip, ...prev].sort(
+          (a, b) => new Date(b.recorded_at ?? 0).getTime() - new Date(a.recorded_at ?? 0).getTime()
+        );
+      }
+
+      const merged: ClipRow = {
+        ...prev[idx],
+        local_id: nextClip.local_id,
+        server_id: nextClip.server_id ?? prev[idx].server_id,
+        session_id: nextClip.session_id ?? prev[idx].session_id,
+        label: nextClip.label ?? prev[idx].label,
+        recorded_at: nextClip.recorded_at ?? prev[idx].recorded_at,
+        upload_status: nextClip.upload_status ?? prev[idx].upload_status,
+        upload_progress:
+          nextClip.upload_status === 'ready'
+            ? 100
+            : typeof row?.upload_progress === 'number'
+              ? (row.upload_progress as number)
+              : prev[idx].upload_progress,
+        mux_playback_id: nextClip.mux_playback_id ?? prev[idx].mux_playback_id,
+        move_name: nextClip.move_name ?? prev[idx].move_name,
+        style: nextClip.style ?? prev[idx].style,
+        energy: nextClip.energy ?? prev[idx].energy,
+        difficulty: nextClip.difficulty ?? prev[idx].difficulty,
+        bpm: nextClip.bpm ?? prev[idx].bpm,
+        notes: nextClip.notes ?? prev[idx].notes,
+      };
+      const next = [...prev];
+      next[idx] = merged;
+      return next.sort(
+        (a, b) => new Date(b.recorded_at ?? 0).getTime() - new Date(a.recorded_at ?? 0).getTime()
+      );
+    },
+    [sessionId]
+  );
 
   /** Update in-memory clip state for local upload progress/status (so cards show live %) */
   const updateLocalClip = useCallback(
@@ -65,35 +155,20 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
           if (!mounted) return;
           const row = payload.new as Record<string, unknown>;
           const local_id = row?.local_id as string | undefined;
-          const server_id = row?.id as string | undefined;
-          const mux_playback_id = row?.mux_playback_id as string | null | undefined;
-          setClips((prev) => {
-            const idx = prev.findIndex((c) => c.local_id === local_id);
-            if (idx >= 0) {
-              const next = [...prev];
-              next[idx] = {
-                ...next[idx],
-                server_id: server_id ?? next[idx].server_id,
-                mux_playback_id: mux_playback_id ?? next[idx].mux_playback_id,
-                upload_status: (row?.upload_status as string) ?? next[idx].upload_status,
-              };
-              if (local_id) {
-                updateClipFromServer(local_id, {
-                  server_id: server_id ?? undefined,
-                  mux_playback_id: mux_playback_id ?? undefined,
-                  upload_status: (row?.upload_status as string) ?? undefined,
-                  move_name: (row?.move_name as string | null) ?? undefined,
-                  style: (row?.style as string | null) ?? undefined,
-                  energy: (row?.energy as string | null) ?? undefined,
-                  difficulty: (row?.difficulty as string | null) ?? undefined,
-                  bpm: (row?.bpm as number | null) ?? undefined,
-                  notes: (row?.notes as string | null) ?? undefined,
-                });
-              }
-              return next;
-            }
-            return prev;
-          });
+          if (local_id) {
+            updateClipFromServer(local_id, {
+              server_id: (row?.id as string | undefined) ?? undefined,
+              mux_playback_id: (row?.mux_playback_id as string | null | undefined) ?? undefined,
+              upload_status: (row?.upload_status as string | undefined) ?? undefined,
+              move_name: (row?.move_name as string | null | undefined) ?? undefined,
+              style: (row?.style as string | null | undefined) ?? undefined,
+              energy: (row?.energy as string | null | undefined) ?? undefined,
+              difficulty: (row?.difficulty as string | null | undefined) ?? undefined,
+              bpm: (row?.bpm as number | null | undefined) ?? undefined,
+              notes: (row?.notes as string | null | undefined) ?? undefined,
+            });
+          }
+          setClips((prev) => mergeServerClipRow(prev, row));
         }
       )
       .on(
@@ -107,45 +182,21 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
         (payload) => {
           if (!mounted) return;
           const row = payload.new as Record<string, unknown>;
-          const server_id = row?.id as string | undefined;
           const local_id = row?.local_id as string | undefined;
-          const mux_playback_id = row?.mux_playback_id as string | null | undefined;
-          const upload_status = row?.upload_status as string | undefined;
-          setClips((prev) => {
-            const idx = prev.findIndex(
-              (c) => c.server_id === server_id || c.local_id === local_id
-            );
-            if (idx >= 0) {
-              const next = [...prev];
-              next[idx] = {
-                ...next[idx],
-                server_id: server_id ?? next[idx].server_id,
-                mux_playback_id: mux_playback_id ?? next[idx].mux_playback_id,
-                upload_status: upload_status ?? next[idx].upload_status,
-                move_name: (row?.move_name as string | null) ?? next[idx].move_name,
-                style: (row?.style as string | null) ?? next[idx].style,
-                energy: (row?.energy as string | null) ?? next[idx].energy,
-                difficulty: (row?.difficulty as string | null) ?? next[idx].difficulty,
-                bpm: (row?.bpm as number | null) ?? next[idx].bpm,
-                notes: (row?.notes as string | null) ?? next[idx].notes,
-              };
-              if (local_id) {
-                updateClipFromServer(local_id, {
-                  server_id: server_id ?? undefined,
-                  mux_playback_id: mux_playback_id ?? undefined,
-                  upload_status: upload_status ?? undefined,
-                  move_name: (row?.move_name as string | null) ?? undefined,
-                  style: (row?.style as string | null) ?? undefined,
-                  energy: (row?.energy as string | null) ?? undefined,
-                  difficulty: (row?.difficulty as string | null) ?? undefined,
-                  bpm: (row?.bpm as number | null) ?? undefined,
-                  notes: (row?.notes as string | null) ?? undefined,
-                });
-              }
-              return next;
-            }
-            return prev;
-          });
+          if (local_id) {
+            updateClipFromServer(local_id, {
+              server_id: (row?.id as string | undefined) ?? undefined,
+              mux_playback_id: (row?.mux_playback_id as string | null | undefined) ?? undefined,
+              upload_status: (row?.upload_status as string | undefined) ?? undefined,
+              move_name: (row?.move_name as string | null | undefined) ?? undefined,
+              style: (row?.style as string | null | undefined) ?? undefined,
+              energy: (row?.energy as string | null | undefined) ?? undefined,
+              difficulty: (row?.difficulty as string | null | undefined) ?? undefined,
+              bpm: (row?.bpm as number | null | undefined) ?? undefined,
+              notes: (row?.notes as string | null | undefined) ?? undefined,
+            });
+          }
+          setClips((prev) => mergeServerClipRow(prev, row));
         }
       )
       .subscribe();
@@ -174,7 +225,7 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
       mounted = false;
       supabase?.removeChannel(channel);
     };
-  }, [sessionId]);
+  }, [sessionId, mergeServerClipRow]);
 
   return { clips, refresh, retryClip, updateLocalClip };
 }

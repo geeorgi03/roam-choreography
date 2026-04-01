@@ -156,6 +156,94 @@ export interface ClipTags {
   notes?: string | null;
 }
 
+export interface ServerClipSnapshot {
+  local_id?: string | null;
+  server_id?: string | null;
+  session_id: string;
+  label?: string | null;
+  recorded_at?: string | null;
+  file_uri?: string | null;
+  upload_status?: string | null;
+  upload_progress?: number | null;
+  mux_playback_id?: string | null;
+  move_name?: string | null;
+  style?: string | null;
+  energy?: string | null;
+  difficulty?: string | null;
+  bpm?: number | null;
+  notes?: string | null;
+}
+
+function makeRemoteLocalId(session_id: string, server_id?: string | null): string {
+  if (server_id) return `remote:${server_id}`;
+  return `remote:${session_id}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Upsert a server clip into local SQLite storage.
+ * Ensures clips recorded by other participants are queryable through getClipsForSession().
+ */
+export function upsertClipFromServer(row: ServerClipSnapshot): string {
+  const providedLocalId = row.local_id?.trim() || null;
+  const serverId = row.server_id?.trim() || null;
+
+  let resolvedLocalId = providedLocalId;
+  if (serverId) {
+    const byServer = db.getAllSync<{ local_id: string }>(
+      'SELECT local_id FROM clips WHERE server_id = ? LIMIT 1',
+      [serverId]
+    )[0]?.local_id;
+    if (byServer) {
+      resolvedLocalId = byServer;
+    }
+  }
+  if (!resolvedLocalId) {
+    resolvedLocalId = makeRemoteLocalId(row.session_id, serverId);
+  }
+
+  db.runSync(
+    `INSERT INTO clips (
+      local_id, server_id, session_id, label, recorded_at, file_uri,
+      upload_status, upload_progress, mux_playback_id,
+      move_name, style, energy, difficulty, bpm, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(local_id) DO UPDATE SET
+      server_id = COALESCE(excluded.server_id, clips.server_id),
+      session_id = COALESCE(excluded.session_id, clips.session_id),
+      label = COALESCE(excluded.label, clips.label),
+      recorded_at = COALESCE(excluded.recorded_at, clips.recorded_at),
+      file_uri = COALESCE(excluded.file_uri, clips.file_uri),
+      upload_status = COALESCE(excluded.upload_status, clips.upload_status),
+      upload_progress = COALESCE(excluded.upload_progress, clips.upload_progress),
+      mux_playback_id = COALESCE(excluded.mux_playback_id, clips.mux_playback_id),
+      move_name = COALESCE(excluded.move_name, clips.move_name),
+      style = COALESCE(excluded.style, clips.style),
+      energy = COALESCE(excluded.energy, clips.energy),
+      difficulty = COALESCE(excluded.difficulty, clips.difficulty),
+      bpm = COALESCE(excluded.bpm, clips.bpm),
+      notes = COALESCE(excluded.notes, clips.notes)`,
+    [
+      resolvedLocalId,
+      serverId,
+      row.session_id,
+      row.label ?? null,
+      row.recorded_at ?? null,
+      row.file_uri ?? null,
+      row.upload_status ?? null,
+      row.upload_progress ?? null,
+      row.mux_playback_id ?? null,
+      row.move_name ?? null,
+      row.style ?? null,
+      row.energy ?? null,
+      row.difficulty ?? null,
+      row.bpm ?? null,
+      row.notes ?? null,
+    ]
+  );
+
+  return resolvedLocalId;
+}
+
 export function insertClip(row: InsertClipRow): void {
   db.runSync(
     `INSERT INTO clips (

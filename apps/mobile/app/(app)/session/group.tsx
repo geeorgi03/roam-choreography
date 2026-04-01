@@ -7,22 +7,34 @@ const colors = theme.light;
 
 export default function GroupRedirect() {
   const router = useRouter();
-  const { sessionId, id } = useLocalSearchParams<{ sessionId?: string; id?: string }>();
+  const { sessionId, id, share_token, token } = useLocalSearchParams<{
+    sessionId?: string;
+    id?: string;
+    share_token?: string;
+    token?: string;
+  }>();
   const resolvedSessionId =
     typeof sessionId === 'string' && sessionId.length > 0
       ? sessionId
       : typeof id === 'string' && id.length > 0
         ? id
         : null;
+  const resolvedShareToken = typeof share_token === 'string' && share_token.length > 0 ? share_token : undefined;
+  const resolvedToken = typeof token === 'string' && token.length > 0 ? token : undefined;
 
   useEffect(() => {
     if (resolvedSessionId) {
       router.replace({
         pathname: '../[id]',
-        params: { id: resolvedSessionId, tab: 'group' },
+        params: {
+          id: resolvedSessionId,
+          tab: 'group',
+          ...(resolvedShareToken ? { share_token: resolvedShareToken } : {}),
+          ...(resolvedToken ? { token: resolvedToken } : {}),
+        },
       });
     }
-  }, [resolvedSessionId, router]);
+  }, [resolvedSessionId, resolvedShareToken, resolvedToken, router]);
 
   if (!resolvedSessionId) {
     return null;

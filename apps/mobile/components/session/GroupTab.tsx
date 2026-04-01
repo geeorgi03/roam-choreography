@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Image, Animated } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useSession } from '../../lib/hooks/useSession';
+import { useGroupRealtime } from '../../lib/hooks/useGroupRealtime';
 import { theme } from '../../lib/theme';
 
 const colors = theme.light;
@@ -22,24 +24,55 @@ interface Moment {
 
 interface Dancer {
   id: string;
+  userId: string;
   name: string;
   color: string;
   online: boolean;
+  positionX: number | null;
+  positionY: number | null;
+  positionNote: string | null;
 }
 
-const DANCER_POSITIONS: Record<string, { top: number; left: number }> = {
-  A: { top: 30, left: 20 },
-  B: { top: 45, left: 40 },
-  C: { top: 60, left: 60 },
-  D: { top: 75, left: 80 },
-};
+const DANCER_POSITION_FALLBACKS: Array<{ top: number; left: number }> = [
+  { top: 30, left: 20 },
+  { top: 45, left: 40 },
+  { top: 60, left: 60 },
+  { top: 75, left: 80 },
+  { top: 35, left: 70 },
+  { top: 68, left: 25 },
+  { top: 52, left: 82 },
+  { top: 24, left: 50 },
+];
 
-function getDancerPosition(dancerId: string): { top: number; left: number } {
-  return DANCER_POSITIONS[dancerId] ?? { top: 30, left: 20 };
+function isOnline(lastSeenAt: string | null): boolean {
+  if (!lastSeenAt) return false;
+  const deltaMs = Date.now() - new Date(lastSeenAt).getTime();
+  return Number.isFinite(deltaMs) && deltaMs <= 60_000;
+}
+
+function getDancerPosition(dancer: Dancer, fallbackIndex: number): { top: number; left: number } {
+  if (typeof dancer.positionX === 'number' && typeof dancer.positionY === 'number') {
+    return { left: dancer.positionX, top: dancer.positionY };
+  }
+  return DANCER_POSITION_FALLBACKS[fallbackIndex % DANCER_POSITION_FALLBACKS.length] ?? { top: 30, left: 20 };
+}
+
+function getDancerBadge(dancer: Dancer, fallbackIndex: number): string {
+  const initial = dancer.name.trim().charAt(0).toUpperCase();
+  if (initial) return initial;
+  return String(fallbackIndex + 1);
 }
 
 export function GroupTab() {
   const router = useRouter();
+  const { share_token, token } = useLocalSearchParams<{ share_token?: string; token?: string }>();
+  const inviteShareToken =
+    typeof share_token === 'string' && share_token.length > 0
+      ? share_token
+      : typeof token === 'string' && token.length > 0
+        ? token
+        : null;
+  const { session } = useSession();
   const {
     sessionId,
     activeSection,
@@ -47,39 +80,53 @@ export function GroupTab() {
     activeMoment,
     setActiveMoment,
     clips,
-    sectionClips,
     loopRegion,
     openClipSheet,
     musicTrack,
   } = useSessionContext();
-  
-  // Role determination
-  const [isChoreographer, setIsChoreographer] = useState(true);
-  
-  // Shared state
+  const { participants, myParticipant, isChoreographer, broadcasts, sendBroadcast, updatePosition } = useGroupRealtime(
+    sessionId,
+    session?.access_token,
+    inviteShareToken
+  );
+
   const [moments] = useState<Moment[]>([{ id: '1', label: 'moment 1' }]);
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
-  
-  // Choreographer view state
   const [broadcastText, setBroadcastText] = useState('');
-  
-  // Dancer view state
-  const [positionNote, setPositionNote] = useState('awaiting position note from choreographer');
-  const [choreographerNotes, setChoreographerNotes] = useState([
-    'Focus on the opening formation',
-    'Maintain eye contact with center',
-  ]);
-  
-  // Dancers data
-  const [dancers] = useState<Dancer[]>([
-    { id: 'A', name: 'Alex', color: colors.mine, online: true },
-    { id: 'B', name: 'Blake', color: colors.active, online: true },
-    { id: 'C', name: 'Casey', color: '#e67c5c', online: false },
-    { id: 'D', name: 'Drew', color: '#4a90e2', online: true },
-  ]);
+  const [presenceTick, setPresenceTick] = useState(0);
+  const pulseValuesRef = useRef<Record<string, Animated.Value>>({});
+  const knownClipIdsRef = useRef<Set<string>>(new Set());
 
-  // Get sections from musicTrack or use placeholders
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPresenceTick((tick) => tick + 1);
+    }, 10_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const dancers = useMemo<Dancer[]>(
+    () =>
+      participants.map((participant) => ({
+        id: participant.id,
+        userId: participant.user_id,
+        name: participant.display_name,
+        color: participant.color,
+        online: isOnline(participant.last_seen_at),
+        positionX: participant.position_x,
+        positionY: participant.position_y,
+        positionNote: participant.position_note,
+      })),
+    [participants, presenceTick]
+  );
+
+  const choreographerNotes = useMemo(() => broadcasts.map((b) => b.message), [broadcasts]);
+  const myDancer = useMemo(
+    () => dancers.find((dancer) => dancer.id === myParticipant?.id) ?? null,
+    [dancers, myParticipant?.id]
+  );
+  const positionNote = myDancer?.positionNote?.trim() || 'awaiting position note from choreographer';
+
   const sections = musicTrack?.sections || [
     { label: 'INTRO' },
     { label: 'VERSE' },
@@ -88,21 +135,13 @@ export function GroupTab() {
     { label: 'OUTRO' },
   ];
 
-  const handleMomentPress = (momentId: string) => {
-    setActiveMoment(momentId);
-  };
+  const handleMomentPress = (momentId: string) => setActiveMoment(momentId);
+  const handleMomentLongPress = (momentId: string) => setRenamingMomentId(momentId);
+  const handleRenameMoment = () => setRenamingMomentId(null);
 
-  const handleMomentLongPress = (momentId: string) => {
-    setRenamingMomentId(momentId);
-  };
-
-  const handleRenameMoment = (newLabel: string) => {
-    if (renamingMomentId) {
-      setRenamingMomentId(null);
-    }
-  };
-
-  const handleBroadcast = () => {
+  const handleBroadcast = async () => {
+    if (!broadcastText.trim()) return;
+    await sendBroadcast(broadcastText);
     setBroadcastText('');
   };
 
@@ -113,110 +152,117 @@ export function GroupTab() {
     });
   };
 
+  const handleFloorCanvasPress = useCallback(
+    (event: { nativeEvent: { locationX: number; locationY: number } }) => {
+      if (!myParticipant) return;
+      const { width, height } = canvasSize;
+      if (!width || !height) return;
+
+      const normalizedX = Math.max(0, Math.min(100, (event.nativeEvent.locationX / width) * 100));
+      const normalizedY = Math.max(0, Math.min(100, (event.nativeEvent.locationY / height) * 100));
+      const note = `${Math.round(normalizedX)}%, ${Math.round(normalizedY)}%`;
+      void updatePosition(normalizedX, normalizedY, note);
+    },
+    [canvasSize, myParticipant, updatePosition]
+  );
+
   const renderGridLines = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
-    
     const horizontalLines = [];
     const verticalLines = [];
-    
-    // Horizontal lines every 22dp
+
     for (let y = 22; y < canvasSize.height; y += 22) {
       horizontalLines.push(
-        <View
-          key={`h-${y}`}
-          style={[
-            styles.gridLine,
-            styles.horizontalGridLine,
-            { top: y, width: canvasSize.width }
-          ]}
-        />
+        <View key={`h-${y}`} style={[styles.gridLine, styles.horizontalGridLine, { top: y, width: canvasSize.width }]} />
       );
     }
-    
-    // Vertical lines every 22dp
+
     for (let x = 22; x < canvasSize.width; x += 22) {
       verticalLines.push(
-        <View
-          key={`v-${x}`}
-          style={[
-            styles.gridLine,
-            styles.verticalGridLine,
-            { left: x, height: canvasSize.height }
-          ]}
-        />
+        <View key={`v-${x}`} style={[styles.gridLine, styles.verticalGridLine, { left: x, height: canvasSize.height }]} />
       );
     }
-    
+
     return [...horizontalLines, ...verticalLines];
   };
 
   const renderWaveformBars = () => {
     const heights = [12, 24, 18, 30, 16, 28, 20, 26, 14, 22, 18, 25];
     return heights.map((height, index) => (
-      <View
-        key={index}
-        style={[
-          styles.waveformBar,
-          { height, backgroundColor: colors.muted }
-        ]}
-      />
+      <View key={index} style={[styles.waveformBar, { height, backgroundColor: colors.muted }]} />
     ));
   };
 
+  useEffect(() => {
+    for (const dancer of dancers) {
+      if (!pulseValuesRef.current[dancer.id]) {
+        pulseValuesRef.current[dancer.id] = new Animated.Value(1);
+      }
+    }
+  }, [dancers]);
+
+  useEffect(() => {
+    const known = knownClipIdsRef.current;
+    if (known.size === 0) {
+      for (const clip of clips) known.add(clip.local_id);
+      return;
+    }
+
+    for (const clip of clips) {
+      if (known.has(clip.local_id)) continue;
+      known.add(clip.local_id);
+
+      const clipAny = clip as unknown as {
+        user_id?: string | null;
+        dancer_color?: string | null;
+        color?: string | null;
+      };
+      const matched =
+        dancers.find((dancer) => dancer.userId === clipAny.user_id) ??
+        dancers.find((dancer) => Boolean(clipAny.dancer_color) && dancer.color.toLowerCase() === String(clipAny.dancer_color).toLowerCase()) ??
+        dancers.find((dancer) => Boolean(clipAny.color) && dancer.color.toLowerCase() === String(clipAny.color).toLowerCase());
+      if (!matched) continue;
+
+      const pulse = pulseValuesRef.current[matched.id] ?? new Animated.Value(1);
+      pulseValuesRef.current[matched.id] = pulse;
+      pulse.setValue(1);
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.25, duration: 130, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 180, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [clips, dancers]);
+
   if (isChoreographer) {
-    // Choreographer view
     return (
       <View style={styles.container}>
-        {/* Dev-only toggle */}
-        <TouchableOpacity
-          style={styles.viewToggle}
-          onPress={() => setIsChoreographer(false)}
-        >
-          <Text style={styles.viewToggleText}>Switch view</Text>
-        </TouchableOpacity>
-
-        {/* Left panel */}
         <View style={styles.leftPanel}>
-          {/* Section strip */}
-          <ScrollView 
-            horizontal 
-            style={styles.sectionStrip}
-            showsHorizontalScrollIndicator={false}
-          >
+          <ScrollView horizontal style={styles.sectionStrip} showsHorizontalScrollIndicator={false}>
             {sections.map((section) => (
               <TouchableOpacity
                 key={section.label}
-                style={[
-                  styles.sectionChip,
-                  activeSection === section.label && styles.sectionChipActive
-                ]}
+                style={[styles.sectionChip, activeSection === section.label && styles.sectionChipActive]}
                 onPress={() => setActiveSection(section.label)}
               >
-                <Text style={[
-                  styles.sectionChipText,
-                  activeSection === section.label && styles.sectionChipTextActive
-                ]}>
+                <Text style={[styles.sectionChipText, activeSection === section.label && styles.sectionChipTextActive]}>
                   {section.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          {/* Floor canvas */}
-          <View 
+          <View
             style={styles.floorCanvas}
-            onLayout={(e) => setCanvasSize({
-              width: e.nativeEvent.layout.width,
-              height: e.nativeEvent.layout.height
-            })}
+            onLayout={(e) => setCanvasSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+            onTouchEnd={handleFloorCanvasPress}
           >
             {renderGridLines()}
-            
-            {/* Dancer dots */}
-            {dancers.map((dancer) => {
-              const position = getDancerPosition(dancer.id);
+            {dancers.map((dancer, index) => {
+              const position = getDancerPosition(dancer, index);
+              const pulse = pulseValuesRef.current[dancer.id] ?? new Animated.Value(1);
+              pulseValuesRef.current[dancer.id] = pulse;
               return (
-                <View
+                <Animated.View
                   key={dancer.id}
                   style={[
                     styles.dancerDot,
@@ -224,32 +270,23 @@ export function GroupTab() {
                       backgroundColor: dancer.color,
                       top: `${position.top}%`,
                       left: `${position.left}%`,
-                      opacity: dancer.online ? 1 : 0.3,
-                    }
+                      opacity: Animated.multiply(pulse, dancer.online ? 1 : 0.3),
+                    },
                   ]}
                 >
-                  <Text style={styles.dancerInitial}>{dancer.id}</Text>
-                </View>
+                  <Text style={styles.dancerInitial}>{getDancerBadge(dancer, index)}</Text>
+                </Animated.View>
               );
             })}
-            
             <Text style={styles.backstageLabel}>backstage</Text>
             <Text style={styles.audienceLabel}>audience</Text>
           </View>
 
-          {/* Moment strip */}
-          <ScrollView 
-            horizontal 
-            style={styles.momentStrip}
-            showsHorizontalScrollIndicator={false}
-          >
+          <ScrollView horizontal style={styles.momentStrip} showsHorizontalScrollIndicator={false}>
             {moments.map((moment) => (
               <TouchableOpacity
                 key={moment.id}
-                style={[
-                  styles.momentChip,
-                  activeMoment === moment.id && styles.momentChipActive
-                ]}
+                style={[styles.momentChip, activeMoment === moment.id && styles.momentChipActive]}
                 onPress={() => handleMomentPress(moment.id)}
                 onLongPress={() => handleMomentLongPress(moment.id)}
               >
@@ -257,15 +294,12 @@ export function GroupTab() {
                   <TextInput
                     style={styles.renameInput}
                     defaultValue={moment.label}
-                    onBlur={(e) => handleRenameMoment(e.nativeEvent.text)}
-                    onSubmitEditing={(e) => handleRenameMoment(e.nativeEvent.text)}
+                    onBlur={handleRenameMoment}
+                    onSubmitEditing={handleRenameMoment}
                     autoFocus
                   />
                 ) : (
-                  <Text style={[
-                    styles.momentChipText,
-                    activeMoment === moment.id && styles.momentChipTextActive
-                  ]}>
+                  <Text style={[styles.momentChipText, activeMoment === moment.id && styles.momentChipTextActive]}>
                     {moment.label}
                   </Text>
                 )}
@@ -274,60 +308,36 @@ export function GroupTab() {
           </ScrollView>
         </View>
 
-        {/* Right panel */}
         <View style={styles.rightPanel}>
-          {/* Mini waveform */}
-          <View style={styles.miniWaveform}>
-            {renderWaveformBars()}
-          </View>
+          <View style={styles.miniWaveform}>{renderWaveformBars()}</View>
+          <Text style={styles.loopStatus}>{loopRegion ? 'loop 1 active' : ''}</Text>
 
-          {/* Loop status */}
-          <Text style={styles.loopStatus}>
-            {loopRegion ? 'loop 1 active' : ''}
-          </Text>
-
-          {/* Dancer roster */}
           <ScrollView showsVerticalScrollIndicator={false} style={styles.roster}>
             {dancers.map((dancer) => (
               <View key={dancer.id} style={styles.rosterRow}>
-                <View style={[
-                  styles.rosterDot,
-                  { backgroundColor: dancer.color, opacity: dancer.online ? 1 : 0.3 }
-                ]} />
+                <View style={[styles.rosterDot, { backgroundColor: dancer.color, opacity: dancer.online ? 1 : 0.3 }]} />
                 <Text style={styles.rosterName}>{dancer.name}</Text>
-                <Text style={styles.rosterStatus}>
-                  {dancer.online ? '● active' : 'offline'}
-                </Text>
+                <Text style={styles.rosterStatus}>{dancer.online ? '● active' : 'offline'}</Text>
               </View>
             ))}
           </ScrollView>
 
-          {/* Broadcast input */}
           <View style={styles.broadcastRow}>
             <TextInput
               style={styles.broadcastInput}
               value={broadcastText}
               onChangeText={setBroadcastText}
-              placeholder="send note to all dancers…"
+              placeholder="send note to all dancers..."
               placeholderTextColor={colors.muted}
               maxLength={60}
             />
-            {broadcastText.length > 0 && (
-              <Text style={styles.charCount}>{broadcastText.length}/60</Text>
-            )}
-            <TouchableOpacity
-              style={styles.broadcastButton}
-              onPress={handleBroadcast}
-            >
+            {broadcastText.length > 0 && <Text style={styles.charCount}>{broadcastText.length}/60</Text>}
+            <TouchableOpacity style={styles.broadcastButton} onPress={handleBroadcast}>
               <Text style={styles.broadcastButtonText}>→ all</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Record FAB */}
-          <TouchableOpacity
-            style={styles.recordFab}
-            onPress={handleRecordPress}
-          >
+          <TouchableOpacity style={styles.recordFab} onPress={handleRecordPress}>
             <View style={styles.recordFabInner} />
           </TouchableOpacity>
         </View>
@@ -335,25 +345,21 @@ export function GroupTab() {
     );
   }
 
-  // Dancer view
   return (
     <View style={styles.dancerContainer}>
-      {/* Floor canvas */}
-      <View 
+      <View
         style={styles.dancerFloorCanvas}
-        onLayout={(e) => setCanvasSize({
-          width: e.nativeEvent.layout.width,
-          height: e.nativeEvent.layout.height
-        })}
+        onLayout={(e) => setCanvasSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
+        onTouchEnd={handleFloorCanvasPress}
       >
         {renderGridLines()}
-        
-        {/* Dancer dots */}
-        {dancers.map((dancer) => {
-          const isSelf = dancer.id === 'A'; // Assume first dancer is self
-          const position = getDancerPosition(dancer.id);
+        {dancers.map((dancer, index) => {
+          const isSelf = dancer.id === myParticipant?.id;
+          const position = getDancerPosition(dancer, index);
+          const pulse = pulseValuesRef.current[dancer.id] ?? new Animated.Value(1);
+          pulseValuesRef.current[dancer.id] = pulse;
           return (
-            <View
+            <Animated.View
               key={dancer.id}
               style={[
                 styles.dancerDot,
@@ -362,38 +368,34 @@ export function GroupTab() {
                   backgroundColor: dancer.color,
                   top: `${position.top}%`,
                   left: `${position.left}%`,
-                }
+                  opacity: Animated.multiply(pulse, dancer.online ? 1 : 0.3),
+                },
               ]}
             >
-              <Text style={styles.dancerInitial}>{dancer.id}</Text>
-            </View>
+              <Text style={styles.dancerInitial}>{getDancerBadge(dancer, index)}</Text>
+            </Animated.View>
           );
         })}
-        
         <Text style={styles.backstageLabel}>backstage</Text>
         <Text style={styles.audienceLabel}>audience</Text>
       </View>
 
-      {/* Position note band */}
       <View style={styles.positionNoteBand}>
         <Text style={styles.positionNoteText}>{positionNote}</Text>
       </View>
 
-      {/* Right panel */}
       <View style={styles.dancerRightPanel}>
-        {/* Choreographer notes */}
         <View style={styles.choreographerNotes}>
           <Text style={styles.choreographerNotesHeader}>CHOREOGRAPHER NOTES</Text>
           <ScrollView showsVerticalScrollIndicator={false}>
             {choreographerNotes.map((note, index) => (
-              <Text key={index} style={styles.choreographerNoteText}>
+              <Text key={`${note}-${index}`} style={styles.choreographerNoteText}>
                 {note}
               </Text>
             ))}
           </ScrollView>
         </View>
 
-        {/* Clips grid */}
         <Text style={styles.clipsGridLabel}>ALL TAKES</Text>
         <FlatList
           data={clips}
@@ -403,35 +405,15 @@ export function GroupTab() {
           contentContainerStyle={{ gap: 8 }}
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={[
-                styles.clipThumb,
-                isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
-              ]}
+              style={[styles.clipThumb, isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine]}
               onPress={() => openClipSheet(item)}
               activeOpacity={0.85}
             >
               {item.mux_playback_id ? (
-                <Image
-                  source={{
-                    uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
-                  }}
-                  style={styles.clipThumbImage}
-                />
+                <Image source={{ uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0` }} style={styles.clipThumbImage} />
               ) : null}
-              <View
-                style={[
-                  styles.clipTypeBadge,
-                  isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.clipTypeBadgeText,
-                    isReferenceClip(item)
-                      ? styles.clipTypeBadgeTextRef
-                      : styles.clipTypeBadgeTextMine,
-                  ]}
-                >
+              <View style={[styles.clipTypeBadge, isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine]}>
+                <Text style={[styles.clipTypeBadgeText, isReferenceClip(item) ? styles.clipTypeBadgeTextRef : styles.clipTypeBadgeTextMine]}>
                   {isReferenceClip(item) ? 'REF' : 'MINE'}
                 </Text>
               </View>
@@ -439,14 +421,10 @@ export function GroupTab() {
           )}
         />
 
-        {/* Record FAB */}
         <View style={styles.dancerFabContainer}>
           <Text style={styles.dancerFabLabel}>record your take</Text>
           <Text style={styles.dancerFabSublabel}>visible to the group</Text>
-          <TouchableOpacity
-            style={styles.recordFab}
-            onPress={handleRecordPress}
-          >
+          <TouchableOpacity style={styles.recordFab} onPress={handleRecordPress}>
             <View style={styles.recordFabInner} />
           </TouchableOpacity>
         </View>
@@ -456,31 +434,8 @@ export function GroupTab() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: colors.ground,
-  },
-  viewToggle: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    zIndex: 100,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: colors.chrome,
-    borderRadius: 4,
-  },
-  viewToggleText: {
-    fontSize: 8,
-    color: colors.muted,
-  },
-  leftPanel: {
-    flex: 0.57,
-    flexDirection: 'column',
-    borderRightWidth: 0.5,
-    borderRightColor: colors.border,
-  },
+  container: { flex: 1, flexDirection: 'row', backgroundColor: colors.ground },
+  leftPanel: { flex: 0.57, flexDirection: 'column', borderRightWidth: 0.5, borderRightColor: colors.border },
   sectionStrip: {
     height: 32,
     backgroundColor: colors.chrome,
@@ -501,70 +456,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sectionChipActive: {
-    borderColor: colors.mine,
-    backgroundColor: colors.mineBg,
-  },
-  sectionChipText: {
-    fontSize: 8,
-    color: colors.muted,
-    fontWeight: '500',
-  },
-  sectionChipTextActive: {
-    color: colors.active,
-  },
-  floorCanvas: {
-    flex: 1,
-    backgroundColor: '#faf8f5',
-    position: 'relative',
-  },
-  gridLine: {
-    position: 'absolute',
-    backgroundColor: '#ede8e0',
-  },
-  horizontalGridLine: {
-    height: 0.5,
-    left: 0,
-  },
-  verticalGridLine: {
-    width: 0.5,
-    top: 0,
-  },
-  backstageLabel: {
-    position: 'absolute',
-    top: 8,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 7,
-    color: colors.inactive,
-    fontFamily: 'JetBrainsMono',
-  },
-  audienceLabel: {
-    position: 'absolute',
-    bottom: 8,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontSize: 7,
-    color: colors.inactive,
-    fontFamily: 'JetBrainsMono',
-  },
-  dancerDot: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 1.5,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dancerInitial: {
-    color: '#fff',
-    fontSize: 7,
-    fontWeight: 'bold',
-  },
+  sectionChipActive: { borderColor: colors.mine, backgroundColor: colors.mineBg },
+  sectionChipText: { fontSize: 8, color: colors.muted, fontWeight: '500' },
+  sectionChipTextActive: { color: colors.active },
+  floorCanvas: { flex: 1, backgroundColor: '#faf8f5', position: 'relative' },
+  gridLine: { position: 'absolute', backgroundColor: '#ede8e0' },
+  horizontalGridLine: { height: 0.5, left: 0 },
+  verticalGridLine: { width: 0.5, top: 0 },
+  backstageLabel: { position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 7, color: colors.inactive, fontFamily: 'JetBrainsMono' },
+  audienceLabel: { position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center', fontSize: 7, color: colors.inactive, fontFamily: 'JetBrainsMono' },
+  dancerDot: { position: 'absolute', width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  dancerInitial: { color: '#fff', fontSize: 7, fontWeight: 'bold' },
   momentStrip: {
     height: 32,
     backgroundColor: colors.chrome,
@@ -585,31 +487,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  momentChipActive: {
-    borderColor: colors.mine,
-    backgroundColor: colors.mineBg,
-  },
-  momentChipText: {
-    fontSize: 8,
-    color: colors.muted,
-    fontWeight: '500',
-  },
-  momentChipTextActive: {
-    color: colors.active,
-  },
-  renameInput: {
-    fontSize: 8,
-    color: colors.active,
-    fontWeight: '500',
-    textAlign: 'center',
-    minWidth: 40,
-  },
-  rightPanel: {
-    flex: 0.43,
-    backgroundColor: colors.chrome,
-    padding: 12,
-    position: 'relative',
-  },
+  momentChipActive: { borderColor: colors.mine, backgroundColor: colors.mineBg },
+  momentChipText: { fontSize: 8, color: colors.muted, fontWeight: '500' },
+  momentChipTextActive: { color: colors.active },
+  renameInput: { fontSize: 8, color: colors.active, fontWeight: '500', textAlign: 'center', minWidth: 40 },
+  rightPanel: { flex: 0.43, backgroundColor: colors.chrome, padding: 12, position: 'relative' },
   miniWaveform: {
     height: 44,
     flexDirection: 'row',
@@ -622,20 +504,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     marginBottom: 8,
   },
-  waveformBar: {
-    width: 2,
-    borderRadius: 1,
-  },
-  loopStatus: {
-    fontSize: 9,
-    color: colors.muted,
-    marginBottom: 12,
-    minHeight: 12,
-  },
-  roster: {
-    flex: 1,
-    marginBottom: 12,
-  },
+  waveformBar: { width: 2, borderRadius: 1 },
+  loopStatus: { fontSize: 9, color: colors.muted, marginBottom: 12, minHeight: 12 },
+  roster: { flex: 1, marginBottom: 12 },
   rosterRow: {
     height: 36,
     borderRadius: 6,
@@ -647,200 +518,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     marginBottom: 6,
   },
-  rosterDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-  },
-  rosterName: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.active,
-  },
-  rosterStatus: {
-    fontSize: 11,
-    color: colors.muted,
-  },
-  broadcastRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 80, // Space for FAB
-  },
-  broadcastInput: {
-    flex: 1,
-    fontSize: 11,
-    color: colors.muted,
-    padding: 8,
-    borderWidth: 0.5,
-    borderColor: colors.border,
-    borderRadius: 6,
-    backgroundColor: colors.ground,
-  },
-  charCount: {
-    fontSize: 9,
-    color: colors.muted,
-  },
-  broadcastButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  broadcastButtonText: {
-    color: colors.mine,
-    fontWeight: '700',
-    fontSize: 11,
-  },
-  recordFab: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#e67c5c',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recordFabInner: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#fff',
-  },
-  // Dancer view styles
-  dancerContainer: {
-    flex: 1,
-    backgroundColor: colors.ground,
-  },
-  dancerFloorCanvas: {
-    height: 260,
-    backgroundColor: '#faf8f5',
-    position: 'relative',
-  },
-  selfDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.mine,
-  },
-  otherDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  positionNoteBand: {
-    backgroundColor: colors.mineBg,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-  },
-  positionNoteText: {
-    fontSize: 9,
-    color: colors.active,
-    fontFamily: 'JetBrainsMono',
-    textAlign: 'center',
-  },
-  dancerRightPanel: {
-    flex: 1,
-    padding: 12,
-  },
-  choreographerNotes: {
-    maxHeight: 80,
-    marginBottom: 12,
-  },
-  choreographerNotesHeader: {
-    fontSize: 8,
-    color: colors.muted,
-    fontFamily: 'JetBrainsMono',
-    marginBottom: 6,
-  },
-  choreographerNoteText: {
-    fontSize: 10,
-    color: colors.active,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-    paddingVertical: 4,
-  },
-  clipsGridLabel: {
-    fontSize: 11,
-    color: colors.muted,
-    fontFamily: 'JetBrainsMono',
-    marginBottom: 8,
-  },
-  clipsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 100, // Space for FAB
-  },
-  clipThumb: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  clipThumbRef: {
-    backgroundColor: colors.warm,
-  },
-  clipThumbMine: {
-    backgroundColor: colors.mine,
-  },
-  clipThumbImage: {
-    width: '100%',
-    height: '100%',
-  },
-  clipTypeBadge: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  clipTypeBadgeRef: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-  },
-  clipTypeBadgeMine: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
-  },
-  clipTypeBadgeText: {
-    fontSize: 8,
-    fontWeight: '700',
-  },
-  clipTypeBadgeTextRef: {
-    color: colors.warm,
-  },
-  clipTypeBadgeTextMine: {
-    color: colors.mine,
-  },
-  clipInitial: {
-    position: 'absolute',
-    bottom: 2,
-    right: 3,
-    fontSize: 7,
-    fontWeight: 'bold',
-  },
-  dancerFabContainer: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    alignItems: 'center',
-  },
-  dancerFabLabel: {
-    fontSize: 9,
-    color: colors.muted,
-    marginBottom: 2,
-  },
-  dancerFabSublabel: {
-    fontSize: 9,
-    color: colors.inactive,
-    marginBottom: 8,
-  },
+  rosterDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
+  rosterName: { flex: 1, fontSize: 12, fontWeight: '700', color: colors.active },
+  rosterStatus: { fontSize: 11, color: colors.muted },
+  broadcastRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 80 },
+  broadcastInput: { flex: 1, fontSize: 11, color: colors.muted, padding: 8, borderWidth: 0.5, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.ground },
+  charCount: { fontSize: 9, color: colors.muted },
+  broadcastButton: { paddingHorizontal: 8, paddingVertical: 6 },
+  broadcastButtonText: { color: colors.mine, fontWeight: '700', fontSize: 11 },
+  recordFab: { position: 'absolute', bottom: 10, right: 10, width: 64, height: 64, borderRadius: 32, backgroundColor: '#e67c5c', alignItems: 'center', justifyContent: 'center' },
+  recordFabInner: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
+  dancerContainer: { flex: 1, backgroundColor: colors.ground },
+  dancerFloorCanvas: { height: 260, backgroundColor: '#faf8f5', position: 'relative' },
+  selfDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.mine },
+  otherDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: '#fff' },
+  positionNoteBand: { backgroundColor: colors.mineBg, paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border },
+  positionNoteText: { fontSize: 9, color: colors.active, fontFamily: 'JetBrainsMono', textAlign: 'center' },
+  dancerRightPanel: { flex: 1, padding: 12 },
+  choreographerNotes: { maxHeight: 80, marginBottom: 12 },
+  choreographerNotesHeader: { fontSize: 8, color: colors.muted, fontFamily: 'JetBrainsMono', marginBottom: 6 },
+  choreographerNoteText: { fontSize: 10, color: colors.active, borderBottomWidth: 0.5, borderBottomColor: colors.border, paddingVertical: 4 },
+  clipsGridLabel: { fontSize: 11, color: colors.muted, fontFamily: 'JetBrainsMono', marginBottom: 8 },
+  clipThumb: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden', position: 'relative' },
+  clipThumbRef: { backgroundColor: colors.warm },
+  clipThumbMine: { backgroundColor: colors.mine },
+  clipThumbImage: { width: '100%', height: '100%' },
+  clipTypeBadge: { position: 'absolute', top: 4, left: 4, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 },
+  clipTypeBadgeRef: { backgroundColor: 'rgba(255,255,255,0.9)' },
+  clipTypeBadgeMine: { backgroundColor: 'rgba(255,255,255,0.9)' },
+  clipTypeBadgeText: { fontSize: 8, fontWeight: '700' },
+  clipTypeBadgeTextRef: { color: colors.warm },
+  clipTypeBadgeTextMine: { color: colors.mine },
+  dancerFabContainer: { position: 'absolute', bottom: 10, right: 10, alignItems: 'center' },
+  dancerFabLabel: { fontSize: 9, color: colors.muted, marginBottom: 2 },
+  dancerFabSublabel: { fontSize: 9, color: colors.inactive, marginBottom: 8 },
 });
