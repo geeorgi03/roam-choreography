@@ -28,6 +28,11 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     }
   }, [activeSheetId, ref]);
 
+  useEffect(() => {
+    positionMsRef.current = 0;
+    setPlayheadFraction(0);
+  }, [selectedClipForSheet?.server_id, selectedClipForSheet?.mux_playback_id]);
+
   if (!selectedClipForSheet) {
     return null;
   }
@@ -87,6 +92,8 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
 
   const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) {
+      positionMsRef.current = 0;
+      setPlayheadFraction(0);
       return;
     }
 
