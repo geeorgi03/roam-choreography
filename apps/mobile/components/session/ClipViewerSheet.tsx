@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { Video } from 'expo-av';
+import { Video, AVPlaybackStatus } from 'expo-av';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
 import { supabase } from '../../lib/supabase';
@@ -17,6 +17,7 @@ interface ClipViewerSheetProps {
 export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProps>(function ClipViewerSheet({ onClose }, ref) {
   const { selectedClipForSheet, activeSheetId, loopRegion, session, activeSection, sectionClips } = useSessionContext();
   const videoRef = useRef<Video>(null);
+  const positionMsRef = useRef<number>(0);
   const [clipSpeed, setClipSpeed] = useState(1);
   const [playheadFraction, setPlayheadFraction] = useState(0);
 
@@ -33,13 +34,13 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
 
   const handleSkipBack = () => {
     if (videoRef.current) {
-      videoRef.current.setPositionAsync(Math.max(0, (videoRef.current as any).position - 5000));
+      videoRef.current.setPositionAsync(Math.max(0, positionMsRef.current - 5000));
     }
   };
 
   const handleSkipForward = () => {
     if (videoRef.current) {
-      videoRef.current.setPositionAsync((videoRef.current as any).position + 5000);
+      videoRef.current.setPositionAsync(positionMsRef.current + 5000);
     }
   };
 
@@ -84,6 +85,15 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     ? { uri: `https://stream.mux.com/${selectedClipForSheet.mux_playback_id}.m3u8` }
     : null;
 
+  const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    if (!status.isLoaded) {
+      return;
+    }
+
+    positionMsRef.current = status.positionMillis;
+    setPlayheadFraction(status.durationMillis ? status.positionMillis / status.durationMillis : 0);
+  };
+
   return (
     <BottomSheet
       ref={ref}
@@ -113,6 +123,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
               resizeMode="contain"
               shouldPlay={false}
               rate={clipSpeed}
+              onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
             />
           ) : (
             <View style={styles.processingPlaceholder}>
