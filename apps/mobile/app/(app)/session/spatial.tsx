@@ -4,6 +4,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AssemblyView } from '../../../components/AssemblyView';
 import { theme } from '../../../lib/theme';
 
+const colors = theme.light;
+const spacing = theme.spacing;
+
 export default function SpatialScreen() {
   const router = useRouter();
   const { sessionId, id } = useLocalSearchParams<{ sessionId?: string; id?: string }>();
@@ -44,35 +47,37 @@ export default function SpatialScreen() {
   );
 }
 
+const t = theme.light;
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.background },
+  container: { flex: 1, backgroundColor: t.ground },
   header: {
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A2A32',
+    borderBottomColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: { color: theme.textPrimary, fontSize: 16, fontWeight: '900' },
+  title: { color: colors.active, fontSize: 16, fontWeight: '900' },
   nextBtn: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 999,
+    borderRadius: spacing.pill,
     borderWidth: 1,
-    borderColor: '#2A2A32',
-    backgroundColor: '#1B1B22',
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
   },
-  nextBtnText: { color: theme.textPrimary, fontSize: 12, fontWeight: '800' },
+  nextBtnText: { color: colors.active, fontSize: 12, fontWeight: '800' },
   emptyWrap: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: colors.ground,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
   },
-  emptyTitle: { color: theme.textPrimary, fontSize: 20, fontWeight: '900', marginBottom: 8 },
-  emptyText: { color: theme.textSecondary, fontSize: 14 },
+  emptyTitle: { color: colors.active, fontSize: 20, fontWeight: '900', marginBottom: 8 },
+  emptyText: { color: colors.muted, fontSize: 14 },
 });

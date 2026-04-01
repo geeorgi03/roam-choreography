@@ -28,6 +28,8 @@ type Assignment = {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const LEFT_WIDTH = SCREEN_WIDTH * 0.55;
 const RIGHT_WIDTH = SCREEN_WIDTH * 0.45;
+const colors = theme.light;
+const spacing = theme.spacing;
 
 function formatMs(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -430,20 +432,22 @@ function AssignedClipThumb({
   );
 }
 
+const t = theme.light;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: t.ground,
   },
   errorBanner: {
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#222',
+    borderBottomColor: colors.border,
     backgroundColor: 'rgba(255, 90, 90, 0.12)',
   },
   errorBannerText: {
-    color: theme.textPrimary,
+    color: colors.active,
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
@@ -455,12 +459,12 @@ const styles = StyleSheet.create({
   panel: {
     padding: 12,
     borderRightWidth: 1,
-    borderRightColor: '#222',
+    borderRightColor: colors.border,
   },
   panelTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: theme.textPrimary,
+    color: colors.active,
     marginBottom: 12,
   },
   sectionRow: {
@@ -470,22 +474,22 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
-    backgroundColor: '#222',
+    backgroundColor: colors.chrome,
     marginBottom: 8,
   },
   sectionHeaderSelected: {
-    backgroundColor: theme.untaggedBg,
+    backgroundColor: '#FAEEDA',
     borderWidth: 1,
-    borderColor: theme.untaggedText,
+    borderColor: colors.warm,
   },
   sectionLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: colors.active,
   },
   sectionTime: {
     fontSize: 12,
-    color: theme.textSecondary,
+    color: colors.muted,
     marginTop: 2,
   },
   assignedClips: {
@@ -497,13 +501,13 @@ const styles = StyleSheet.create({
   },
   emptyHint: {
     fontSize: 12,
-    color: theme.textSecondary,
+    color: colors.muted,
     alignSelf: 'center',
   },
   assignedThumbWrap: {
     width: 64,
     height: 64,
-    borderRadius: 8,
+    borderRadius: spacing.radiusSm,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -514,7 +518,7 @@ const styles = StyleSheet.create({
   assignedThumbPlaceholder: {
     width: 64,
     height: 64,
-    backgroundColor: '#222',
+    backgroundColor: colors.chrome,
   },
   removeBtn: {
     position: 'absolute',
@@ -523,12 +527,12 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(58,52,45,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   removeBtnText: {
-    color: '#fff',
+    color: colors.chrome,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -540,9 +544,9 @@ const styles = StyleSheet.create({
   clipThumbWrap: {
     width: (RIGHT_WIDTH - 24 - 16) / 2,
     aspectRatio: 16 / 9,
-    borderRadius: 8,
+    borderRadius: spacing.radiusSm,
     overflow: 'hidden',
-    backgroundColor: '#222',
+    backgroundColor: colors.chrome,
     position: 'relative',
   },
   clipThumbDisabled: {
@@ -555,7 +559,7 @@ const styles = StyleSheet.create({
   clipThumbPlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#222',
+    backgroundColor: colors.chrome,
   },
   clipThumbLabel: {
     position: 'absolute',
@@ -564,8 +568,8 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 4,
     fontSize: 10,
-    color: '#fff',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    color: colors.chrome,
+    backgroundColor: 'rgba(58,52,45,0.6)',
   },
   clipThumbCheckmark: {
     position: 'absolute',
@@ -573,18 +577,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(58,52,45,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   clipThumbCheckmarkText: {
-    color: '#fff',
+    color: colors.chrome,
     fontSize: 24,
     fontWeight: '700',
   },
   placeholderText: {
     fontSize: 16,
-    color: theme.textSecondary,
+    color: colors.muted,
     textAlign: 'center',
     marginTop: 48,
   },

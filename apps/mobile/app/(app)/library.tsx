@@ -17,6 +17,8 @@ import type { ClipRow } from '../../lib/database';
 import { useSession } from '../../lib/hooks/useSession';
 
 import { API_BASE } from '../../lib/api';
+const colors = theme.light;
+const spacing = theme.spacing;
 
 const STYLES = ['Hip-hop', 'Contemporary', 'Ballet', 'Jazz', 'Fusion', 'Other'] as const;
 const ENERGY_LEVELS = ['Low', 'Medium', 'High', 'Explosive'] as const;
@@ -189,7 +191,7 @@ export default function LibraryScreen() {
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search clips…"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={colors.muted}
                 value={q}
                 onChangeText={setQ}
                 autoCapitalize="none"
@@ -267,7 +269,7 @@ export default function LibraryScreen() {
               <TextInput
                 style={styles.bpmInput}
                 placeholder="min"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={colors.muted}
                 value={bpmMin}
                 onChangeText={setBpmMin}
                 keyboardType="numeric"
@@ -276,7 +278,7 @@ export default function LibraryScreen() {
               <TextInput
                 style={styles.bpmInput}
                 placeholder="max"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={colors.muted}
                 value={bpmMax}
                 onChangeText={setBpmMax}
                 keyboardType="numeric"
@@ -287,7 +289,7 @@ export default function LibraryScreen() {
         ListEmptyComponent={
           loading ? (
             <View style={styles.center}>
-              <ActivityIndicator color={theme.textPrimary} />
+              <ActivityIndicator color={colors.active} />
             </View>
           ) : anyFilter ? (
             <View style={styles.center}>
@@ -322,7 +324,7 @@ export default function LibraryScreen() {
                 activeOpacity={0.8}
               >
                 {loadingMore ? (
-                  <ActivityIndicator color={theme.textPrimary} size="small" />
+                  <ActivityIndicator color={colors.active} size="small" />
                 ) : (
                   <Text style={styles.loadMoreText}>Load more</Text>
                 )}
@@ -337,10 +339,12 @@ export default function LibraryScreen() {
   );
 }
 
+const t = theme.light;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: t.ground,
   },
   header: {
     paddingHorizontal: 16,
@@ -350,21 +354,21 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#222',
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   searchIcon: {
     marginRight: 8,
-    color: theme.textSecondary,
+    color: colors.muted,
     fontSize: 14,
   },
   searchInput: {
     flex: 1,
-    color: theme.textPrimary,
+    color: colors.active,
     fontSize: 16,
   },
   filtersRow: {
@@ -375,21 +379,21 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: theme.borderRadius,
-    backgroundColor: '#222',
+    borderRadius: spacing.radiusMd,
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: colors.border,
   },
   chipSelected: {
-    backgroundColor: theme.accent,
+    backgroundColor: colors.mine,
   },
   chipText: {
-    color: theme.textSecondary,
+    color: colors.muted,
     fontSize: 13,
     fontWeight: '600',
   },
   chipTextSelected: {
-    color: theme.textPrimary,
+    color: colors.active,
   },
   bpmRow: {
     flexDirection: 'row',
@@ -398,22 +402,22 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   bpmLabel: {
-    color: theme.textSecondary,
+    color: colors.muted,
     fontSize: 13,
     fontWeight: '600',
   },
   bpmInput: {
     width: 80,
-    backgroundColor: '#222',
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: theme.textPrimary,
+    color: colors.active,
   },
   bpmDash: {
-    color: theme.textSecondary,
+    color: colors.muted,
     fontSize: 16,
   },
   listContent: {
@@ -436,13 +440,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: theme.textPrimary,
+    color: colors.active,
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: theme.textSecondary,
+    color: colors.muted,
     textAlign: 'center',
   },
   footer: {
@@ -450,18 +454,18 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   loadMoreBtn: {
-    backgroundColor: theme.accent,
-    borderRadius: theme.borderRadius,
+    backgroundColor: colors.chrome,
+    borderRadius: spacing.radiusMd,
     paddingVertical: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: colors.border,
   },
   loadMoreBtnDisabled: {
     opacity: 0.7,
   },
   loadMoreText: {
-    color: theme.textPrimary,
+    color: colors.active,
     fontSize: 14,
     fontWeight: '700',
   },

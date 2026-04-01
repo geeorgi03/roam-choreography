@@ -20,6 +20,8 @@ import { API_BASE } from '../../../lib/api';
 const PX_PER_MS = 0.1;
 const SLIDER_MIN = -200;
 const SLIDER_MAX = 200;
+const colors = theme.light;
+const spacing = theme.spacing;
 
 function formatMs(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -232,9 +234,9 @@ export default function BeatGridScreen() {
             step={1}
             value={sliderOffset}
             onValueChange={setSliderOffset}
-            minimumTrackTintColor={theme.textSecondary}
-            maximumTrackTintColor={theme.textSecondary}
-            thumbTintColor={theme.textPrimary}
+            minimumTrackTintColor={colors.muted}
+            maximumTrackTintColor={colors.inactive}
+            thumbTintColor={colors.active}
           />
           <Text style={styles.sliderValue}>{sliderOffset}ms</Text>
         </View>
@@ -254,7 +256,7 @@ export default function BeatGridScreen() {
                   setEditingSection(null);
                 }}
                 autoFocus
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={colors.muted}
               />
             ) : (
               <Text
@@ -284,14 +286,16 @@ export default function BeatGridScreen() {
   );
 }
 
+const t = theme.light;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: t.ground,
     padding: 16,
   },
   placeholder: {
-    color: theme.textSecondary,
+    color: colors.muted,
     fontSize: 16,
   },
   header: {
@@ -303,11 +307,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: colors.active,
   },
   bpm: {
     fontSize: 16,
-    color: theme.textSecondary,
+    color: colors.muted,
   },
   scrollView: {
     maxHeight: 120,
@@ -321,32 +325,32 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 1,
     height: '100%',
-    backgroundColor: theme.textSecondary,
+    backgroundColor: colors.inactive,
     top: 0,
   },
   beatLineDownbeat: {
     width: 2,
-    backgroundColor: theme.textPrimary,
+    backgroundColor: colors.active,
   },
   playhead: {
     position: 'absolute',
     width: 2,
     height: '100%',
-    backgroundColor: '#e74c3c',
+    backgroundColor: colors.capture,
     top: 0,
   },
   sectionPill: {
     position: 'absolute',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: theme.textSecondary,
+    backgroundColor: colors.inactive,
     borderRadius: 4,
     top: 4,
     maxWidth: 80,
   },
   sectionPillText: {
     fontSize: 10,
-    color: theme.background,
+    color: colors.chrome,
   },
   controls: {
     marginBottom: 16,
@@ -354,28 +358,28 @@ const styles = StyleSheet.create({
   playBtn: {
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: theme.accent,
+    backgroundColor: colors.active,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     alignSelf: 'flex-start',
     marginBottom: 8,
   },
   playBtnText: {
-    color: theme.textPrimary,
+    color: colors.chrome,
     fontWeight: '600',
   },
   tapBtn: {
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     alignSelf: 'flex-start',
     marginBottom: 12,
   },
   tapBtnText: {
-    color: theme.textPrimary,
+    color: colors.active,
     fontSize: 14,
   },
   sliderRow: {
@@ -384,7 +388,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sliderLabel: {
-    color: theme.textSecondary,
+    color: colors.muted,
     fontSize: 14,
     minWidth: 70,
   },
@@ -393,7 +397,7 @@ const styles = StyleSheet.create({
     height: 32,
   },
   sliderValue: {
-    color: theme.textPrimary,
+    color: colors.active,
     fontSize: 14,
     minWidth: 40,
   },
@@ -403,7 +407,7 @@ const styles = StyleSheet.create({
   sectionsTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: theme.textSecondary,
+    color: colors.muted,
     marginBottom: 8,
   },
   sectionRow: {
@@ -413,7 +417,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   sectionLabel: {
-    color: theme.textPrimary,
+    color: colors.active,
     fontSize: 14,
     flex: 1,
   },
@@ -421,13 +425,13 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 32,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: colors.border,
     borderRadius: 4,
     paddingHorizontal: 8,
-    color: theme.textPrimary,
+    color: colors.active,
   },
   removeBtn: {
-    color: theme.textSecondary,
+    color: colors.muted,
     fontSize: 16,
     paddingLeft: 8,
   },
@@ -436,7 +440,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   addSectionText: {
-    color: theme.textSecondary,
+    color: colors.muted,
     fontSize: 14,
   },
   saveRow: {
@@ -447,17 +451,17 @@ const styles = StyleSheet.create({
   saveBtn: {
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: theme.accent,
+    backgroundColor: colors.active,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
   },
   saveBtnText: {
-    color: theme.textPrimary,
+    color: colors.chrome,
     fontWeight: '600',
   },
   savedLabel: {
-    color: '#2ecc71',
+    color: colors.mine,
     fontSize: 14,
   },
 });

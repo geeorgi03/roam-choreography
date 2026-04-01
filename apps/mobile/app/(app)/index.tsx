@@ -19,6 +19,9 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import { API_BASE } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 
+const colors = theme.light;
+const spacing = theme.spacing;
+
 export default function HomeScreen() {
   const navigation = useNavigation();
   const { session } = useSession();
@@ -169,7 +172,7 @@ export default function HomeScreen() {
           <View style={styles.empty}>
             {loading ? (
               <>
-                <ActivityIndicator size="small" color={theme.textPrimary} style={{ marginBottom: 12 }} />
+                <ActivityIndicator size="small" color={colors.active} style={{ marginBottom: 12 }} />
                 <Text style={styles.subtitle}>Loading…</Text>
               </>
             ) : (
@@ -271,10 +274,12 @@ export default function HomeScreen() {
   );
 }
 
+const t = theme.light;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: t.ground,
   },
   emptyScroll: {
     flexGrow: 1,
@@ -294,11 +299,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerButtonText: {
-    color: '#fff',
+    color: colors.active,
     fontSize: 24,
   },
   headerLeftText: {
-    color: '#fff',
+    color: colors.active,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -321,12 +326,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: theme.textPrimary,
+    color: colors.active,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    color: theme.textSecondary,
+    color: colors.muted,
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -338,25 +343,25 @@ const styles = StyleSheet.create({
   },
   doorCard: {
     flex: 1,
-    backgroundColor: '#1B1B22',
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: '#2A2A32',
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     padding: 16,
   },
   doorIcon: { fontSize: 20, marginBottom: 10 },
-  doorTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '800', marginBottom: 4 },
-  doorSub: { color: theme.textSecondary, fontSize: 13, lineHeight: 18 },
+  doorTitle: { color: colors.active, fontSize: 16, fontWeight: '800', marginBottom: 4 },
+  doorSub: { color: colors.muted, fontSize: 13, lineHeight: 18 },
   inboxPill: {
     marginTop: 14,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 999,
-    backgroundColor: '#1B1B22',
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: '#2A2A32',
+    borderColor: colors.border,
   },
-  inboxPillText: { color: theme.textPrimary, fontWeight: '700' },
+  inboxPillText: { color: colors.active, fontWeight: '700' },
   inboxBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -365,10 +370,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: theme.borderRadius,
-    backgroundColor: '#1B1B22',
+    borderRadius: spacing.radiusMd,
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: '#2A2A32',
+    borderColor: colors.border,
   },
   inboxDot: {
     width: 10,
@@ -377,38 +382,38 @@ const styles = StyleSheet.create({
     backgroundColor: '#4ECDC4',
     marginRight: 10,
   },
-  inboxBannerText: { color: theme.textPrimary, fontSize: 14, fontWeight: '700', flex: 1 },
-  inboxBannerChev: { color: theme.textSecondary, fontSize: 22, marginLeft: 6 },
+  inboxBannerText: { color: colors.active, fontSize: 14, fontWeight: '700', flex: 1 },
+  inboxBannerChev: { color: colors.muted, fontSize: 22, marginLeft: 6 },
   card: {
-    backgroundColor: '#222',
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     padding: 16,
     marginBottom: 12,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: colors.active,
     marginBottom: 4,
   },
   cardDate: {
     fontSize: 12,
-    color: theme.textSecondary,
+    color: colors.muted,
   },
   newSessionCard: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
     backgroundColor: 'transparent',
   },
-  newSessionText: { color: theme.textPrimary, fontSize: 15, fontWeight: '800' },
+  newSessionText: { color: colors.active, fontSize: 15, fontWeight: '800' },
   fab: {
     position: 'absolute',
     right: 18,
@@ -416,7 +421,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#C8F135',
+    backgroundColor: t.capture,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -424,5 +429,5 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
-  fabText: { color: '#0b0b0f', fontSize: 18, fontWeight: '900' },
+  fabText: { color: colors.chrome, fontSize: 18, fontWeight: '900' },
 });

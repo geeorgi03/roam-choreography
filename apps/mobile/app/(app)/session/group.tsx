@@ -6,6 +6,9 @@ import { useMusicTrackStatus } from '../../../lib/hooks/useMusicTrackStatus';
 import { useClips } from '../../../lib/hooks/useClips';
 import { AssemblyView } from '../../../components/AssemblyView';
 
+const colors = theme.light;
+const spacing = theme.spacing;
+
 type GroupMode = 'choreographer' | 'dancer';
 
 const DANCERS = [
@@ -128,80 +131,82 @@ export default function GroupScreen() {
   );
 }
 
+const t = theme.light;
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.background },
+  container: { flex: 1, backgroundColor: t.ground },
   header: {
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A2A32',
+    borderBottomColor: colors.border,
     gap: 10,
   },
-  title: { color: theme.textPrimary, fontSize: 18, fontWeight: '900' },
+  title: { color: colors.active, fontSize: 18, fontWeight: '900' },
   modeRow: { flexDirection: 'row', gap: 8 },
   modeBtn: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: spacing.pill,
     borderWidth: 1,
-    borderColor: '#2A2A32',
-    backgroundColor: '#1B1B22',
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
   },
-  modeBtnActive: { borderColor: '#C8F135', backgroundColor: '#1a2300' },
-  modeText: { color: theme.textSecondary, fontSize: 12, fontWeight: '700' },
-  modeTextActive: { color: '#C8F135' },
+  modeBtnActive: { borderColor: colors.mine, backgroundColor: '#E1F5EE' },
+  modeText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+  modeTextActive: { color: colors.active },
   main: { flex: 1, flexDirection: 'row' },
-  left: { flex: 1, borderRightWidth: 1, borderRightColor: '#2A2A32' },
+  left: { flex: 1, borderRightWidth: 1, borderRightColor: colors.border },
   right: { width: 260, padding: 12 },
-  panelTitle: { color: theme.textPrimary, fontSize: 13, fontWeight: '800', marginBottom: 8 },
+  panelTitle: { color: colors.active, fontSize: 13, fontWeight: '800', marginBottom: 8 },
   dancerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2A2A32',
+    borderColor: colors.border,
     borderRadius: 10,
-    backgroundColor: '#1B1B22',
+    backgroundColor: colors.chrome,
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 8,
     gap: 8,
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  dancerName: { color: theme.textPrimary, fontSize: 13, fontWeight: '700', flex: 1 },
-  dancerState: { color: theme.textSecondary, fontSize: 12 },
+  dancerName: { color: colors.active, fontSize: 13, fontWeight: '700', flex: 1 },
+  dancerState: { color: colors.muted, fontSize: 12 },
   broadcastBox: {
     borderWidth: 1,
-    borderColor: '#2A2A32',
+    borderColor: colors.border,
     borderRadius: 10,
-    backgroundColor: '#1B1B22',
+    backgroundColor: colors.chrome,
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
-  broadcastText: { color: theme.textSecondary, fontSize: 12 },
+  broadcastText: { color: colors.muted, fontSize: 12 },
   mainDancer: { flex: 1, padding: 12 },
   card: {
     borderWidth: 1,
-    borderColor: '#2A2A32',
+    borderColor: colors.border,
     borderRadius: 10,
-    backgroundColor: '#1B1B22',
+    backgroundColor: colors.chrome,
     padding: 12,
     marginBottom: 12,
   },
-  sectionLabel: { color: theme.textPrimary, fontSize: 13, fontWeight: '800', marginBottom: 4 },
-  helper: { color: theme.textSecondary, fontSize: 12 },
+  sectionLabel: { color: colors.active, fontSize: 13, fontWeight: '800', marginBottom: 4 },
+  helper: { color: colors.muted, fontSize: 12 },
   thumb: {
     flex: 1,
     minHeight: 70,
     borderWidth: 1,
-    borderColor: '#2A2A32',
+    borderColor: colors.border,
     borderRadius: 8,
-    backgroundColor: '#1B1B22',
+    backgroundColor: colors.chrome,
     padding: 8,
     justifyContent: 'space-between',
   },
-  thumbLabel: { color: theme.textPrimary, fontSize: 11, fontWeight: '700' },
-  thumbSub: { color: theme.textSecondary, fontSize: 10 },
+  thumbLabel: { color: colors.active, fontSize: 11, fontWeight: '700' },
+  thumbSub: { color: colors.muted, fontSize: 10 },
   badge: {
     width: 28,
     height: 28,
@@ -209,12 +214,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1B1B22',
+    backgroundColor: colors.chrome,
   },
-  badgeText: { color: theme.textPrimary, fontSize: 11, fontWeight: '800' },
+  badgeText: { color: colors.active, fontSize: 11, fontWeight: '800' },
   emptyWrap: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: colors.ground,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -224,6 +229,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 24,
   },
-  emptyTitle: { color: theme.textPrimary, fontSize: 20, fontWeight: '900', marginBottom: 8 },
-  emptyText: { color: theme.textSecondary, fontSize: 14 },
+  emptyTitle: { color: colors.active, fontSize: 20, fontWeight: '900', marginBottom: 8 },
+  emptyText: { color: colors.muted, fontSize: 14 },
 });

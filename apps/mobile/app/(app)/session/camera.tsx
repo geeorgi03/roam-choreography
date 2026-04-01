@@ -13,6 +13,9 @@ import { theme } from '../../../lib/theme';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { QuickSaveSheet } from '../../../components/QuickSaveSheet';
 
+const colors = theme.light;
+const spacing = theme.spacing;
+
 export default function CameraScreen() {
   const { id: sessionId, sectionName } = useLocalSearchParams<{ id?: string; sectionName?: string }>();
   const router = useRouter();
@@ -124,46 +127,48 @@ export default function CameraScreen() {
   );
 }
 
+const t = theme.light;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: t.ground,
   },
   placeholderText: {
     fontSize: 16,
-    color: theme.textSecondary,
+    color: colors.muted,
     textAlign: 'center',
     marginBottom: 16,
   },
   button: {
     paddingVertical: 14,
     paddingHorizontal: 24,
-    backgroundColor: theme.accent,
-    borderRadius: theme.borderRadius,
+    backgroundColor: colors.chrome,
+    borderRadius: spacing.radiusMd,
     alignSelf: 'center',
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: colors.border,
   },
   primaryButton: {
     paddingVertical: 14,
     paddingHorizontal: 24,
-    backgroundColor: theme.accent,
-    borderRadius: theme.borderRadius,
+    backgroundColor: colors.active,
+    borderRadius: spacing.radiusMd,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: colors.border,
   },
   outlineButton: {
     paddingVertical: 14,
     paddingHorizontal: 24,
     backgroundColor: 'transparent',
-    borderRadius: theme.borderRadius,
+    borderRadius: spacing.radiusMd,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: colors.border,
   },
   buttonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: colors.active,
   },
   controls: {
     position: 'absolute',
@@ -176,12 +181,12 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: '#fff',
+    backgroundColor: colors.chrome,
     borderWidth: 4,
     borderColor: 'rgba(255,255,255,0.6)',
   },
   recordButtonActive: {
-    backgroundColor: '#e57373',
+    backgroundColor: colors.capture,
   },
   previewControls: {
     position: 'absolute',

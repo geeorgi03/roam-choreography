@@ -35,6 +35,9 @@ import { ClipShareSheet } from '../../../components/ClipShareSheet';
 import { NotePinSheet } from '../../../components/NotePinSheet';
 import type { SectionClip } from '@roam/types';
 
+const colors = theme.light;
+const spacing = theme.spacing;
+
 // Playback speed presets aligned with workbench transport controls
 const SPEED_OPTIONS = [0.5, 0.75, 1.0, 1.25, 1.5];
 
@@ -599,7 +602,7 @@ export default function SessionWorkbenchScreen() {
                         {
                           left: frac * trackBodyWidth,
                           backgroundColor:
-                            clip.upload_status === 'ready' ? '#C8F135' : '#4ECDC4',
+                            clip.upload_status === 'ready' ? colors.warm : colors.mine,
                         },
                       ]}
                     />
@@ -953,16 +956,18 @@ export default function SessionWorkbenchScreen() {
   );
 }
 
+const t = theme.light;
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.background },
+  container: { flex: 1, backgroundColor: colors.ground },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
-  sessionTitle: { color: theme.textPrimary, fontSize: 20, fontWeight: '900' },
+  sessionTitle: { color: colors.active, fontSize: 20, fontWeight: '900' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerIconBtn: { padding: 8, marginRight: 4 },
-  headerIcon: { color: '#fff', fontSize: 22 },
+  headerIcon: { color: t.active, fontSize: 22 },
 
   ruler: { paddingHorizontal: 16, paddingBottom: 8, gap: 16 },
-  rulerTick: { color: theme.textSecondary, fontSize: 11, fontFamily: 'monospace' },
+  rulerTick: { color: colors.muted, fontSize: 11, fontFamily: 'monospace' },
 
   // Section chips row
   sectionChips: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
@@ -979,34 +984,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#2A2A32',
-    backgroundColor: '#1B1B22',
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
   },
   sectionChipInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionChipCount: { color: theme.textSecondary, fontSize: 10, fontFamily: 'monospace' },
-  sectionChipActive: { borderColor: '#C8F135', backgroundColor: '#1a2300' },
-  sectionChipText: { color: theme.textSecondary, fontSize: 11, fontWeight: '700', fontFamily: 'monospace' },
-  sectionChipTextActive: { color: '#C8F135' },
+  sectionChipCount: { color: colors.muted, fontSize: 10, fontFamily: 'monospace' },
+  sectionChipActive: { borderColor: colors.mine, backgroundColor: '#E1F5EE' },
+  sectionChipText: { color: colors.muted, fontSize: 11, fontWeight: '700', fontFamily: 'monospace' },
+  sectionChipTextActive: { color: colors.active },
 
   timeline: { paddingHorizontal: 16, paddingTop: 6, gap: 10 },
   track: {
     flexDirection: 'row',
     borderWidth: 1,
-    borderColor: '#2A2A32',
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     overflow: 'hidden',
-    backgroundColor: '#1B1B22',
+    backgroundColor: colors.chrome,
   },
   trackHeader: {
     width: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderRightWidth: 1,
-    borderRightColor: '#2A2A32',
+    borderRightColor: colors.border,
   },
-  trackIcon: { color: theme.textPrimary, fontSize: 16 },
+  trackIcon: { color: colors.active, fontSize: 16 },
   trackBody: { flex: 1, minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
-  trackHint: { color: theme.textSecondary, fontSize: 13 },
+  trackHint: { color: colors.muted, fontSize: 13 },
 
   // Music waveform track
   waveformRow: { flexDirection: 'row', alignItems: 'center', position: 'relative' },
@@ -1015,20 +1020,20 @@ const styles = StyleSheet.create({
     top: 4,
     bottom: 4,
     width: 1,
-    backgroundColor: '#C8F135',
+    backgroundColor: colors.warm,
     opacity: 0.6,
   },
 
   dashedInline: {
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: theme.textSecondary,
+    borderColor: colors.inactive,
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
     alignSelf: 'flex-start',
   },
-  dashedText: { color: theme.textPrimary, fontWeight: '800' },
+  dashedText: { color: colors.active, fontWeight: '800' },
 
   // Note pins
   pinsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
@@ -1051,7 +1056,7 @@ const styles = StyleSheet.create({
     top: 6,
     bottom: 6,
     borderRadius: 4,
-    backgroundColor: '#C8F135',
+    backgroundColor: colors.mine,
     opacity: 0.25,
   },
   loopClearBtn: {
@@ -1080,24 +1085,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: '#2A2A32',
+    borderTopColor: colors.border,
   },
   transportBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#222',
+    backgroundColor: t.chrome,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  transportText: { color: theme.textPrimary, fontSize: 16 },
+  transportText: { color: colors.active, fontSize: 16 },
   playBtn: {
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: '#C8F135',
+    backgroundColor: colors.capture,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1133,23 +1138,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#2A2A32',
-    backgroundColor: '#1B1B22',
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
   },
-  chipText: { color: theme.textPrimary, fontWeight: '800', fontSize: 11, fontFamily: 'monospace' },
+  chipText: { color: colors.active, fontWeight: '800', fontSize: 11, fontFamily: 'monospace' },
 
   // Workspace
   workspace: {
     flex: 1,
     marginTop: 4,
     borderTopWidth: 1,
-    borderTopColor: '#2A2A32',
+    borderTopColor: colors.border,
     backgroundColor: '#141418',
   },
   workspaceHeader: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8 },
   workspaceSectionGesture: { alignSelf: 'flex-start', paddingVertical: 2, paddingRight: 8 },
-  workspaceTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '900' },
-  workspaceMeta: { color: theme.textSecondary, fontSize: 11, marginTop: 2, fontFamily: 'monospace' },
+  workspaceTitle: { color: colors.active, fontSize: 16, fontWeight: '900' },
+  workspaceMeta: { color: colors.muted, fontSize: 11, marginTop: 2, fontFamily: 'monospace' },
   workspaceBtn: {
     position: 'absolute',
     right: 16,
@@ -1158,9 +1163,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#2A2A32',
+    borderColor: colors.border,
   },
-  workspaceBtnText: { color: theme.textPrimary, fontWeight: '800', fontSize: 12 },
+  workspaceBtnText: { color: colors.active, fontWeight: '800', fontSize: 12 },
   workspaceTabs: { flexDirection: 'row', paddingHorizontal: 16, gap: 10 },
   workspaceTab: {
     flex: 1,
@@ -1169,15 +1174,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
-  workspaceTabActive: { borderBottomColor: '#C8F135' },
-  workspaceTabText: { color: theme.textSecondary, fontWeight: '800' },
-  workspaceTabTextActive: { color: theme.textPrimary },
+  workspaceTabActive: { borderBottomColor: colors.mine },
+  workspaceTabText: { color: colors.muted, fontWeight: '800' },
+  workspaceTabTextActive: { color: colors.active },
   clipCell: { flex: 1, position: 'relative' },
   clipThumb: {
     minHeight: 120,
-    borderRadius: theme.borderRadius,
+    borderRadius: spacing.radiusMd,
     borderWidth: 1,
-    borderColor: '#2A2A32',
+    borderColor: colors.border,
     overflow: 'hidden',
     justifyContent: 'flex-end',
   },
@@ -1208,17 +1213,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  retryPillText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  retryPillText: { color: t.active, fontSize: 11, fontWeight: '700' },
   addClipCard: {
     marginTop: 10,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     padding: 16,
     alignItems: 'center',
   },
-  addClipText: { color: theme.textPrimary, fontWeight: '900' },
+  addClipText: { color: colors.active, fontWeight: '900' },
   clipShareIcon: {
     position: 'absolute',
     top: 8,
@@ -1231,30 +1236,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   clipShareIconDisabled: { opacity: 0.35 },
-  clipShareIconText: { color: theme.textPrimary, fontSize: 16, fontWeight: '900' },
+  clipShareIconText: { color: colors.active, fontSize: 16, fontWeight: '900' },
   notesWrap: { flex: 1 },
   pinBtn: {
     marginHorizontal: 16,
     marginTop: 10,
     paddingVertical: 12,
-    borderRadius: theme.borderRadius,
-    backgroundColor: '#1B1B22',
+    borderRadius: spacing.radiusMd,
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: '#2A2A32',
+    borderColor: colors.border,
     alignItems: 'center',
   },
-  pinBtnText: { color: theme.textPrimary, fontWeight: '900' },
+  pinBtnText: { color: colors.active, fontWeight: '900' },
   noteRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#1B1B22',
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: '#2A2A32',
-    borderRadius: theme.borderRadius,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
     padding: 12,
   },
   noteColorBar: { width: 4, height: 30, borderRadius: 2 },
-  noteTime: { color: theme.textPrimary, fontFamily: 'monospace', width: 54 },
-  noteText: { color: theme.textSecondary, flex: 1 },
+  noteTime: { color: colors.active, fontFamily: 'monospace', width: 54 },
+  noteText: { color: colors.muted, flex: 1 },
 });

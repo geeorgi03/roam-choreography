@@ -35,6 +35,8 @@ try {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const LEFT_WIDTH = SCREEN_WIDTH * 0.55;
 const RIGHT_WIDTH = SCREEN_WIDTH * 0.45;
+const colors = theme.light;
+const spacing = theme.spacing;
 
 type Assignment = {
   section_label: string;
@@ -334,10 +336,12 @@ function AssignedClipThumb({
   );
 }
 
+const t = theme.light;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: t.ground,
   },
   row: {
     flexDirection: 'row',
@@ -346,12 +350,12 @@ const styles = StyleSheet.create({
   panel: {
     padding: 12,
     borderRightWidth: 1,
-    borderRightColor: '#222',
+    borderRightColor: colors.border,
   },
   panelTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: theme.textPrimary,
+    color: colors.active,
     marginBottom: 12,
   },
   sectionRow: {
@@ -361,22 +365,22 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
-    backgroundColor: '#222',
+    backgroundColor: colors.chrome,
     marginBottom: 8,
   },
   sectionHeaderSelected: {
-    backgroundColor: theme.untaggedBg,
+    backgroundColor: '#FAEEDA',
     borderWidth: 1,
-    borderColor: theme.untaggedText,
+    borderColor: colors.warm,
   },
   sectionLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: colors.active,
   },
   sectionTime: {
     fontSize: 12,
-    color: theme.textSecondary,
+    color: colors.muted,
     marginTop: 2,
   },
   assignedClips: {
@@ -404,12 +408,12 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(58,52,45,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   removeBtnText: {
-    color: '#fff',
+    color: colors.chrome,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -423,7 +427,7 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: '#222',
+    backgroundColor: colors.chrome,
   },
   clipThumbImg: {
     width: '100%',
@@ -436,12 +440,12 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 4,
     fontSize: 10,
-    color: '#fff',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    color: colors.chrome,
+    backgroundColor: 'rgba(58,52,45,0.6)',
   },
   placeholderText: {
     fontSize: 16,
-    color: theme.textSecondary,
+    color: colors.muted,
     textAlign: 'center',
     marginTop: 48,
   },
@@ -451,14 +455,14 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: theme.accent,
-    borderRadius: theme.borderRadius,
+    backgroundColor: colors.chrome,
+    borderRadius: spacing.radiusMd,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: colors.border,
   },
   backBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: colors.active,
   },
 });
