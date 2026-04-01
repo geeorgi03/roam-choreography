@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionHeaderSelected: {
-    backgroundColor: '#FAEEDA',
+    backgroundColor: colors.amberBg,
     borderWidth: 1,
     borderColor: colors.warm,
   },

@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.chrome,
   },
-  modeBtnActive: { borderColor: colors.mine, backgroundColor: '#E1F5EE' },
+  modeBtnActive: { borderColor: colors.mine, backgroundColor: colors.mineBg },
   modeText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   modeTextActive: { color: colors.active },
   main: { flex: 1, flexDirection: 'row' },
