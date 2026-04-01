@@ -18,17 +18,11 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Audio, type AVPlaybackStatus } from 'expo-av';
 import Toast from 'react-native-toast-message';
 import { theme } from '../../lib/theme';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
-import { useNotePins } from '../../lib/hooks/useNotePins';
 import { supabase } from '../../lib/supabase';
 import { API_BASE } from '../../lib/api';
-import { ShareSheet } from '../../ShareSheet';
-import { CaptureSheet } from '../../CaptureSheet';
-import { ClipShareSheet } from '../../ClipShareSheet';
-import { NotePinSheet } from '../../NotePinSheet';
 import { TransportBar } from './TransportBar';
 import type { SectionClip } from '@roam/types';
 
@@ -85,20 +79,13 @@ export function WorkbenchTab() {
     selectedClipForSheet,
     setSelectedClipForSheet,
     openClipSheet,
+    refreshCount,
   } = useSessionContext();
 
   // Layout constants for playhead positioning
   const TRACK_HEADER_W = 16 + 44 + 1; // timeline leftPad + header + separator
   const trackBodyWidth = Math.max(1, screenWidth - TRACK_HEADER_W - 16);
 
-  // ── Bottom-sheet refs ────────────────────────────────────────────────────
-  const shareSheetRef = useRef<any>(null);
-  const captureSheetRef = useRef<any>(null);
-  const clipShareSheetRef = useRef<any>(null);
-  const notePinSheetRef = useRef<any>(null);
-
-  // ── Data hooks ───────────────────────────────────────────────────────────
-  const { refreshCount } = useNotePins(sessionId);
 
   // ── Session metadata ─────────────────────────────────────────────────────
   const [showSectionSwipeHint, setShowSectionSwipeHint] = useState(true);
@@ -222,12 +209,6 @@ export function WorkbenchTab() {
   // ── Time ruler markers ───────────────────────────────────────────────────
   const timeMarkers = useMemo(() => ['0:00', '0:15', '0:30', '0:45', '1:00', '1:15'], []);
 
-  const openClipPlayer = (index: number) => {
-    router.push({
-      pathname: './clip-player',
-      params: { sessionId, clipIndex: String(index) },
-    });
-  };
 
   return (
     <View style={styles.container}>
@@ -526,7 +507,7 @@ export function WorkbenchTab() {
                     styles.clipThumb,
                     isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
                   ]}
-                  onPress={() => openClipPlayer(index)}
+                  onPress={() => openClipSheet(item)}
                   activeOpacity={0.85}
                 >
                   {item.mux_playback_id ? (
@@ -603,39 +584,6 @@ export function WorkbenchTab() {
         )}
       </View>
 
-      {/* Sheets */}
-      <ShareSheet
-        ref={shareSheetRef}
-        sessionId={sessionId}
-        onClose={() => closeSheet()}
-      />
-      <CaptureSheet
-        ref={captureSheetRef}
-        sessionId={sessionId}
-        sectionName={activeSection}
-        inboxCount={inboxCount}
-        onRecord={() =>
-          router.push({ pathname: './camera', params: { sessionId, sectionName: activeSection } })
-        }
-        onInbox={() =>
-          router.push({
-            pathname: '/inbox',
-            params: { sessionId, sectionName: activeSection },
-          })
-        }
-        onClose={() => closeSheet()}
-      />
-      <ClipShareSheet
-        ref={clipShareSheetRef}
-        clip={selectedClipForSheet}
-        onClose={() => closeSheet()}
-      />
-      <NotePinSheet
-        ref={notePinSheetRef}
-        note={selectedNote}
-        onSave={handleSaveNote}
-        onClose={() => closeSheet()}
-      />
     </View>
   );
 }

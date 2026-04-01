@@ -14,6 +14,7 @@ import { ShareSheet } from '../../../components/ShareSheet';
 import { CaptureSheet } from '../../../components/CaptureSheet';
 import { ClipShareSheet } from '../../../components/ClipShareSheet';
 import { NotePinSheet } from '../../../components/NotePinSheet';
+import { ClipViewerSheet } from '../../../components/session/ClipViewerSheet';
 import { theme } from '../../../lib/theme';
 
 const colors = theme.light;
@@ -38,6 +39,7 @@ function SessionShellContent() {
   const captureSheetRef = useRef<BottomSheet | null>(null);
   const clipShareSheetRef = useRef<BottomSheet | null>(null);
   const notePinSheetRef = useRef<BottomSheet | null>(null);
+  const clipViewerSheetRef = useRef<BottomSheet | null>(null);
 
   // ── Sheet coordinator effects ───────────────────────────────────────────
   useEffect(() => {
@@ -69,6 +71,14 @@ function SessionShellContent() {
       notePinSheetRef.current?.snapToIndex(0);
     } else {
       notePinSheetRef.current?.close();
+    }
+  }, [activeSheetId]);
+
+  useEffect(() => {
+    if (activeSheetId === 'clip-viewer') {
+      clipViewerSheetRef.current?.snapToIndex(0);
+    } else {
+      clipViewerSheetRef.current?.close();
     }
   }, [activeSheetId]);
 
@@ -191,6 +201,10 @@ function SessionShellContent() {
         note={null}
         onSave={async () => {}}
         onClose={() => closeSheet()}
+      />
+      <ClipViewerSheet 
+        ref={clipViewerSheetRef} 
+        onClose={() => closeSheet()} 
       />
     </View>
   );

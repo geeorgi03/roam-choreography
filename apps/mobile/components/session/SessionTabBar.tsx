@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
 
@@ -7,14 +7,15 @@ const colors = theme.light;
 const spacing = theme.spacing;
 
 const tabs = [
-  { id: 'workbench', label: 'Workbench' },
-  { id: 'song-map', label: 'Song Map' },
-  { id: 'spatial', label: 'Spatial' },
-  { id: 'group', label: 'Group' },
+  { id: 'workbench', fullLabel: 'Workbench', shortLabel: 'Work' },
+  { id: 'song-map', fullLabel: 'Map', shortLabel: 'Map' },
+  { id: 'spatial', fullLabel: 'Spatial', shortLabel: 'Space' },
+  { id: 'group', fullLabel: 'Group', shortLabel: 'Group' },
 ] as const;
 
 export function SessionTabBar() {
-  const { activeTab, setActiveTab } = useSessionContext();
+  const { activeTab, setActiveTab, closeSheet } = useSessionContext();
+  const { width } = useWindowDimensions();
 
   return (
     <View style={styles.container}>
@@ -25,7 +26,10 @@ export function SessionTabBar() {
             styles.tab,
             activeTab === tab.id && styles.tabActive,
           ]}
-          onPress={() => setActiveTab(tab.id)}
+          onPress={() => {
+            closeSheet();
+            setActiveTab(tab.id);
+          }}
           activeOpacity={0.75}
         >
           <Text
@@ -34,7 +38,7 @@ export function SessionTabBar() {
               activeTab === tab.id && styles.tabTextActive,
             ]}
           >
-            {tab.label}
+            {width >= 600 ? tab.fullLabel : tab.shortLabel}
           </Text>
         </TouchableOpacity>
       ))}
@@ -44,32 +48,31 @@ export function SessionTabBar() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.chrome,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    height: 36,
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    alignItems: 'stretch',
+    paddingHorizontal: 12,
+    backgroundColor: colors.chrome,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
   },
   tab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: spacing.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.ground,
-    marginRight: 8,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
   tabActive: {
-    backgroundColor: colors.active,
-    borderColor: colors.active,
+    borderBottomColor: colors.active,
   },
   tabText: {
     color: colors.muted,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   tabTextActive: {
-    color: '#ffffff',
+    color: colors.active,
+    fontWeight: '700',
   },
 });

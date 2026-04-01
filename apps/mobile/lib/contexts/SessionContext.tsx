@@ -268,19 +268,21 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setSelectedClipForSheet(null);
     
     if (wasPlayingBeforeSheet) {
-      handlePlayPause();
+      soundRef.current?.playAsync();
+      setIsPlaying(true);
       setWasPlayingBeforeSheet(false);
     }
-  }, [wasPlayingBeforeSheet, handlePlayPause]);
+  }, [wasPlayingBeforeSheet]);
 
   const openClipSheet = useCallback((clip: ClipRow) => {
     setWasPlayingBeforeSheet(isPlaying);
     if (isPlaying) {
-      handlePlayPause();
+      soundRef.current?.pauseAsync();
+      setIsPlaying(false);
     }
     setSelectedClipForSheet(clip);
     openSheet('clip-viewer');
-  }, [isPlaying, handlePlayPause, openSheet]);
+  }, [isPlaying, openSheet]);
 
   const value: SessionContextValue = {
     sessionId,
