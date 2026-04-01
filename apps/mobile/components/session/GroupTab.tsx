@@ -27,9 +27,21 @@ interface Dancer {
   online: boolean;
 }
 
+const DANCER_POSITIONS: Record<string, { top: number; left: number }> = {
+  A: { top: 30, left: 20 },
+  B: { top: 45, left: 40 },
+  C: { top: 60, left: 60 },
+  D: { top: 75, left: 80 },
+};
+
+function getDancerPosition(dancerId: string): { top: number; left: number } {
+  return DANCER_POSITIONS[dancerId] ?? { top: 30, left: 20 };
+}
+
 export function GroupTab() {
   const router = useRouter();
   const {
+    sessionId,
     activeSection,
     setActiveSection,
     activeMoment,
@@ -95,7 +107,10 @@ export function GroupTab() {
   };
 
   const handleRecordPress = () => {
-    router.push('./camera');
+    router.push({
+      pathname: './camera',
+      params: { id: sessionId, sectionName: activeSection },
+    });
   };
 
   const renderGridLines = () => {
@@ -198,22 +213,25 @@ export function GroupTab() {
             {renderGridLines()}
             
             {/* Dancer dots */}
-            {dancers.map((dancer) => (
-              <View
-                key={dancer.id}
-                style={[
-                  styles.dancerDot,
-                  {
-                    backgroundColor: dancer.color,
-                    top: `${30 + parseInt(dancer.id) * 15}%`,
-                    left: `${20 + parseInt(dancer.id) * 20}%`,
-                    opacity: dancer.online ? 1 : 0.3,
-                  }
-                ]}
-              >
-                <Text style={styles.dancerInitial}>{dancer.id}</Text>
-              </View>
-            ))}
+            {dancers.map((dancer) => {
+              const position = getDancerPosition(dancer.id);
+              return (
+                <View
+                  key={dancer.id}
+                  style={[
+                    styles.dancerDot,
+                    {
+                      backgroundColor: dancer.color,
+                      top: `${position.top}%`,
+                      left: `${position.left}%`,
+                      opacity: dancer.online ? 1 : 0.3,
+                    }
+                  ]}
+                >
+                  <Text style={styles.dancerInitial}>{dancer.id}</Text>
+                </View>
+              );
+            })}
             
             <Text style={styles.backstageLabel}>backstage</Text>
             <Text style={styles.audienceLabel}>audience</Text>
@@ -333,6 +351,7 @@ export function GroupTab() {
         {/* Dancer dots */}
         {dancers.map((dancer) => {
           const isSelf = dancer.id === 'A'; // Assume first dancer is self
+          const position = getDancerPosition(dancer.id);
           return (
             <View
               key={dancer.id}
@@ -341,8 +360,8 @@ export function GroupTab() {
                 isSelf ? styles.selfDot : styles.otherDot,
                 {
                   backgroundColor: dancer.color,
-                  top: `${30 + parseInt(dancer.id) * 15}%`,
-                  left: `${20 + parseInt(dancer.id) * 20}%`,
+                  top: `${position.top}%`,
+                  left: `${position.left}%`,
                 }
               ]}
             >
