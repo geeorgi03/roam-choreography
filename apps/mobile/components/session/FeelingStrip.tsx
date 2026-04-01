@@ -1,51 +1,75 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
 
 const colors = theme.light;
-const spacing = theme.spacing;
 
 export function FeelingStrip() {
-  const { activeSection, musicTrack } = useSessionContext();
+  const { sessionName } = useSessionContext();
+  const [phrase, setPhrase] = useState('');
+  const [phraseEditing, setPhraseEditing] = useState(false);
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <Text style={styles.sectionText}>{activeSection}</Text>
-        {musicTrack?.bpm && (
-          <Text style={styles.bpmText}>{Math.round(musicTrack.bpm)} BPM</Text>
+      <Text style={styles.sessionName} numberOfLines={1}>
+        {sessionName}
+      </Text>
+      <View>
+        {phraseEditing ? (
+          <TextInput
+            style={styles.phrase}
+            value={phrase}
+            onChangeText={setPhrase}
+            onBlur={() => setPhraseEditing(false)}
+            autoFocus
+            placeholder="add a feeling phrase..."
+            placeholderTextColor={colors.muted}
+          />
+        ) : (
+          <TouchableOpacity activeOpacity={0.8} onPress={() => setPhraseEditing(true)}>
+            <Text style={styles.phrase} numberOfLines={1}>
+              {phrase || 'add a feeling phrase…'}
+            </Text>
+          </TouchableOpacity>
         )}
-      </ScrollView>
+      </View>
+      <View style={styles.dot} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.chrome,
-    borderBottomWidth: 1,
+    height: 56,
+    backgroundColor: colors.amberBg,
+    borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 40,
-  },
-  scrollContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    paddingHorizontal: 16,
+    position: 'relative',
   },
-  sectionText: {
+  sessionName: {
+    fontFamily: theme.typography.displayFamily,
+    fontSize: 22,
+    fontWeight: '500',
     color: colors.active,
-    fontSize: 14,
-    fontWeight: '700',
   },
-  bpmText: {
+  phrase: {
+    fontFamily: theme.typography.displayFamily,
+    fontStyle: 'italic',
+    fontSize: 14,
     color: colors.muted,
-    fontSize: 12,
-    fontWeight: '600',
+    marginLeft: 12,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.amber,
+    position: 'absolute',
+    top: 8,
+    right: 12,
   },
 });

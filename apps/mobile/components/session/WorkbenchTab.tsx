@@ -13,7 +13,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -51,8 +50,9 @@ export function WorkbenchTab() {
   const router = useRouter();
   const {
     sessionId,
-    sessionName,
     activeSection,
+    activeMoment,
+    jumpToSongMap,
     setActiveSection,
     playheadMs,
     durationMs,
@@ -84,8 +84,6 @@ export function WorkbenchTab() {
   // ── Session metadata ─────────────────────────────────────────────────────
   const [showSectionSwipeHint, setShowSectionSwipeHint] = useState(true);
   const [workspaceTab, setWorkspaceTab] = useState<'ideas' | 'notes'>('ideas');
-  const [phraseEditing, setPhraseEditing] = useState(false);
-  const [phrase, setPhrase] = useState('');
   const [viewMode, setViewMode] = useState<'counts' | 'partition'>('counts');
   const [showPartitionHint, setShowPartitionHint] = useState(false);
   const partitionHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -255,29 +253,6 @@ export function WorkbenchTab() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.feelingStrip}>
-        <Text style={styles.feelingStripName} numberOfLines={1}>
-          {sessionName}
-        </Text>
-        {phraseEditing ? (
-          <TextInput
-            style={styles.feelingStripPhrase}
-            value={phrase}
-            onChangeText={setPhrase}
-            onBlur={() => setPhraseEditing(false)}
-            autoFocus
-            placeholder=""
-          />
-        ) : (
-          <TouchableOpacity activeOpacity={0.8} onPress={() => setPhraseEditing(true)}>
-            <Text style={styles.feelingStripPhrase} numberOfLines={1}>
-              {phrase}
-            </Text>
-          </TouchableOpacity>
-        )}
-        <View style={styles.feelingStripDot} />
-      </View>
-
       <ScrollView
         horizontal={false}
         style={styles.waveformContainer}
@@ -447,6 +422,14 @@ export function WorkbenchTab() {
               <Text style={styles.workspaceBtnText}>Add music</Text>
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity
+            style={styles.mapJumpBtn}
+            onPress={jumpToSongMap}
+            testID={`map-jump-${activeMoment}`}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.mapJumpBtnText}>→ Map</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.workspaceTabs}>
@@ -605,38 +588,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.ground,
     position: 'relative',
-  },
-  feelingStrip: {
-    height: 56,
-    backgroundColor: colors.amberBg,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  feelingStripName: {
-    fontFamily: theme.typography.displayFamily,
-    fontSize: 22,
-    fontWeight: '500',
-    color: colors.active,
-  },
-  feelingStripPhrase: {
-    fontFamily: theme.typography.displayFamily,
-    fontStyle: 'italic',
-    fontSize: 14,
-    color: colors.muted,
-    marginLeft: 12,
-  },
-  feelingStripDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.amber,
-    position: 'absolute',
-    top: 8,
-    right: 12,
   },
   waveformContainer: {
     height: 80,
@@ -801,6 +752,19 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '600',
+  },
+  mapJumpBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: spacing.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
+  },
+  mapJumpBtnText: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 11,
+    color: colors.muted,
   },
   workspaceTabs: {
     flexDirection: 'row',

@@ -10,6 +10,8 @@ import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
 import { API_BASE } from '../api';
 
+const FALLBACK_MAP_MOMENT_ID = '1';
+
 export interface SessionContextValue {
   sessionId: string;
   sessionName: string;
@@ -20,6 +22,7 @@ export interface SessionContextValue {
   setActiveSection: (section: string) => void;
   activeMoment: string | null;
   setActiveMoment: (moment: string | null) => void;
+  jumpToSongMap: () => void;
   isPlaying: boolean;
   setIsPlaying: (playing: boolean) => void;
   playheadMs: number;
@@ -291,6 +294,15 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     openSheet('clip-viewer');
   }, [isPlaying, openSheet]);
 
+  const jumpToSongMap = useCallback(() => {
+    const nextMapMoment = activeMoment ?? FALLBACK_MAP_MOMENT_ID;
+    if (nextMapMoment !== activeMoment) {
+      setActiveMoment(nextMapMoment);
+    }
+    closeSheet();
+    setActiveTab('song-map');
+  }, [activeMoment, setActiveMoment, closeSheet, setActiveTab]);
+
   const value: SessionContextValue = {
     sessionId,
     sessionName,
@@ -301,6 +313,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setActiveSection,
     activeMoment,
     setActiveMoment,
+    jumpToSongMap,
     isPlaying,
     setIsPlaying,
     playheadMs,
