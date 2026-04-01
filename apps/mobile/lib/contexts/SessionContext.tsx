@@ -59,6 +59,7 @@ export interface SessionContextValue {
   handleSeekBack: () => void;
   handleSeekForward: () => void;
   handleLoopToggle: () => void;
+  handleClearLoop: () => void;
   
   // Sheet functions
   openSheet: (id: string) => void;
@@ -258,6 +259,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     }
   }, [loopOpenAt, playheadMs]);
 
+  const handleClearLoop = useCallback(() => {
+    setLoopRegion(null);
+    setLoopOpenAt(null);
+    soundRef.current?.setIsLoopingAsync(false);
+  }, []);
+
   // Sheet functions
   const openSheet = useCallback((id: string) => {
     setActiveSheetId(id);
@@ -333,6 +340,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     handleSeekBack,
     handleSeekForward,
     handleLoopToggle,
+    handleClearLoop,
     
     // Sheet functions
     openSheet,

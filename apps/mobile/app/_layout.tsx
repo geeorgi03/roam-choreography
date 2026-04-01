@@ -292,7 +292,7 @@ function RootNavigator() {
 
   return (
     <>
-      <Stack />
+      <Stack screenOptions={{ headerShown: false }} />
       <Toast />
     </>
   );

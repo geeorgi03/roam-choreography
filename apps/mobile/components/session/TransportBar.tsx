@@ -68,6 +68,7 @@ export function TransportBar({ variant }: TransportBarProps) {
     handleSeekBack,
     handleSeekForward,
     handleLoopToggle,
+    handleClearLoop,
   } = useSessionContext();
 
   const getLoopButtonStyle = () => {
@@ -75,17 +76,29 @@ export function TransportBar({ variant }: TransportBarProps) {
       return {
         backgroundColor: '#fff8ee',
         borderColor: '#e8a87c',
+        borderLeftColor: '#e8a87c',
+      };
+    }
+    if (loopRegion !== null && loopOpenAt === null) {
+      return {
+        backgroundColor: '#e1f5ee',
+        borderColor: '#7db9a8',
+        borderLeftColor: '#7db9a8',
       };
     }
     return {
       backgroundColor: '#e1f5ee',
       borderColor: '#7db9a8',
+      borderLeftColor: '#7db9a8',
     };
   };
 
   const getLoopButtonText = () => {
     if (loopOpenAt !== null) {
       return 'tap to close';
+    }
+    if (loopRegion !== null && loopOpenAt === null) {
+      return 'clear loop';
     }
     return 'set loop';
   };
@@ -94,7 +107,17 @@ export function TransportBar({ variant }: TransportBarProps) {
     if (loopOpenAt !== null) {
       return '#e8a87c'; // amber
     }
-    return '#085041'; // teal
+    if (loopRegion !== null && loopOpenAt === null) {
+      return '#7db9a8'; // teal
+    }
+    return '#7db9a8'; // teal
+  };
+
+  const getLoopLabelColor = () => {
+    if (loopOpenAt !== null) {
+      return '#7a5c2e';
+    }
+    return '#085041';
   };
 
   const getLoopDotSize = () => {
@@ -154,7 +177,13 @@ export function TransportBar({ variant }: TransportBarProps) {
         {/* Loop button */}
         <TouchableOpacity
           style={[styles.loopButton, styles.reducedLoopButton, getLoopButtonStyle()]}
-          onPress={handleLoopToggle}
+          onPress={() => {
+            if (loopRegion !== null && loopOpenAt === null) {
+              handleClearLoop();
+              return;
+            }
+            handleLoopToggle();
+          }}
         >
           <View style={[styles.loopDot, { 
             backgroundColor: getLoopDotColor(),
@@ -162,7 +191,13 @@ export function TransportBar({ variant }: TransportBarProps) {
             height: getLoopDotSize(),
             borderRadius: getLoopDotSize() / 2,
           }]} />
-          <Text style={[styles.loopButtonText, styles.reducedLoopButtonText]}>
+          <Text
+            style={[
+              styles.loopButtonText,
+              styles.reducedLoopButtonText,
+              { color: getLoopLabelColor() },
+            ]}
+          >
             {getLoopButtonText()}
           </Text>
         </TouchableOpacity>
@@ -227,7 +262,13 @@ export function TransportBar({ variant }: TransportBarProps) {
       {/* Loop button */}
       <TouchableOpacity
         style={[styles.loopButton, styles.fullLoopButton, getLoopButtonStyle()]}
-        onPress={handleLoopToggle}
+        onPress={() => {
+          if (loopRegion !== null && loopOpenAt === null) {
+            handleClearLoop();
+            return;
+          }
+          handleLoopToggle();
+        }}
       >
         <View style={[styles.loopDot, { 
           backgroundColor: getLoopDotColor(),
@@ -235,7 +276,13 @@ export function TransportBar({ variant }: TransportBarProps) {
           height: getLoopDotSize(),
           borderRadius: getLoopDotSize() / 2,
         }]} />
-        <Text style={[styles.loopButtonText, styles.fullLoopButtonText]}>
+        <Text
+          style={[
+            styles.loopButtonText,
+            styles.fullLoopButtonText,
+            { color: getLoopLabelColor() },
+          ]}
+        >
           {getLoopButtonText()}
         </Text>
       </TouchableOpacity>
@@ -337,19 +384,14 @@ const styles = StyleSheet.create({
     gap: 6,
     borderLeftWidth: 0.5,
   },
-  fullLoopButton: {
-    borderLeftColor: '#7db9a8',
-  },
-  reducedLoopButton: {
-    borderLeftColor: '#7db9a8',
-  },
+  fullLoopButton: {},
+  reducedLoopButton: {},
   loopDot: {
     borderRadius: 4.5,
   },
   loopButtonText: {
     fontSize: 11,
     fontFamily: 'JetBrainsMono',
-    color: '#085041',
   },
   fullLoopButtonText: {
     fontSize: 11,

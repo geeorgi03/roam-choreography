@@ -1,36 +1,35 @@
 import React, {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import {
   FlatList,
+  GestureResponderEvent,
   Image,
   PanResponder,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { theme } from '../../lib/theme';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
-import { supabase } from '../../lib/supabase';
-import { API_BASE } from '../../lib/api';
-import { TransportBar } from './TransportBar';
-import type { SectionClip } from '@roam/types';
 
 const colors = theme.light;
 const spacing = theme.spacing;
 
 // Visible timeline span when no audio is loaded (75 s)
 const FALLBACK_DURATION_MS = 75_000;
+const WAVEFORM_BAR_COUNT = 80;
+const WAVEFORM_BAR_GAP = 2;
+const WAVEFORM_HORIZONTAL_PADDING = 16;
 
 function formatTimecode(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -50,11 +49,11 @@ function isReferenceClip(clip: {
 
 export function WorkbenchTab() {
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
   const {
     sessionId,
     sessionName,
     activeSection,
+    setActiveSection,
     playheadMs,
     durationMs,
     musicUrl,
@@ -82,40 +81,87 @@ export function WorkbenchTab() {
     refreshCount,
   } = useSessionContext();
 
-  // Layout constants for playhead positioning
-  const TRACK_HEADER_W = 16 + 44 + 1; // timeline leftPad + header + separator
-  const trackBodyWidth = Math.max(1, screenWidth - TRACK_HEADER_W - 16);
-
-
   // ── Session metadata ─────────────────────────────────────────────────────
   const [showSectionSwipeHint, setShowSectionSwipeHint] = useState(true);
   const [workspaceTab, setWorkspaceTab] = useState<'ideas' | 'notes'>('ideas');
-
-  // ── Selected items for sheets ────────────────────────────────────────────
-  const [selectedNote, setSelectedNote] = useState<{
-    id: string;
-    timecode_ms: number;
-    text: string | null;
-    audio_storage_path: string | null;
-  } | null>(null);
+  const [phraseEditing, setPhraseEditing] = useState(false);
+  const [phrase, setPhrase] = useState('');
+  const [viewMode, setViewMode] = useState<'counts' | 'partition'>('counts');
+  const [showPartitionHint, setShowPartitionHint] = useState(false);
+  const partitionHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const waveformWidth = useRef(0);
+  const [waveformWidthPx, setWaveformWidthPx] = useState(0);
+  const [notePinTimecodeMs, setNotePinTimecodeMs] = useState<number | null>(null);
 
   // ── Derived values ───────────────────────────────────────────────────────
-  const effectiveDuration = Math.max(durationMs, FALLBACK_DURATION_MS);
-  const playheadLeft =
-    TRACK_HEADER_W +
-    Math.min(
-      (playheadMs / effectiveDuration) * trackBodyWidth,
-      trackBodyWidth - 2
+  const timelineDurationMs = durationMs > 0 ? durationMs : FALLBACK_DURATION_MS;
+  const waveformBars = useMemo(
+    () =>
+      Array.from({ length: WAVEFORM_BAR_COUNT }, (_v, i) => ({
+        index: i,
+        height: 20 + Math.abs(Math.sin(i * 0.4 + i * 0.07) * 40),
+      })),
+    []
+  );
+  const waveformBarWidth = useMemo(() => {
+    if (waveformWidthPx <= 0) return 0;
+    return Math.max(
+      0.5,
+      (waveformWidthPx - WAVEFORM_BAR_GAP * (WAVEFORM_BAR_COUNT - 1)) /
+        WAVEFORM_BAR_COUNT
     );
+  }, [waveformWidthPx]);
+  const waveformContentWidth = useMemo(
+    () =>
+      waveformBarWidth > 0
+        ? waveformBarWidth * WAVEFORM_BAR_COUNT +
+          WAVEFORM_BAR_GAP * (WAVEFORM_BAR_COUNT - 1)
+        : 0,
+    [waveformBarWidth]
+  );
+  const playheadBarIndex = Math.floor((playheadMs / timelineDurationMs) * WAVEFORM_BAR_COUNT);
+  const playheadX = Math.max(
+    0,
+    Math.min(
+      waveformContentWidth,
+      (Math.max(0, Math.min(playheadBarIndex, WAVEFORM_BAR_COUNT)) / WAVEFORM_BAR_COUNT) *
+        waveformContentWidth
+    )
+  );
+  const loopStartX =
+    loopRegion && timelineDurationMs > 0
+      ? (loopRegion.start / timelineDurationMs) * waveformContentWidth
+      : 0;
+  const loopEndX =
+    loopRegion && timelineDurationMs > 0
+      ? (loopRegion.end / timelineDurationMs) * waveformContentWidth
+      : 0;
 
   // ── Effects ───────────────────────────────────────────────────────────
   useEffect(() => {
     refreshCount().catch(() => {});
   }, [refreshCount]);
 
+  useEffect(() => {
+    return () => {
+      if (partitionHintTimer.current) {
+        clearTimeout(partitionHintTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const sections = musicTrack?.sections ?? [];
+    if (!sections.length) return;
+    if (!sections.some((section) => section.label === activeSection)) {
+      setActiveSection(sections[0].label);
+    }
+  }, [musicTrack?.sections, activeSection, setActiveSection]);
+
   // ── Section chip handler ─────────────────────────────────────────────────
   const handleSectionPress = useCallback(
     async (section: { label: string; start_ms: number }) => {
+      setActiveSection(section.label);
       const sound = soundRef.current;
       if (sound) {
         try {
@@ -125,7 +171,7 @@ export function WorkbenchTab() {
         }
       }
     },
-    []
+    [setActiveSection, soundRef]
   );
 
   const handleSectionSwipe = useCallback(
@@ -159,28 +205,29 @@ export function WorkbenchTab() {
   );
 
   // ── Note handlers ────────────────────────────────────────────────────────
-  const openNoteAt = (timecodeMs: number, note?: typeof selectedNote) => {
-    setSelectedNote(note ?? null);
-    openSheet('note-pin');
-  };
-
-  const handleSaveNote = useCallback(
-    async (data: { text?: string; audioUri?: string }) => {
-      const created = await createNote({
-        timecode_ms: playheadMs,
-        text: data.text ?? null,
-        audio_storage_path: data.audioUri ?? null,
-      });
-      if (created) Toast.show({ type: 'success', text1: 'Note pinned' });
+  const handleWaveformTap = useCallback(
+    (event: GestureResponderEvent) => {
+      const width = waveformWidth.current;
+      if (width <= 0 || timelineDurationMs <= 0) return;
+      const fraction = Math.max(0, Math.min(1, event.nativeEvent.locationX / width));
+      const targetMs = fraction * timelineDurationMs;
+      setNotePinTimecodeMs(targetMs);
+      soundRef.current?.setPositionAsync(targetMs).catch(() => {});
     },
-    [createNote, playheadMs]
+    [timelineDurationMs, soundRef]
+  );
+  const handleOpenNotePin = useCallback(
+    (timecodeMs: number = playheadMs) => {
+      setNotePinTimecodeMs(timecodeMs);
+      openSheet('note-pin');
+    },
+    [playheadMs, openSheet]
   );
 
-  const handleDeleteSelectedNote = useCallback(async () => {
-    if (!selectedNote) return;
-    const ok = await deleteNote(selectedNote.id);
+  const handleDeleteNote = useCallback(async (noteId: string) => {
+    const ok = await deleteNote(noteId);
     if (ok) Toast.show({ type: 'success', text1: 'Note deleted' });
-  }, [deleteNote, selectedNote]);
+  }, [deleteNote]);
 
   // ── Clip filtering by active section ────────────────────────────────────
   const hasActiveMusicSection = useMemo(
@@ -206,30 +253,138 @@ export function WorkbenchTab() {
     return counts;
   }, [sectionClips]);
 
-  // ── Time ruler markers ───────────────────────────────────────────────────
-  const timeMarkers = useMemo(() => ['0:00', '0:15', '0:30', '0:45', '1:00', '1:15'], []);
-
-
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.sessionTitle} numberOfLines={1}>
+      <View style={styles.feelingStrip}>
+        <Text style={styles.feelingStripName} numberOfLines={1}>
           {sessionName}
         </Text>
+        {phraseEditing ? (
+          <TextInput
+            style={styles.feelingStripPhrase}
+            value={phrase}
+            onChangeText={setPhrase}
+            onBlur={() => setPhraseEditing(false)}
+            autoFocus
+            placeholder=""
+          />
+        ) : (
+          <TouchableOpacity activeOpacity={0.8} onPress={() => setPhraseEditing(true)}>
+            <Text style={styles.feelingStripPhrase} numberOfLines={1}>
+              {phrase}
+            </Text>
+          </TouchableOpacity>
+        )}
+        <View style={styles.feelingStripDot} />
       </View>
 
-      {/* Time ruler */}
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.ruler}
+        horizontal={false}
+        style={styles.waveformContainer}
+        contentContainerStyle={styles.waveformContainerContent}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={false}
       >
-        {timeMarkers.map((t) => (
-          <Text key={t} style={styles.rulerTick}>
-            {t}
-          </Text>
-        ))}
+        <View
+          style={styles.waveformTrack}
+          onLayout={(event) => {
+            const measuredWidth = Math.max(
+              0,
+              event.nativeEvent.layout.width - WAVEFORM_HORIZONTAL_PADDING * 2
+            );
+            waveformWidth.current = measuredWidth;
+            setWaveformWidthPx(measuredWidth);
+          }}
+        >
+          <TouchableOpacity
+            style={styles.waveformTapArea}
+            activeOpacity={1}
+            onPress={handleWaveformTap}
+          >
+            <View style={[styles.waveformBarsRow, { width: waveformContentWidth }]}>
+              {waveformBars.map((bar) => {
+                const barFraction = bar.index / WAVEFORM_BAR_COUNT;
+                const isActive = loopRegion
+                  ? barFraction >= loopRegion.start / timelineDurationMs &&
+                    barFraction <= loopRegion.end / timelineDurationMs
+                  : false;
+                return (
+                  <View
+                    key={bar.index}
+                    style={[
+                      styles.waveformBar,
+                      {
+                        width: waveformBarWidth,
+                        height: bar.height,
+                        backgroundColor: isActive ? 'rgba(125,185,168,0.6)' : '#e8e3dc',
+                      },
+                    ]}
+                  />
+                );
+              })}
+            </View>
+          </TouchableOpacity>
+          {loopRegion ? (
+            <>
+              <View
+                style={[
+                  styles.waveformLoopEdge,
+                  { left: WAVEFORM_HORIZONTAL_PADDING + loopStartX },
+                ]}
+              />
+              <View
+                style={[
+                  styles.waveformLoopEdge,
+                  { left: WAVEFORM_HORIZONTAL_PADDING + loopEndX },
+                ]}
+              />
+            </>
+          ) : null}
+          <View
+            style={[
+              styles.waveformPlayhead,
+              { left: WAVEFORM_HORIZONTAL_PADDING + playheadX },
+            ]}
+          >
+            <View style={styles.waveformPlayheadDot} />
+          </View>
+        </View>
       </ScrollView>
+
+      <View style={styles.toggleRow}>
+        <TouchableOpacity
+          style={[styles.toggleChip, viewMode === 'counts' && styles.toggleChipActive]}
+          activeOpacity={0.8}
+          onPress={() => setViewMode('counts')}
+        >
+          <Text
+            style={[
+              styles.toggleChipText,
+              viewMode === 'counts' && styles.toggleChipTextActive,
+            ]}
+          >
+            Counts
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.toggleChip}
+          activeOpacity={0.8}
+          onPress={() => {
+            setShowPartitionHint(true);
+            if (partitionHintTimer.current) {
+              clearTimeout(partitionHintTimer.current);
+            }
+            partitionHintTimer.current = setTimeout(() => {
+              setShowPartitionHint(false);
+            }, 2000);
+          }}
+        >
+          <Text style={styles.toggleChipText}>Partition</Text>
+        </TouchableOpacity>
+      </View>
+      {showPartitionHint ? (
+        <Text style={styles.partitionHint}>read-only in V3</Text>
+      ) : null}
 
       {/* Section chips — shown when music analysis has produced sections */}
       {musicTrack?.sections && musicTrack.sections.length > 0 ? (
@@ -259,10 +414,7 @@ export function WorkbenchTab() {
                     {s.label}
                   </Text>
                   <Text
-                    style={[
-                      styles.sectionChipCount,
-                      s.label === activeSection && styles.sectionChipTextActive,
-                    ]}
+                    style={styles.sectionChipCount}
                   >
                     {sectionClipCounts.get(s.label) ?? 0}
                   </Text>
@@ -275,167 +427,6 @@ export function WorkbenchTab() {
           ) : null}
         </>
       ) : null}
-
-      {/* Track timeline */}
-      <View style={styles.timeline}>
-        {/* Music track */}
-        <View style={styles.track}>
-          <View style={styles.trackHeader}>
-            <Text style={styles.trackIcon}>♪</Text>
-          </View>
-          <View style={[styles.trackBody, styles.waveformRow]}>
-            {musicTrack ? (
-              isAnalysing || musicTrack.analysis_status === 'pending' ? (
-                <Text style={styles.trackHint}>Analysing…</Text>
-              ) : (
-                <>
-                  <Text style={styles.trackHint} numberOfLines={1}>
-                    {musicTrack.bpm ? `${Math.round(musicTrack.bpm)} BPM` : 'Music'}
-                    {durationMs > 0 ? ` · ${formatTimecode(durationMs)}` : ''}
-                  </Text>
-                  {/* Section boundary lines */}
-                  {musicTrack.sections?.map((s) => {
-                    const x =
-                      effectiveDuration > 0
-                        ? (s.start_ms / effectiveDuration) * trackBodyWidth
-                        : 0;
-                    return (
-                      <View
-                        key={s.label}
-                        style={[styles.sectionMarker, { left: x }]}
-                      />
-                    );
-                  })}
-                </>
-              )
-            ) : (
-              <TouchableOpacity
-                style={styles.dashedInline}
-                onPress={() =>
-                  router.push({ pathname: './music-setup', params: { sessionId } })
-                }
-                activeOpacity={0.85}
-              >
-                <Text style={styles.dashedText}>Add music</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Note-pin track */}
-        <View style={styles.track}>
-          <View style={styles.trackHeader}>
-            <Text style={styles.trackIcon}>📍</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.trackBody}
-            activeOpacity={1}
-            onPress={() => openNoteAt(playheadMs)}
-          >
-            <View style={styles.pinsRow}>
-              {notes.slice(0, 18).map((n) => (
-                <TouchableOpacity
-                  key={n.id}
-                  style={[
-                    styles.pinDot,
-                    { backgroundColor: n.color ?? '#4ECDC4' },
-                  ]}
-                  onPress={() =>
-                    openNoteAt(n.timecode_ms, {
-                      id: n.id,
-                      timecode_ms: n.timecode_ms,
-                      text: n.text,
-                      audio_storage_path: n.audio_storage_path,
-                    })
-                  }
-                />
-              ))}
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Clips track */}
-        <View style={styles.track}>
-          <View style={styles.trackHeader}>
-            <Text style={styles.trackIcon}>🎬</Text>
-          </View>
-          <View style={[styles.trackBody, styles.clipsRow]}>
-            {clips.length === 0 ? (
-              <Text style={styles.trackHint}>No clips</Text>
-            ) : (
-              <>
-                <Text style={styles.trackHint}>{clips.length} clips</Text>
-                {clips.slice(0, 20).map((clip, i) => {
-                  const sc = sectionClips.find((x) => x.clip_id === clip.server_id);
-                  const frac =
-                    sc && effectiveDuration > 0
-                      ? sc.section_start_ms / effectiveDuration
-                      : (i / Math.max(clips.length, 1)) * 0.85;
-                  return (
-                    <View
-                      key={clip.local_id}
-                      style={[
-                        styles.clipBlock,
-                        {
-                          left: frac * trackBodyWidth,
-                          backgroundColor:
-                            clip.upload_status === 'ready' ? colors.warm : colors.mine,
-                        },
-                      ]}
-                    />
-                  );
-                })}
-              </>
-            )}
-          </View>
-        </View>
-
-        {/* Loop track */}
-        <View style={styles.track}>
-          <View style={styles.trackHeader}>
-            <Text style={styles.trackIcon}>🔁</Text>
-          </View>
-          <View style={[styles.trackBody, styles.loopRow]}>
-            {loopRegion ? (
-              <>
-                <View
-                  style={[
-                    styles.loopBlock,
-                    {
-                      left:
-                        effectiveDuration > 0
-                          ? (loopRegion.start / effectiveDuration) * trackBodyWidth
-                          : 0,
-                      width:
-                        effectiveDuration > 0
-                          ? ((loopRegion.end - loopRegion.start) /
-                              effectiveDuration) *
-                            trackBodyWidth
-                          : 40,
-                    },
-                  ]}
-                />
-                <TouchableOpacity
-                  style={styles.loopClearBtn}
-                  onPress={handleLoopToggle}
-                >
-                  <Text style={styles.trackHint}>✕ Loop</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <TouchableOpacity onPress={handleLoopToggle}>
-                <Text style={styles.trackHint}>Set loop</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Playhead */}
-        <View
-          style={[styles.playhead, { left: playheadLeft }]}
-          pointerEvents="none"
-        />
-      </View>
 
       {/* Section workspace */}
       <View style={styles.workspace}>
@@ -492,6 +483,15 @@ export function WorkbenchTab() {
             </Text>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity
+          style={styles.pinNoteBtn}
+          onPress={() => handleOpenNotePin(playheadMs)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.pinNoteBtnText}>
+            Pin note @ {formatTimecode(notePinTimecodeMs ?? playheadMs)}
+          </Text>
+        </TouchableOpacity>
 
         {workspaceTab === 'ideas' ? (
           <FlatList
@@ -574,7 +574,7 @@ export function WorkbenchTab() {
                 <Text style={styles.noteText}>{note.text}</Text>
                 <TouchableOpacity
                   style={styles.noteDelete}
-                  onPress={() => handleDeleteSelectedNote()}
+                  onPress={() => handleDeleteNote(note.id)}
                 >
                   <Text style={styles.noteDeleteText}>✕</Text>
                 </TouchableOpacity>
@@ -584,6 +584,18 @@ export function WorkbenchTab() {
         )}
       </View>
 
+      <TouchableOpacity
+        style={styles.recordFab}
+        activeOpacity={0.85}
+        onPress={() =>
+          router.push({
+            pathname: './camera',
+            params: { id: sessionId, sectionName: activeSection },
+          })
+        }
+      >
+        <View style={styles.recordFabInner} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -592,30 +604,122 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.ground,
+    position: 'relative',
   },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+  feelingStrip: {
+    height: 56,
+    backgroundColor: colors.amberBg,
+    borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'relative',
   },
-  sessionTitle: {
+  feelingStripName: {
+    fontFamily: theme.typography.displayFamily,
+    fontSize: 22,
+    fontWeight: '500',
     color: colors.active,
-    fontSize: 18,
-    fontWeight: '700',
   },
-  ruler: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: 24,
-  },
-  rulerTick: {
+  feelingStripPhrase: {
+    fontFamily: theme.typography.displayFamily,
+    fontStyle: 'italic',
+    fontSize: 14,
     color: colors.muted,
-    fontSize: 10,
-    fontWeight: '600',
-    width: 40,
+    marginLeft: 12,
+  },
+  feelingStripDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.amber,
+    position: 'absolute',
+    top: 8,
+    right: 12,
+  },
+  waveformContainer: {
+    height: 80,
+  },
+  waveformContainerContent: {
+    height: 80,
+  },
+  waveformTrack: {
+    height: 80,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  waveformTapArea: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: WAVEFORM_HORIZONTAL_PADDING,
+    right: WAVEFORM_HORIZONTAL_PADDING,
+    justifyContent: 'center',
+  },
+  waveformBarsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: WAVEFORM_BAR_GAP,
+    height: '100%',
+  },
+  waveformBar: {
+    borderRadius: 2,
+    alignSelf: 'center',
+  },
+  waveformLoopEdge: {
+    position: 'absolute',
+    width: 2,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#7db9a8',
+  },
+  waveformPlayhead: {
+    position: 'absolute',
+    width: 1.5,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#3a342d',
+  },
+  waveformPlayheadDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#3a342d',
+    position: 'absolute',
+    top: 0,
+    left: -2.75,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  toggleChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: colors.border,
+  },
+  toggleChipActive: {
+    backgroundColor: colors.active,
+    borderColor: colors.active,
+  },
+  toggleChipText: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 9,
+    color: colors.muted,
+  },
+  toggleChipTextActive: {
+    color: '#ffffff',
+  },
+  partitionHint: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 9,
+    color: colors.muted,
+    paddingHorizontal: 16,
   },
   sectionChips: {
     paddingHorizontal: 16,
@@ -628,29 +732,32 @@ const styles = StyleSheet.create({
     borderRadius: spacing.pill,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.chrome,
+    backgroundColor: 'transparent',
   },
   sectionChipActive: {
-    backgroundColor: colors.active,
-    borderColor: colors.active,
+    borderColor: '#7db9a8',
+    backgroundColor: 'rgba(125,185,168,0.12)',
   },
   sectionChipInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    justifyContent: 'space-between',
   },
   sectionChipText: {
-    color: colors.muted,
+    color: '#b8b0a5',
     fontSize: 12,
     fontWeight: '600',
+    flex: 1,
   },
   sectionChipTextActive: {
-    color: '#ffffff',
+    color: colors.active,
   },
   sectionChipCount: {
-    color: colors.muted,
+    fontFamily: theme.typography.monoFamily,
     fontSize: 10,
-    fontWeight: '600',
+    color: colors.muted,
+    textAlign: 'right',
   },
   sectionSwipeHint: {
     color: colors.muted,
@@ -658,108 +765,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 4,
   },
-  timeline: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  track: {
-    flexDirection: 'row',
-    height: 32,
-    gap: 8,
-  },
-  trackHeader: {
-    width: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  trackIcon: {
-    color: colors.muted,
-    fontSize: 14,
-  },
-  trackBody: {
-    flex: 1,
-    backgroundColor: colors.chrome,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  waveformRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  trackHint: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  sectionMarker: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: colors.mine,
-  },
-  dashedInline: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  dashedText: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  pinsRow: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  pinDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  clipsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  clipBlock: {
-    width: 8,
-    height: 16,
-    borderRadius: 2,
-  },
-  loopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  loopBlock: {
-    height: 16,
-    backgroundColor: colors.mine,
-    borderRadius: 2,
-  },
-  loopClearBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: colors.chrome,
-    borderRadius: 4,
-  },
-  playhead: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 2,
-    backgroundColor: colors.warm,
-    borderRadius: 1,
-  },
   workspace: {
+    flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
@@ -799,6 +806,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 12,
     gap: 8,
+  },
+  pinNoteBtn: {
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: spacing.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
+  },
+  pinNoteBtnText: {
+    color: colors.active,
+    fontSize: 11,
+    fontWeight: '600',
   },
   workspaceTab: {
     paddingHorizontal: 12,
@@ -927,5 +949,22 @@ const styles = StyleSheet.create({
   noteDeleteText: {
     color: colors.muted,
     fontSize: 10,
+  },
+  recordFab: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.capture,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recordFabInner: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#ffffff',
   },
 });
