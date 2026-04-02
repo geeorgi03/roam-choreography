@@ -52,14 +52,14 @@ const styles = StyleSheet.create({
   },
   sessionName: {
     fontFamily: theme.typography.displayFamily,
-    fontSize: 22,
+    fontSize: 36,
     fontWeight: '500',
     color: colors.active,
   },
   phrase: {
     fontFamily: theme.typography.displayFamily,
     fontStyle: 'italic',
-    fontSize: 14,
+    fontSize: 16,
     color: colors.muted,
     marginLeft: 12,
   },

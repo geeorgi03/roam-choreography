@@ -27,13 +27,6 @@ const getThemeStyles = () => ({
     color: '#ffffff',
     fontFamily: theme.typography.monoFamily,
   },
-  seekButton: {
-    backgroundColor: theme.light.active,
-  },
-  seekButtonText: {
-    color: '#ffffff',
-    fontFamily: theme.typography.monoFamily,
-  },
   speedLabel: {
     fontFamily: theme.typography.monoFamily,
     color: theme.light.muted,
@@ -65,8 +58,6 @@ export function TransportBar({ variant }: TransportBarProps) {
     loopRegion,
     loopOpenAt,
     handlePlayPause,
-    handleSeekBack,
-    handleSeekForward,
     handleLoopToggle,
     handleClearLoop,
   } = useSessionContext();
@@ -98,7 +89,7 @@ export function TransportBar({ variant }: TransportBarProps) {
       return 'tap to close';
     }
     if (loopRegion !== null && loopOpenAt === null) {
-      return 'clear loop';
+      return 'set loop';
     }
     return 'set loop';
   };
@@ -154,6 +145,14 @@ export function TransportBar({ variant }: TransportBarProps) {
     return bars;
   };
 
+  const handleLoopButtonPress = () => {
+    // "set loop" should always enter loop capture flow; if a loop exists, reset it first.
+    if (loopRegion !== null && loopOpenAt === null) {
+      handleClearLoop();
+    }
+    handleLoopToggle();
+  };
+
   if (variant === 'reduced') {
     return (
       <View style={[styles.container, styles.reducedContainer]}>
@@ -177,13 +176,7 @@ export function TransportBar({ variant }: TransportBarProps) {
         {/* Loop button */}
         <TouchableOpacity
           style={[styles.loopButton, styles.reducedLoopButton, getLoopButtonStyle()]}
-          onPress={() => {
-            if (loopRegion !== null && loopOpenAt === null) {
-              handleClearLoop();
-              return;
-            }
-            handleLoopToggle();
-          }}
+          onPress={handleLoopButtonPress}
         >
           <View style={[styles.loopDot, { 
             backgroundColor: getLoopDotColor(),
@@ -207,14 +200,6 @@ export function TransportBar({ variant }: TransportBarProps) {
 
   return (
     <View style={[styles.container, styles.fullContainer]}>
-      {/* Seek back button */}
-      <TouchableOpacity
-        style={styles.seekButton}
-        onPress={handleSeekBack}
-      >
-        <Text style={styles.seekButtonText}>←</Text>
-      </TouchableOpacity>
-
       {/* Play/pause button */}
       <TouchableOpacity
         style={[styles.playButton, styles.fullPlayButton]}
@@ -223,14 +208,6 @@ export function TransportBar({ variant }: TransportBarProps) {
         <Text style={styles.playButtonText}>
           {isPlaying ? '⏸' : '▶'}
         </Text>
-      </TouchableOpacity>
-
-      {/* Seek forward button */}
-      <TouchableOpacity
-        style={styles.seekButton}
-        onPress={handleSeekForward}
-      >
-        <Text style={styles.seekButtonText}>→</Text>
       </TouchableOpacity>
 
       {/* Speed controls */}
@@ -262,13 +239,7 @@ export function TransportBar({ variant }: TransportBarProps) {
       {/* Loop button */}
       <TouchableOpacity
         style={[styles.loopButton, styles.fullLoopButton, getLoopButtonStyle()]}
-        onPress={() => {
-          if (loopRegion !== null && loopOpenAt === null) {
-            handleClearLoop();
-            return;
-          }
-          handleLoopToggle();
-        }}
+        onPress={handleLoopButtonPress}
       >
         <View style={[styles.loopDot, { 
           backgroundColor: getLoopDotColor(),
@@ -300,8 +271,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   fullContainer: {
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingHorizontal: 8,
+    gap: 8,
   },
   reducedContainer: {
     paddingHorizontal: 12,
@@ -328,35 +299,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  seekButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#3a342d',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  seekButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   speedContainer: {
     flex: 1,
     alignItems: 'center',
   },
   speedLabel: {
     fontSize: 9,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.monoFamily,
     color: '#8a8278',
     marginBottom: 2,
   },
   speedButtons: {
     flexDirection: 'row',
-    gap: 4,
+    gap: 3,
   },
   speedButton: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 4,
     borderWidth: 1,
@@ -369,7 +327,7 @@ const styles = StyleSheet.create({
   },
   speedButtonText: {
     fontSize: 9,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.monoFamily,
     color: '#8a8278',
   },
   activeSpeedButtonText: {
@@ -384,14 +342,16 @@ const styles = StyleSheet.create({
     gap: 6,
     borderLeftWidth: 0.5,
   },
-  fullLoopButton: {},
+  fullLoopButton: {
+    width: 102,
+  },
   reducedLoopButton: {},
   loopDot: {
     borderRadius: 4.5,
   },
   loopButtonText: {
     fontSize: 11,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.monoFamily,
   },
   fullLoopButtonText: {
     fontSize: 11,

@@ -35,6 +35,20 @@ interface PresenceEntry {
 interface RealtimeNote {
   text: string;
   receivedAt: string;
+  senderUserId?: string | null;
+  eventId?: string | null;
+}
+
+interface ClipIdentity {
+  participant_id?: string | null;
+  participantId?: string | null;
+  dancer_id?: string | null;
+  dancerId?: string | null;
+  user_id?: string | null;
+  userId?: string | null;
+  owner_user_id?: string | null;
+  dancer_color?: string | null;
+  color?: string | null;
 }
 
 const DANCER_POSITION_FALLBACKS: Array<{ top: number; left: number }> = [
@@ -68,16 +82,12 @@ function getDancerBadge(dancer: Dancer, fallbackIndex: number): string {
   return String(fallbackIndex + 1);
 }
 
-function getDancerForClip(
-  clip: {
-    user_id?: string | null;
-    dancer_color?: string | null;
-    color?: string | null;
-  },
-  dancers: Dancer[]
-): Dancer | null {
+function getDancerForClip(clip: ClipIdentity, dancers: Dancer[], participants: Array<{ id: string; user_id: string }>): Dancer | null {
+  const participantId = clip.participant_id ?? clip.participantId ?? clip.dancer_id ?? clip.dancerId;
+  const participantMatch = participantId ? participants.find((participant) => participant.id === participantId) : null;
+  const resolvedUserId = participantMatch?.user_id ?? clip.user_id ?? clip.userId ?? clip.owner_user_id ?? null;
   return (
-    dancers.find((dancer) => dancer.userId === clip.user_id) ??
+    dancers.find((dancer) => Boolean(resolvedUserId) && dancer.userId === resolvedUserId) ??
     dancers.find((dancer) => Boolean(clip.dancer_color) && dancer.color.toLowerCase() === String(clip.dancer_color).toLowerCase()) ??
     dancers.find((dancer) => Boolean(clip.color) && dancer.color.toLowerCase() === String(clip.color).toLowerCase()) ??
     null
@@ -122,11 +132,13 @@ export function GroupTab() {
   const [newClipCue, setNewClipCue] = useState(false);
   const [broadcastHint, setBroadcastHint] = useState<string | null>(null);
   const [selectedDancerId, setSelectedDancerId] = useState<string | null>(null);
-  const [highlightedNoteText, setHighlightedNoteText] = useState<string | null>(null);
+  const [latestIncomingNote, setLatestIncomingNote] = useState<RealtimeNote | null>(null);
   const pulseValuesRef = useRef<Record<string, Animated.Value>>({});
   const newNoteOpacity = useRef(new Animated.Value(0)).current;
+  const newNoteTranslateY = useRef(new Animated.Value(-10)).current;
   const highlightedNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestBroadcastKeyRef = useRef<string | null>(null);
+  const hasHydratedBroadcastBaselineRef = useRef(false);
   const knownClipIdsRef = useRef<Set<string>>(new Set());
   const prevClipsLengthRef = useRef(clips.length);
   const channelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null);
@@ -170,22 +182,30 @@ export function GroupTab() {
   }, [myUserId, participants, presenceMap, presenceUnavailable]);
 
   const receivedNotes = useMemo(() => {
+    const normalizeText = (value: string) => value.trim().slice(0, 60);
+    const identityText = (value: string) => value.toLowerCase();
     const merged = [
       ...broadcasts.map((entry, index) => {
-        const text = entry.message.trim().slice(0, 60);
+        const text = normalizeText(entry.message);
         const parsed = Date.parse(entry.created_at);
         return {
           text,
           timestamp: Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER - (broadcasts.length - index) : parsed,
           sourceOrder: index,
+          eventKey: `db:${entry.id}`,
+          transportKey: entry.sender_id ? `${entry.sender_id}:${entry.created_at}:${identityText(text)}` : null,
         };
       }),
       ...broadcastNotes.map((entry, index) => {
         const parsed = Date.parse(entry.receivedAt);
+        const text = normalizeText(entry.text);
+        const senderIdentity = entry.senderUserId ?? 'unknown';
         return {
-          text: entry.text.trim().slice(0, 60),
+          text,
           timestamp: Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER - (broadcastNotes.length - index) : parsed,
           sourceOrder: broadcasts.length + index,
+          eventKey: entry.eventId ? `rt-id:${entry.eventId}` : `rt:${senderIdentity}:${entry.receivedAt}:${index}`,
+          transportKey: entry.senderUserId ? `${entry.senderUserId}:${entry.receivedAt}:${identityText(text)}` : null,
         };
       }),
     ]
@@ -193,11 +213,13 @@ export function GroupTab() {
       .sort((a, b) => a.timestamp - b.timestamp || a.sourceOrder - b.sourceOrder);
 
     const deduped: string[] = [];
-    const seen = new Set<string>();
+    const seenEventKeys = new Set<string>();
+    const seenTransportKeys = new Set<string>();
     for (const entry of merged) {
-      const key = entry.text.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
+      if (seenEventKeys.has(entry.eventKey)) continue;
+      if (entry.transportKey && seenTransportKeys.has(entry.transportKey)) continue;
+      seenEventKeys.add(entry.eventKey);
+      if (entry.transportKey) seenTransportKeys.add(entry.transportKey);
       deduped.push(entry.text);
     }
 
@@ -234,6 +256,7 @@ export function GroupTab() {
       sentAt: new Date().toISOString(),
     };
 
+    let liveSendSucceeded = false;
     const channel = channelRef.current;
     if (channel) {
       const status = await channel.send({
@@ -241,18 +264,21 @@ export function GroupTab() {
         event: 'group:note',
         payload: notePayload,
       });
-      if (status === 'ok') {
-        setBroadcastText('');
-        setBroadcastHint(null);
-        return;
-      }
+      liveSendSucceeded = status === 'ok';
     }
 
     const persisted = await sendBroadcast(text);
     if (persisted) {
-      setBroadcastNotes((prev) => [...prev, { text, receivedAt: notePayload.sentAt }]);
+      if (!liveSendSucceeded) {
+        setBroadcastNotes((prev) => [...prev, { text, receivedAt: notePayload.sentAt, senderUserId: myUserId }]);
+      }
       setBroadcastText('');
-      setBroadcastHint(channel ? 'live send unavailable, note saved' : null);
+      setBroadcastHint(liveSendSucceeded ? null : channel ? 'live send unavailable, note saved' : null);
+      return;
+    }
+
+    if (liveSendSucceeded) {
+      setBroadcastHint('sent live, but failed to save to history - retry');
       return;
     }
     setBroadcastHint('send failed, retry');
@@ -407,6 +433,18 @@ export function GroupTab() {
           {
             text,
             receivedAt: typeof payload?.sentAt === 'string' ? payload.sentAt : new Date().toISOString(),
+            senderUserId:
+              typeof payload?.senderUserId === 'string'
+                ? payload.senderUserId
+                : typeof payload?.sender_user_id === 'string'
+                  ? payload.sender_user_id
+                  : null,
+            eventId:
+              typeof payload?.id === 'string'
+                ? payload.id
+                : typeof payload?.broadcastId === 'string'
+                  ? payload.broadcastId
+                  : null,
           },
         ]);
       })
@@ -491,12 +529,8 @@ export function GroupTab() {
       if (known.has(clip.local_id)) continue;
       known.add(clip.local_id);
 
-      const clipAny = clip as unknown as {
-        user_id?: string | null;
-        dancer_color?: string | null;
-        color?: string | null;
-      };
-      const matched = getDancerForClip(clipAny, dancers);
+      const clipAny = clip as unknown as ClipIdentity;
+      const matched = getDancerForClip(clipAny, dancers, participants);
       if (!matched) continue;
 
       const pulse = pulseValuesRef.current[matched.id] ?? new Animated.Value(1);
@@ -507,7 +541,7 @@ export function GroupTab() {
         Animated.timing(pulse, { toValue: 1, duration: 180, useNativeDriver: true }),
       ]).start();
     }
-  }, [clips, dancers]);
+  }, [clips, dancers, participants]);
 
   useEffect(() => {
     const merged = [
@@ -534,21 +568,45 @@ export function GroupTab() {
     if (!latest) return;
 
     const latestKey = `${latest.receivedAt}:${latest.text}`;
+    if (!hasHydratedBroadcastBaselineRef.current) {
+      // First historical hydration should establish baseline silently.
+      if (broadcastNotes.length === 0) {
+        latestBroadcastKeyRef.current = latestKey;
+        hasHydratedBroadcastBaselineRef.current = true;
+        return;
+      }
+      hasHydratedBroadcastBaselineRef.current = true;
+    }
+
     if (latestBroadcastKeyRef.current === latestKey) return;
     latestBroadcastKeyRef.current = latestKey;
 
-    setHighlightedNoteText(latest.text);
+    setLatestIncomingNote({ text: latest.text, receivedAt: latest.receivedAt });
     newNoteOpacity.setValue(0);
-    Animated.timing(newNoteOpacity, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
+    newNoteTranslateY.setValue(-10);
+    Animated.parallel([
+      Animated.timing(newNoteOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.timing(newNoteTranslateY, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
     if (highlightedNoteTimerRef.current) clearTimeout(highlightedNoteTimerRef.current);
     highlightedNoteTimerRef.current = setTimeout(() => {
-      setHighlightedNoteText(null);
+      Animated.timing(newNoteOpacity, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }).start(() => {
+        setLatestIncomingNote(null);
+      });
     }, 4000);
-  }, [broadcastNotes, broadcasts, newNoteOpacity]);
+  }, [broadcastNotes, broadcasts, newNoteOpacity, newNoteTranslateY]);
 
   useEffect(() => {
     return () => {
@@ -736,9 +794,9 @@ export function GroupTab() {
               live formation: {activeFormationBroadcast.momentId ?? 'none'} / {activeFormationBroadcast.section ?? 'section'}
             </Text>
           ) : null}
-          {highlightedNoteText ? (
-            <Animated.View style={[styles.newNoteSlideIn, { opacity: newNoteOpacity }]}>
-              <Text style={styles.choreographerNoteText}>{highlightedNoteText}</Text>
+          {latestIncomingNote ? (
+            <Animated.View style={[styles.newNoteSlideIn, { opacity: newNoteOpacity, transform: [{ translateY: newNoteTranslateY }] }]}>
+              <Text style={styles.choreographerNoteText}>{latestIncomingNote.text}</Text>
             </Animated.View>
           ) : null}
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -761,7 +819,7 @@ export function GroupTab() {
           columnWrapperStyle={{ gap: 8 }}
           contentContainerStyle={{ gap: 8 }}
           renderItem={({ item, index }) => {
-            const dancerForClip = getDancerForClip(item as { user_id?: string | null; dancer_color?: string | null; color?: string | null }, dancers);
+            const dancerForClip = getDancerForClip(item as ClipIdentity, dancers, participants);
             const dancerBadge = dancerForClip ? getDancerBadge(dancerForClip, index) : String(index + 1);
             const badgeColor = dancerForClip?.color ?? colors.mine;
             return (
@@ -918,15 +976,7 @@ const styles = StyleSheet.create({
   clipsGridLabel: { fontSize: 11, color: colors.muted, fontFamily: 'JetBrainsMono' },
   newClipCue: { fontSize: 10, color: '#2aaea1', fontFamily: 'JetBrainsMono' },
   clipThumb: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden', position: 'relative', backgroundColor: colors.ground },
-  clipThumbRef: { backgroundColor: colors.warm },
-  clipThumbMine: { backgroundColor: colors.mine },
   clipThumbImage: { width: '100%', height: '100%' },
-  clipTypeBadge: { position: 'absolute', top: 4, left: 4, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 },
-  clipTypeBadgeRef: { backgroundColor: 'rgba(255,255,255,0.9)' },
-  clipTypeBadgeMine: { backgroundColor: 'rgba(255,255,255,0.9)' },
-  clipTypeBadgeText: { fontSize: 8, fontWeight: '700' },
-  clipTypeBadgeTextRef: { color: colors.warm },
-  clipTypeBadgeTextMine: { color: colors.mine },
   clipDancerInitialBadge: {
     position: 'absolute',
     bottom: 2,

@@ -364,39 +364,31 @@ export function WorkbenchTab() {
       {/* Section chips — shown when music analysis has produced sections */}
       {musicTrack?.sections && musicTrack.sections.length > 0 ? (
         <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.sectionChips}
-          >
+          <View style={styles.sectionPillList}>
             {musicTrack.sections.map((s) => (
               <TouchableOpacity
                 key={s.label}
                 style={[
-                  styles.sectionChip,
-                  s.label === activeSection && styles.sectionChipActive,
+                  styles.sectionPill,
+                  s.label === activeSection && styles.sectionPillActive,
                 ]}
                 onPress={() => handleSectionPress(s)}
                 activeOpacity={0.75}
               >
-                <View style={styles.sectionChipInner}>
-                  <Text
-                    style={[
-                      styles.sectionChipText,
-                      s.label === activeSection && styles.sectionChipTextActive,
-                    ]}
-                  >
-                    {s.label}
-                  </Text>
-                  <Text
-                    style={styles.sectionChipCount}
-                  >
-                    {sectionClipCounts.get(s.label) ?? 0}
-                  </Text>
-                </View>
+                <Text
+                  style={[
+                    styles.sectionPillText,
+                    s.label === activeSection && styles.sectionPillTextActive,
+                  ]}
+                >
+                  {s.label}
+                </Text>
+                <Text style={styles.sectionPillCount}>
+                  {sectionClipCounts.get(s.label) ?? 0}
+                </Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </View>
           {showSectionSwipeHint ? (
             <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
           ) : null}
@@ -672,43 +664,37 @@ const styles = StyleSheet.create({
     color: colors.muted,
     paddingHorizontal: 16,
   },
-  sectionChips: {
+  sectionPillList: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    gap: 8,
   },
-  sectionChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: spacing.pill,
-    borderWidth: 1,
+  sectionPill: {
+    height: 36,
+    borderRadius: 6,
+    borderWidth: 0.5,
     borderColor: colors.border,
-    backgroundColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
-  sectionChipActive: {
+  sectionPillActive: {
     borderColor: '#7db9a8',
     backgroundColor: 'rgba(125,185,168,0.12)',
   },
-  sectionChipInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    justifyContent: 'space-between',
-  },
-  sectionChipText: {
+  sectionPillText: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 11,
     color: '#b8b0a5',
-    fontSize: 12,
-    fontWeight: '600',
-    flex: 1,
   },
-  sectionChipTextActive: {
-    color: colors.active,
+  sectionPillTextActive: {
+    color: '#3a342d',
   },
-  sectionChipCount: {
+  sectionPillCount: {
     fontFamily: theme.typography.monoFamily,
     fontSize: 10,
     color: colors.muted,
-    textAlign: 'right',
   },
   sectionSwipeHint: {
     color: colors.muted,
