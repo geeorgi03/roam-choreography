@@ -1,0 +1,7 @@
+/**
+ * Roam Mobile entrypoint.
+ * Uses @roam/types as the shared consumer contract.
+ */
+import type { Session, Clip, MusicTrack, UploadStatus } from '@roam/types';
+export type { Session, Clip, MusicTrack, UploadStatus };
+//# sourceMappingURL=index.d.ts.map

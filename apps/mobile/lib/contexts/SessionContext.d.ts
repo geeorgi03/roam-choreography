@@ -1,0 +1,68 @@
+import React from 'react';
+import { Audio } from 'expo-av';
+import { ClipRow } from '../database';
+import { SectionClip } from '@roam/types';
+export interface SessionContextValue {
+    sessionId: string;
+    sessionName: string;
+    setSessionName: (name: string) => void;
+    activeTab: 'workbench' | 'spatial' | 'song-map' | 'group';
+    setActiveTab: (tab: SessionContextValue['activeTab']) => void;
+    activeSection: string;
+    setActiveSection: (section: string) => void;
+    activeMoment: string | null;
+    setActiveMoment: (moment: string | null) => void;
+    jumpToSongMap: () => void;
+    isPlaying: boolean;
+    setIsPlaying: (playing: boolean) => void;
+    playheadMs: number;
+    setPlayheadMs: (ms: number) => void;
+    durationMs: number;
+    setDurationMs: (ms: number) => void;
+    playbackSpeed: number;
+    setPlaybackSpeed: (speed: number) => void;
+    loopRegion: {
+        start: number;
+        end: number;
+    } | null;
+    setLoopRegion: (region: {
+        start: number;
+        end: number;
+    } | null) => void;
+    loopOpenAt: number | null;
+    setLoopOpenAt: (ms: number | null) => void;
+    musicUrl: string | null;
+    activeSheetId: string | null;
+    setActiveSheetId: (id: string | null) => void;
+    wasPlayingBeforeSheet: boolean;
+    setWasPlayingBeforeSheet: (playing: boolean) => void;
+    selectedClipForSheet: ClipRow | null;
+    setSelectedClipForSheet: (clip: ClipRow | null) => void;
+    sectionClips: SectionClip[];
+    setSectionClips: (clips: SectionClip[]) => void;
+    soundRef: React.RefObject<Audio.Sound | null>;
+    clips: ClipRow[];
+    retryClip: (local_id: string) => void;
+    musicTrack: any;
+    isAnalysing: boolean;
+    notes: any[];
+    createNote: (note: any) => void;
+    deleteNote: (id: string) => void;
+    inboxCount: number;
+    refreshCount: () => Promise<void>;
+    handlePlayPause: () => void;
+    handleSeekBack: () => void;
+    handleSeekForward: () => void;
+    handleLoopToggle: () => void;
+    handleClearLoop: () => void;
+    openSheet: (id: string) => void;
+    closeSheet: (expectedSheetId?: string) => void;
+    closeSheetIfActive: (sheetId: string) => void;
+    openClipSheet: (clip: ClipRow) => void;
+}
+export declare function SessionProvider({ sessionId, children }: {
+    sessionId: string;
+    children: React.ReactNode;
+}): React.JSX.Element;
+export declare function useSessionContext(): SessionContextValue;
+//# sourceMappingURL=SessionContext.d.ts.map

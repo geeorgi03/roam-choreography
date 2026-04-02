@@ -1,0 +1,68 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.theme = void 0;
+exports.theme = {
+    light: {
+        ground: '#F9F7F4',
+        chrome: '#FFFFFF',
+        border: '#E8E3DC',
+        inactive: '#B8B0A5',
+        muted: '#8A8278',
+        active: '#3A342D',
+        warm: '#D4A574',
+        amber: '#E8A87C',
+        amberBg: 'rgba(232, 168, 124, 0.08)',
+        capture: '#E67C5C',
+        mine: '#7DB9A8',
+        mineBg: 'rgba(125, 185, 168, 0.12)',
+        ref: '#D4A574',
+    },
+    night: {
+        ground: '#0d0d0c',
+        chrome: '#1a1a18',
+        border: '#2a2825',
+        inactive: '#4a4845',
+        muted: '#6a6560',
+        active: '#e8e4dc',
+        warm: '#D4A574',
+        amber: '#E8A87C',
+        amberBg: 'rgba(232, 168, 124, 0.08)',
+        capture: '#E67C5C',
+        mine: '#7DB9A8',
+        mineBg: 'rgba(125, 185, 168, 0.12)',
+        ref: '#D4A574',
+    },
+    // Backward-compat aliases for consumers still on the flat contract.
+    background: '#F9F7F4',
+    textPrimary: '#3A342D',
+    textSecondary: '#8A8278',
+    accent: '#7DB9A8',
+    borderRadius: 12,
+    typography: {
+        displayFamily: 'Fraunces',
+        monoFamily: 'JetBrainsMono',
+        bodyFamily: 'System',
+        sizes: {
+            xs: 10,
+            sm: 12,
+            md: 14,
+            lg: 16,
+            xl: 20,
+            xxl: 36,
+        },
+    },
+    spacing: {
+        xxs: 4,
+        xs: 8,
+        sm: 12,
+        md: 16,
+        lg: 20,
+        xl: 24,
+        xxl: 32,
+        radiusSm: 8,
+        radiusMd: 12,
+        radiusLg: 14,
+        pill: 999,
+    },
+};
+//# sourceMappingURL=theme.js.map
