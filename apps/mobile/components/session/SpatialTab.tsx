@@ -58,10 +58,10 @@ export function SpatialTab() {
     setActiveMoment,
     loopRegion,
     loopOpenAt,
-    playheadMs,
     durationMs,
     handleLoopToggle,
-    handleSeekTo,
+    soundRef,
+    setPlayheadMs,
     setActiveTab,
   } = useSessionContext();
   
@@ -557,7 +557,10 @@ export function SpatialTab() {
           onPress={(e) => {
             if (waveformWidth === 0) return;
             const fraction = e.nativeEvent.locationX / waveformWidth;
-            handleSeekTo(fraction * durationMs);
+            const targetMs = fraction * durationMs;
+            const clampedMs = Math.max(0, Math.min(durationMs, targetMs));
+            soundRef.current?.setPositionAsync(clampedMs);
+            setPlayheadMs(clampedMs);
           }}
         >
           {renderWaveformBars()}
