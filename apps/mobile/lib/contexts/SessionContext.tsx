@@ -66,7 +66,7 @@ export interface SessionContextValue {
   
   // Sheet functions
   openSheet: (id: string) => void;
-  closeSheet: () => void;
+  closeSheet: (expectedSheetId?: string) => void;
   openClipSheet: (clip: ClipRow) => void;
 }
 
@@ -92,6 +92,8 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   
   // Refs
   const soundRef = useRef<Audio.Sound | null>(null);
+  const activeSheetIdRef = useRef<string | null>(null);
+  const wasPlayingBeforeSheetRef = useRef(false);
   
   // Hooks
   const { clips, retryClip } = useClips(sessionId);
@@ -217,6 +219,14 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     }
   }, [playbackSpeed]);
 
+  useEffect(() => {
+    activeSheetIdRef.current = activeSheetId;
+  }, [activeSheetId]);
+
+  useEffect(() => {
+    wasPlayingBeforeSheetRef.current = wasPlayingBeforeSheet;
+  }, [wasPlayingBeforeSheet]);
+
   // Handlers
   const handlePlayPause = useCallback(() => {
     if (!soundRef.current) return;
@@ -270,21 +280,29 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
 
   // Sheet functions
   const openSheet = useCallback((id: string) => {
+    activeSheetIdRef.current = id;
     setActiveSheetId(id);
   }, []);
 
-  const closeSheet = useCallback(() => {
+  const closeSheet = useCallback((expectedSheetId?: string) => {
+    const currentActiveSheetId = activeSheetIdRef.current;
+    if (expectedSheetId && currentActiveSheetId !== expectedSheetId) {
+      return;
+    }
+    activeSheetIdRef.current = null;
     setActiveSheetId(null);
     setSelectedClipForSheet(null);
     
-    if (wasPlayingBeforeSheet) {
+    if (wasPlayingBeforeSheetRef.current) {
       soundRef.current?.playAsync();
       setIsPlaying(true);
+      wasPlayingBeforeSheetRef.current = false;
       setWasPlayingBeforeSheet(false);
     }
-  }, [wasPlayingBeforeSheet]);
+  }, []);
 
   const openClipSheet = useCallback((clip: ClipRow) => {
+    wasPlayingBeforeSheetRef.current = isPlaying;
     setWasPlayingBeforeSheet(isPlaying);
     if (isPlaying) {
       soundRef.current?.pauseAsync();

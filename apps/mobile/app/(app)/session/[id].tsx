@@ -163,7 +163,7 @@ function SessionShellContent() {
         hasMusic={!!musicTrack}
         untaggedClipCount={untaggedClipCount}
         bottomSheetRef={shareSheetRef}
-        onClose={closeSheet}
+        onClose={() => closeSheet('share')}
       />
       <CaptureSheet
         ref={captureSheetRef}
@@ -179,22 +179,22 @@ function SessionShellContent() {
             params: { sessionId: id!, sectionName: 'Section' },
           })
         }
-        onClose={() => closeSheet()}
+        onClose={() => closeSheet('capture')}
       />
       <ClipShareSheet
         ref={clipShareSheetRef}
         clip={selectedClipForSheet}
-        onClose={() => closeSheet()}
+        onClose={() => closeSheet('clip-share')}
       />
       <NotePinSheet
         ref={notePinSheetRef}
         note={null}
         onSave={async () => {}}
-        onClose={() => closeSheet()}
+        onClose={() => closeSheet('note-pin')}
       />
       <ClipViewerSheet 
         ref={clipViewerSheetRef} 
-        onClose={() => closeSheet()} 
+        onClose={() => closeSheet('clip-viewer')} 
       />
     </View>
   );

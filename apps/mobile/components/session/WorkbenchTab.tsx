@@ -85,7 +85,6 @@ export function WorkbenchTab() {
   // ── Session metadata ─────────────────────────────────────────────────────
   const [showSectionSwipeHint, setShowSectionSwipeHint] = useState(true);
   const [workspaceTab, setWorkspaceTab] = useState<'ideas' | 'notes'>('ideas');
-  const [viewMode, setViewMode] = useState<'counts' | 'partition'>('counts');
   const { height: windowHeight } = useWindowDimensions();
   const waveformWidth = useRef(0);
   const [waveformWidthPx, setWaveformWidthPx] = useState(0);
@@ -166,7 +165,6 @@ export function WorkbenchTab() {
 
   const handleSectionSwipe = useCallback(
     (direction: 'next' | 'prev') => {
-      if (viewMode === 'partition') return;
       const sections = musicTrack?.sections ?? [];
       if (sections.length < 2) return;
       const currIdx = sections.findIndex((s) => s.label === activeSection);
@@ -176,7 +174,7 @@ export function WorkbenchTab() {
       handleSectionPress(sections[nextIdx]);
       setShowSectionSwipeHint(false);
     },
-    [viewMode, musicTrack?.sections, activeSection, handleSectionPress]
+    [musicTrack?.sections, activeSection, handleSectionPress]
   );
 
   const sectionPillListMaxHeight = useMemo(
@@ -188,10 +186,8 @@ export function WorkbenchTab() {
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_evt, gestureState) =>
-          viewMode !== 'partition' &&
           Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dy) < 18,
         onPanResponderRelease: (_evt, gestureState) => {
-          if (viewMode === 'partition') return;
           if (gestureState.dx < -35) {
             handleSectionSwipe('next');
           } else if (gestureState.dx > 35) {
@@ -199,7 +195,7 @@ export function WorkbenchTab() {
           }
         },
       }),
-    [viewMode, handleSectionSwipe]
+    [handleSectionSwipe]
   );
 
   // ── Note handlers ────────────────────────────────────────────────────────
@@ -328,37 +324,27 @@ export function WorkbenchTab() {
 
       <View style={styles.toggleRow}>
         <TouchableOpacity
-          style={[styles.toggleChip, viewMode === 'counts' && styles.toggleChipActive]}
+          style={[styles.toggleChip, styles.toggleChipActive]}
           activeOpacity={0.8}
-          onPress={() => setViewMode('counts')}
         >
           <Text
             style={[
               styles.toggleChipText,
-              viewMode === 'counts' && styles.toggleChipTextActive,
+              styles.toggleChipTextActive,
             ]}
           >
             Counts
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.toggleChip, viewMode === 'partition' && styles.toggleChipActive]}
-          activeOpacity={0.8}
-          onPress={() => setViewMode('partition')}
-        >
+        <View style={[styles.toggleChip, { opacity: 0.45 }]}>
           <Text
-            style={[
-              styles.toggleChipText,
-              viewMode === 'partition' && styles.toggleChipTextActive,
-            ]}
+            style={styles.toggleChipText}
           >
             Partition
           </Text>
-        </TouchableOpacity>
+        </View>
       </View>
-      {viewMode === 'partition' ? (
-        <Text style={styles.partitionHint}>read-only in V3</Text>
-      ) : null}
+      <Text style={styles.partitionHint}>read-only in V3</Text>
 
       {/* Section chips — shown when music analysis has produced sections */}
       {musicTrack?.sections && musicTrack.sections.length > 0 ? (
@@ -383,24 +369,8 @@ export function WorkbenchTab() {
                     <Text style={styles.sectionPillCount}>
                       {sectionClipCounts.get(s.label) ?? 0}
                     </Text>
-                    {viewMode === 'partition' ? <View style={styles.sectionPillOverlay} /> : null}
                   </>
                 );
-
-                if (viewMode === 'partition') {
-                  return (
-                    <View
-                      key={s.label}
-                      style={[
-                        styles.sectionPill,
-                        s.label === activeSection && styles.sectionPillActive,
-                        styles.sectionPillReadOnly,
-                      ]}
-                    >
-                      {pillContent}
-                    </View>
-                  );
-                }
 
                 return (
                   <TouchableOpacity
@@ -418,7 +388,7 @@ export function WorkbenchTab() {
               })}
             </ScrollView>
           </View>
-          {showSectionSwipeHint && viewMode === 'counts' ? (
+          {showSectionSwipeHint ? (
             <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
           ) : null}
         </>
@@ -720,13 +690,6 @@ const styles = StyleSheet.create({
   sectionPillActive: {
     borderColor: '#7db9a8',
     backgroundColor: 'rgba(125,185,168,0.12)',
-  },
-  sectionPillReadOnly: {
-    opacity: 0.65,
-  },
-  sectionPillOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   sectionPillText: {
     fontFamily: theme.typography.monoFamily,
