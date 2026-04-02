@@ -69,8 +69,8 @@ export default function useMoments(sessionId: string | null) {
       setMoments((prev) => [...prev, optimisticMoment]);
 
       try {
-        if (!accessToken) throw new Error('Not signed in');
-        const headers = { Authorization: `Bearer ${accessToken}` };
+        if (!token) throw new Error('Not signed in');
+        const headers = { Authorization: `Bearer ${token}` };
 
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/moments`, {
           method: 'POST',
@@ -114,7 +114,7 @@ export default function useMoments(sessionId: string | null) {
         return null;
       }
     },
-    [sessionId, moments.length, accessToken]
+    [sessionId, moments.length, token]
   );
 
   const renameMoment = useCallback(
@@ -125,8 +125,8 @@ export default function useMoments(sessionId: string | null) {
       setMoments((p) => p.map((m) => (m.id === momentId ? { ...m, name } : m)));
 
       try {
-        if (!accessToken) throw new Error('Not signed in');
-        const headers = { Authorization: `Bearer ${accessToken}` };
+        if (!token) throw new Error('Not signed in');
+        const headers = { Authorization: `Bearer ${token}` };
 
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/moments/${momentId}`, {
           method: 'PATCH',
@@ -141,7 +141,7 @@ export default function useMoments(sessionId: string | null) {
         );
       }
     },
-    [sessionId, moments, accessToken]
+    [sessionId, moments, token]
   );
 
   const updateFormation = useCallback(
@@ -155,8 +155,8 @@ export default function useMoments(sessionId: string | null) {
       setMoments((p) => p.map((m) => (m.id === momentId ? { ...m, formation } : m)));
 
       try {
-        if (!accessToken) throw new Error('Not signed in');
-        const headers = { Authorization: `Bearer ${accessToken}` };
+        if (!token) throw new Error('Not signed in');
+        const headers = { Authorization: `Bearer ${token}` };
 
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/moments/${momentId}/formation`, {
           method: 'PUT',
@@ -173,7 +173,7 @@ export default function useMoments(sessionId: string | null) {
         );
       }
     },
-    [sessionId, moments, accessToken]
+    [sessionId, moments, token]
   );
 
   const updateQuality = useCallback(
@@ -187,8 +187,8 @@ export default function useMoments(sessionId: string | null) {
       setMoments((p) => p.map((m) => (m.id === momentId ? { ...m, quality } : m)));
 
       try {
-        if (!accessToken) throw new Error('Not signed in');
-        const headers = { Authorization: `Bearer ${accessToken}` };
+        if (!token) throw new Error('Not signed in');
+        const headers = { Authorization: `Bearer ${token}` };
 
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/moments/${momentId}/quality`, {
           method: 'PUT',
@@ -205,7 +205,7 @@ export default function useMoments(sessionId: string | null) {
         );
       }
     },
-    [sessionId, moments, accessToken]
+    [sessionId, moments, token]
   );
 
   return {

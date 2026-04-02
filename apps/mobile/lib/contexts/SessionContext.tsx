@@ -340,12 +340,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
 
   const jumpToSongMap = useCallback(() => {
     const nextMapMoment = activeMoment ?? moments[0]?.id ?? null;
-    if (nextMapMoment !== null && nextMapMoment !== activeMoment) {
+    if (nextMapMoment && nextMapMoment !== activeMoment) {
       setActiveMoment(nextMapMoment);
     }
     closeSheet();
     setActiveTab('song-map');
-  }, [activeMoment, moments, setActiveMoment, closeSheet, setActiveTab]);
+  }, [activeMoment, moments, closeSheet, setActiveTab]);
 
   const value: SessionContextValue = {
     sessionId,

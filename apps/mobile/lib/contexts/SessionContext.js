@@ -33,7 +33,6 @@ const useInbox_1 = require("../hooks/useInbox");
 const useSession_1 = require("../hooks/useSession");
 const supabase_1 = require("../supabase");
 const api_1 = require("../api");
-const FALLBACK_MAP_MOMENT_ID = '1';
 const SessionContext = (0, react_1.createContext)(null);
 function SessionProvider({ sessionId, children }) {
     // State
@@ -257,13 +256,13 @@ function SessionProvider({ sessionId, children }) {
         openSheet('clip-viewer');
     }, [isPlaying, openSheet]);
     const jumpToSongMap = (0, react_1.useCallback)(() => {
-        const nextMapMoment = activeMoment ?? FALLBACK_MAP_MOMENT_ID;
-        if (nextMapMoment !== activeMoment) {
+        const nextMapMoment = activeMoment ?? moments[0]?.id ?? null;
+        if (nextMapMoment !== null && nextMapMoment !== activeMoment) {
             setActiveMoment(nextMapMoment);
         }
         closeSheet();
         setActiveTab('song-map');
-    }, [activeMoment, setActiveMoment, closeSheet, setActiveTab]);
+    }, [activeMoment, moments, setActiveMoment, closeSheet, setActiveTab]);
     const value = {
         sessionId,
         sessionName,
