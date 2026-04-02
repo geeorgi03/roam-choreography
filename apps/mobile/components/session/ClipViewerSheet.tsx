@@ -31,7 +31,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
   useEffect(() => {
     positionMsRef.current = 0;
     setPlayheadFraction(0);
-  }, [selectedClipForSheet?.server_id, selectedClipForSheet?.mux_playback_id]);
+  }, [selectedClipForSheet?.local_id]);
 
   if (!selectedClipForSheet) {
     return null;
