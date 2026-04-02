@@ -67,6 +67,7 @@ export interface SessionContextValue {
   // Sheet functions
   openSheet: (id: string) => void;
   closeSheet: (expectedSheetId?: string) => void;
+  closeSheetIfActive: (sheetId: string) => void;
   openClipSheet: (clip: ClipRow) => void;
 }
 
@@ -301,6 +302,11 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     }
   }, []);
 
+  const closeSheetIfActive = useCallback((sheetId: string) => {
+    if (activeSheetIdRef.current !== sheetId) return;
+    closeSheet(sheetId);
+  }, [closeSheet]);
+
   const openClipSheet = useCallback((clip: ClipRow) => {
     wasPlayingBeforeSheetRef.current = isPlaying;
     setWasPlayingBeforeSheet(isPlaying);
@@ -376,6 +382,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     // Sheet functions
     openSheet,
     closeSheet,
+    closeSheetIfActive,
     openClipSheet,
   };
 

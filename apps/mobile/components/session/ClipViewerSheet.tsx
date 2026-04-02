@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'rea
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Video, AVPlaybackStatus } from 'expo-av';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useSession } from '../../lib/hooks/useSession';
 import { theme } from '../../lib/theme';
 import { supabase } from '../../lib/supabase';
 import { API_BASE } from '../../lib/api';
@@ -15,7 +16,8 @@ interface ClipViewerSheetProps {
 }
 
 export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProps>(function ClipViewerSheet({ onClose }, ref) {
-  const { selectedClipForSheet, activeSheetId, loopRegion, session, activeSection, sectionClips } = useSessionContext();
+  const { selectedClipForSheet, activeSheetId, loopRegion, activeSection, sectionClips, sessionId, jumpToSongMap } = useSessionContext();
+  const { session } = useSession();
   const videoRef = useRef<Video>(null);
   const positionMsRef = useRef<number>(0);
   const [clipSpeed, setClipSpeed] = useState(1);
@@ -66,7 +68,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     if (!selectedClipForSheet.server_id || !session?.access_token) return;
     
     try {
-      const response = await fetch(`${API_BASE}/sessions/${session.id}/assembly`, {
+      const response = await fetch(`${API_BASE}/sessions/${sessionId}/assembly`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -196,7 +198,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.momentButton}>
+          <TouchableOpacity style={styles.momentButton} onPress={jumpToSongMap}>
             <Text style={styles.momentButtonText}>the moment →</Text>
           </TouchableOpacity>
         </View>

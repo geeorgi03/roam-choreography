@@ -26,6 +26,7 @@ function SessionShellContent() {
     activeTab,
     activeSheetId,
     closeSheet,
+    closeSheetIfActive,
     selectedClipForSheet,
     setActiveTab,
     sessionName,
@@ -163,7 +164,7 @@ function SessionShellContent() {
         hasMusic={!!musicTrack}
         untaggedClipCount={untaggedClipCount}
         bottomSheetRef={shareSheetRef}
-        onClose={() => closeSheet('share')}
+        onClose={() => closeSheetIfActive('share')}
       />
       <CaptureSheet
         ref={captureSheetRef}
@@ -179,22 +180,22 @@ function SessionShellContent() {
             params: { sessionId: id!, sectionName: 'Section' },
           })
         }
-        onClose={() => closeSheet('capture')}
+        onClose={() => closeSheetIfActive('capture')}
       />
       <ClipShareSheet
         ref={clipShareSheetRef}
         clip={selectedClipForSheet}
-        onClose={() => closeSheet('clip-share')}
+        onClose={() => closeSheetIfActive('clip-share')}
       />
       <NotePinSheet
         ref={notePinSheetRef}
         note={null}
         onSave={async () => {}}
-        onClose={() => closeSheet('note-pin')}
+        onClose={() => closeSheetIfActive('note-pin')}
       />
       <ClipViewerSheet 
         ref={clipViewerSheetRef} 
-        onClose={() => closeSheet('clip-viewer')} 
+        onClose={() => closeSheetIfActive('clip-viewer')} 
       />
     </View>
   );
