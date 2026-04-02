@@ -53,7 +53,17 @@ interface PathModel {
 }
 
 export function SpatialTab() {
-  const { activeMoment, setActiveMoment } = useSessionContext();
+  const {
+    activeMoment,
+    setActiveMoment,
+    loopRegion,
+    loopOpenAt,
+    playheadMs,
+    durationMs,
+    handleLoopToggle,
+    handleSeekTo,
+    setActiveTab,
+  } = useSessionContext();
   
   // Same moments state as SongMapTab (shared via context)
   const [moments] = useState<Moment[]>([{ id: '1', label: 'moment 1' }]);
@@ -68,6 +78,7 @@ export function SpatialTab() {
   const [selectedDancerId, setSelectedDancerId] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<SelectedTool>('position');
   const [pathsByDancer, setPathsByDancer] = useState<Record<string, PathModel>>({});
+  const [waveformWidth, setWaveformWidth] = useState(0);
   
   // Tool progression state
   const [toolState, setToolState] = useState<ToolState>({
@@ -532,10 +543,36 @@ export function SpatialTab() {
 
       {/* Right panel */}
       <View style={styles.rightPanel}>
-        {/* Mini waveform strip */}
-        <View style={styles.miniWaveform}>
-          {renderWaveformBars()}
+        <View style={styles.rightPanelHeader}>
+          <TouchableOpacity style={styles.groupChip} onPress={() => setActiveTab('group')}>
+            <Text style={styles.groupChipText}>Group →</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Mini waveform strip */}
+        <TouchableOpacity
+          style={styles.miniWaveform}
+          activeOpacity={1}
+          onLayout={(e) => setWaveformWidth(e.nativeEvent.layout.width)}
+          onPress={(e) => {
+            if (waveformWidth === 0) return;
+            const fraction = e.nativeEvent.locationX / waveformWidth;
+            handleSeekTo(fraction * durationMs);
+          }}
+        >
+          {renderWaveformBars()}
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.loopButtonRow} onPress={() => handleLoopToggle()}>
+          <Text
+            style={[
+              styles.loopButtonRowText,
+              { color: loopOpenAt !== null ? colors.amber : colors.muted },
+            ]}
+          >
+            {loopOpenAt !== null ? 'tap to close' : 'set loop'}
+          </Text>
+        </TouchableOpacity>
 
         {/* Quality layer */}
         <View style={styles.qualityLayer}>
@@ -774,6 +811,25 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.border,
     padding: 12,
   },
+  rightPanelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 8,
+  },
+  groupChip: {
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.mine,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupChipText: {
+    fontSize: 9,
+    color: colors.mine,
+    fontFamily: 'JetBrainsMono',
+  },
   miniWaveform: {
     height: 48,
     flexDirection: 'row',
@@ -784,6 +840,18 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     paddingHorizontal: 8,
     marginBottom: 12,
+  },
+  loopButtonRow: {
+    width: '100%',
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  loopButtonRowText: {
+    fontSize: 9,
+    fontFamily: 'JetBrainsMono',
+    textAlign: 'center',
   },
   waveformBar: {
     width: 2,

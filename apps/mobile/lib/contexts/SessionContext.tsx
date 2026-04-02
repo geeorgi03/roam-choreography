@@ -61,6 +61,7 @@ export interface SessionContextValue {
   handlePlayPause: () => void;
   handleSeekBack: () => void;
   handleSeekForward: () => void;
+  handleSeekTo: (ms: number) => void;
   handleLoopToggle: () => void;
   handleClearLoop: () => void;
   
@@ -268,6 +269,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     soundRef.current?.setIsLoopingAsync(false);
   }, []);
 
+  const handleSeekTo = useCallback((ms: number) => {
+    const clampedMs = Math.max(0, Math.min(durationMs, ms));
+    soundRef.current?.setPositionAsync(clampedMs);
+    setPlayheadMs(clampedMs);
+  }, [durationMs]);
+
   // Sheet functions
   const openSheet = useCallback((id: string) => {
     setActiveSheetId(id);
@@ -352,6 +359,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     handlePlayPause,
     handleSeekBack,
     handleSeekForward,
+    handleSeekTo,
     handleLoopToggle,
     handleClearLoop,
     
