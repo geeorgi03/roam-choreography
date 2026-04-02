@@ -10,12 +10,14 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import Svg, { Circle as SvgCircle, Line as SvgLine } from 'react-native-svg';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
 
 const colors = theme.light;
 const DOT_SIZE = 14;
 const DOT_RADIUS = DOT_SIZE / 2;
+const SELECTED_DOT_SIZE = 20;
 const PATH_TOUCH_RADIUS = 18;
 
 interface Moment {
@@ -331,53 +333,55 @@ export function SpatialTab() {
   const isToolLocked = (tool: keyof ToolState) => toolState[tool] === 'locked';
   const isToolSelected = (tool: keyof ToolState) => selectedTool === tool;
 
-  const renderAuthoredPaths = () =>
-    Object.values(pathsByDancer).map((path) => {
-      const sourceDancer = getDancerById(path.dancerId);
-      if (!sourceDancer) return null;
+  const renderAuthoredPaths = () => {
+    if (!canvasSize.width || !canvasSize.height) return null;
 
-      const start = getDancerCenterPx(sourceDancer);
-      const targetDancer = path.targetDancerId ? getDancerById(path.targetDancerId) : undefined;
-      const end = targetDancer
-        ? getDancerCenterPx(targetDancer)
-        : {
-            x: leftPctToPx(path.end.leftPct) + DOT_RADIUS,
-            y: topPctToPx(path.end.topPct) + DOT_RADIUS,
-          };
+    return (
+      <Svg
+        pointerEvents="none"
+        width={canvasSize.width}
+        height={canvasSize.height}
+        style={StyleSheet.absoluteFill}
+      >
+        {Object.values(pathsByDancer).map((path) => {
+          const sourceDancer = getDancerById(path.dancerId);
+          if (!sourceDancer) return null;
 
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
-      const length = Math.hypot(dx, dy);
-      const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-      const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+          const start = getDancerCenterPx(sourceDancer);
+          const targetDancer = path.targetDancerId ? getDancerById(path.targetDancerId) : undefined;
+          const end = targetDancer
+            ? getDancerCenterPx(targetDancer)
+            : {
+                x: leftPctToPx(path.end.leftPct) + DOT_RADIUS,
+                y: topPctToPx(path.end.topPct) + DOT_RADIUS,
+              };
+          const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
 
-      return (
-        <View key={path.id} pointerEvents="none">
-          <View
-            style={[
-              styles.pathLine,
-              {
-                left: start.x,
-                top: start.y,
-                width: length,
-                borderColor: path.color,
-                transform: [{ rotate: `${angle}deg` }],
-              },
-            ]}
-          />
-          <View
-            style={[
-              styles.pathMidpointHandle,
-              {
-                left: midpoint.x - 5,
-                top: midpoint.y - 5,
-                borderColor: path.color,
-              },
-            ]}
-          />
-        </View>
-      );
-    });
+          return (
+            <React.Fragment key={path.id}>
+              <SvgLine
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+                stroke={path.color}
+                strokeWidth={1.5}
+                strokeDasharray={[6, 6]}
+              />
+              <SvgCircle
+                cx={midpoint.x}
+                cy={midpoint.y}
+                r={5}
+                fill="#faf8f5"
+                stroke={path.color}
+                strokeWidth={1}
+              />
+            </React.Fragment>
+          );
+        })}
+      </Svg>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -433,31 +437,41 @@ export function SpatialTab() {
           {renderAuthoredPaths()}
           
           {/* Dancer dots */}
-          {dancers.map((dancer) => (
-            <View
-              key={dancer.id}
-              style={[
-                styles.dancerDot,
-                {
-                  backgroundColor: dancer.color,
-                  top: topPctToPx(dancer.topPct),
-                  left: leftPctToPx(dancer.leftPct),
-                }
-              ]}
-              {...dancerPanResponders[dancer.id].panHandlers}
-            >
+          {dancers.map((dancer) => {
+            const isSelected = selectedDancerId === dancer.id;
+            const dotSize = isSelected ? SELECTED_DOT_SIZE : DOT_SIZE;
+            const positionOffset = (DOT_SIZE - dotSize) / 2;
+
+            return (
               <View
-                pointerEvents="none"
+                key={dancer.id}
                 style={[
-                  styles.directionArrowWrap,
-                  { transform: [{ rotate: `${dancer.orientationDeg}deg` }] },
+                  styles.dancerDot,
+                  isSelected && styles.dancerDotSelected,
+                  {
+                    width: dotSize,
+                    height: dotSize,
+                    borderRadius: dotSize / 2,
+                    backgroundColor: dancer.color,
+                    top: topPctToPx(dancer.topPct) + positionOffset,
+                    left: leftPctToPx(dancer.leftPct) + positionOffset,
+                  }
                 ]}
+                {...dancerPanResponders[dancer.id].panHandlers}
               >
-                <View style={styles.directionArrow} />
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.directionArrowWrap,
+                    { transform: [{ rotate: `${dancer.orientationDeg}deg` }] },
+                  ]}
+                >
+                  <View style={styles.directionArrow} />
+                </View>
+                <Text style={[styles.dancerInitial, isSelected && styles.dancerInitialSelected]}>{dancer.id}</Text>
               </View>
-              <Text style={styles.dancerInitial}>{dancer.id}</Text>
-            </View>
-          ))}
+            );
+          })}
           
           <Text style={styles.backstageLabel}>backstage</Text>
           <Text style={styles.audienceLabel}>audience</Text>
@@ -689,6 +703,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  dancerDotSelected: {
+    borderWidth: 2.5,
+    borderColor: colors.active,
+    zIndex: 2,
+  },
   directionArrowWrap: {
     position: 'absolute',
     left: 0,
@@ -714,18 +733,8 @@ const styles = StyleSheet.create({
     fontSize: 7,
     fontWeight: 'bold',
   },
-  pathLine: {
-    position: 'absolute',
-    borderTopWidth: 1.5,
-    borderStyle: 'dashed',
-  },
-  pathMidpointHandle: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1,
-    backgroundColor: '#faf8f5',
+  dancerInitialSelected: {
+    fontSize: 8,
   },
   toolBar: {
     position: 'absolute',
