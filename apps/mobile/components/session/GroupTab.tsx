@@ -41,6 +41,11 @@ interface PresenceEntry {
   online: boolean;
 }
 
+interface RealtimeNote {
+  text: string;
+  receivedAt: string;
+}
+
 const DANCER_POSITION_FALLBACKS: Array<{ top: number; left: number }> = [
   { top: 30, left: 20 },
   { top: 45, left: 40 },
@@ -105,7 +110,7 @@ export function GroupTab() {
   const [broadcastText, setBroadcastText] = useState('');
   const [presenceMap, setPresenceMap] = useState<Record<string, PresenceEntry>>({});
   const [presenceUnavailable, setPresenceUnavailable] = useState(false);
-  const [broadcastNotes, setBroadcastNotes] = useState<string[]>([]);
+  const [broadcastNotes, setBroadcastNotes] = useState<RealtimeNote[]>([]);
   const [activeFormationBroadcast, setActiveFormationBroadcast] = useState<{ momentId: string | null; section: string | null } | null>(null);
   const [newClipCue, setNewClipCue] = useState(false);
   const [broadcastHint, setBroadcastHint] = useState<string | null>(null);
@@ -113,6 +118,11 @@ export function GroupTab() {
   const knownClipIdsRef = useRef<Set<string>>(new Set());
   const prevClipsLengthRef = useRef(clips.length);
   const channelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null);
+  const participantByIdRef = useRef<Map<string, (typeof participants)[number]>>(new Map());
+  const participantByUserIdRef = useRef<Map<string, (typeof participants)[number]>>(new Map());
+  const setActiveMomentRef = useRef(setActiveMoment);
+  const setActiveSectionRef = useRef(setActiveSection);
+  const myPresenceRef = useRef<{ name: string; color: string }>({ name: 'User', color: colors.mine });
   const suppressFormationEmitRef = useRef(false);
   const myUserId = myParticipant?.user_id ?? session?.user?.id ?? null;
 
@@ -148,10 +158,38 @@ export function GroupTab() {
   }, [myUserId, participants, presenceMap, presenceUnavailable]);
 
   const receivedNotes = useMemo(() => {
-    const realtimeNotes = [...broadcastNotes].reverse();
-    if (realtimeNotes.length > 0) return realtimeNotes;
-    const persistedNotes = broadcasts.map((entry) => entry.message);
-    if (persistedNotes.length > 0) return persistedNotes;
+    const merged = [
+      ...broadcasts.map((entry, index) => {
+        const text = entry.message.trim().slice(0, 60);
+        const parsed = Date.parse(entry.created_at);
+        return {
+          text,
+          timestamp: Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER - (broadcasts.length - index) : parsed,
+          sourceOrder: index,
+        };
+      }),
+      ...broadcastNotes.map((entry, index) => {
+        const parsed = Date.parse(entry.receivedAt);
+        return {
+          text: entry.text.trim().slice(0, 60),
+          timestamp: Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER - (broadcastNotes.length - index) : parsed,
+          sourceOrder: broadcasts.length + index,
+        };
+      }),
+    ]
+      .filter((entry) => Boolean(entry.text))
+      .sort((a, b) => a.timestamp - b.timestamp || a.sourceOrder - b.sourceOrder);
+
+    const deduped: string[] = [];
+    const seen = new Set<string>();
+    for (const entry of merged) {
+      const key = entry.text.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(entry.text);
+    }
+
+    if (deduped.length > 0) return deduped;
     return ['no notes yet'];
   }, [broadcastNotes, broadcasts]);
   const myDancer = useMemo(
@@ -178,13 +216,31 @@ export function GroupTab() {
   const handleBroadcast = async () => {
     if (!broadcastText.trim() || broadcastText.length > 60) return;
     const text = broadcastText.trim();
-    const sent = await sendBroadcast(text);
-    if (sent) {
-      if (presenceUnavailable || !channelRef.current) {
-        setBroadcastNotes((prev) => [...prev, text]);
+    const notePayload = {
+      text,
+      senderUserId: myUserId,
+      sentAt: new Date().toISOString(),
+    };
+
+    const channel = channelRef.current;
+    if (channel) {
+      const status = await channel.send({
+        type: 'broadcast',
+        event: 'group:note',
+        payload: notePayload,
+      });
+      if (status === 'ok') {
+        setBroadcastText('');
+        setBroadcastHint(null);
+        return;
       }
+    }
+
+    const persisted = await sendBroadcast(text);
+    if (persisted) {
+      setBroadcastNotes((prev) => [...prev, { text, receivedAt: notePayload.sentAt }]);
       setBroadcastText('');
-      setBroadcastHint(null);
+      setBroadcastHint(channel ? 'live send unavailable, note saved' : null);
       return;
     }
     setBroadcastHint('send failed, retry');
@@ -239,12 +295,35 @@ export function GroupTab() {
   };
 
   useEffect(() => {
+    participantByIdRef.current = new Map(participants.map((participant) => [participant.id, participant]));
+    participantByUserIdRef.current = new Map(participants.map((participant) => [participant.user_id, participant]));
+  }, [participants]);
+
+  useEffect(() => {
+    setActiveMomentRef.current = setActiveMoment;
+    setActiveSectionRef.current = setActiveSection;
+  }, [setActiveMoment, setActiveSection]);
+
+  useEffect(() => {
+    myPresenceRef.current = {
+      name: myParticipant?.display_name ?? session?.user?.email?.split('@')[0] ?? 'User',
+      color: myParticipant?.color ?? colors.mine,
+    };
+
+    if (!channelRef.current || !myUserId) return;
+    void channelRef.current.track({
+      userId: myUserId,
+      name: myPresenceRef.current.name,
+      color: myPresenceRef.current.color,
+      online: true,
+    });
+  }, [myParticipant?.color, myParticipant?.display_name, myUserId, session?.user?.email]);
+
+  useEffect(() => {
     if (!supabase || !sessionId) {
       setPresenceUnavailable(true);
       return;
     }
-    const participantById = new Map(participants.map((participant) => [participant.id, participant]));
-    const participantByUserId = new Map(participants.map((participant) => [participant.user_id, participant]));
     const resolvePresenceUserId = (key: unknown, latest?: Record<string, unknown>) => {
       const payloadUserId =
         (latest?.userId as string | undefined) ??
@@ -252,8 +331,8 @@ export function GroupTab() {
         null;
       if (payloadUserId) return payloadUserId;
       if (typeof key === 'string' && key) {
-        if (participantByUserId.has(key)) return key;
-        const participant = participantById.get(key);
+        if (participantByUserIdRef.current.has(key)) return key;
+        const participant = participantByIdRef.current.get(key);
         if (participant?.user_id) return participant.user_id;
       }
       return null;
@@ -311,15 +390,21 @@ export function GroupTab() {
       .on('broadcast', { event: 'group:note' }, ({ payload }) => {
         const text = typeof payload?.text === 'string' ? payload.text.trim().slice(0, 60) : '';
         if (!text) return;
-        setBroadcastNotes((prev) => [...prev, text]);
+        setBroadcastNotes((prev) => [
+          ...prev,
+          {
+            text,
+            receivedAt: typeof payload?.sentAt === 'string' ? payload.sentAt : new Date().toISOString(),
+          },
+        ]);
       })
       .on('broadcast', { event: 'group:formation' }, ({ payload }) => {
         const momentId = typeof payload?.momentId === 'string' ? payload.momentId : null;
         const section = typeof payload?.section === 'string' ? payload.section : null;
         setActiveFormationBroadcast({ momentId, section });
         suppressFormationEmitRef.current = true;
-        setActiveMoment(momentId);
-        if (section) setActiveSection(section);
+        setActiveMomentRef.current(momentId);
+        if (section) setActiveSectionRef.current(section);
       });
 
     channelRef.current = channel;
@@ -329,8 +414,8 @@ export function GroupTab() {
         if (!myUserId) return;
         await channel.track({
           userId: myUserId,
-          name: myParticipant?.display_name ?? session?.user?.email?.split('@')[0] ?? 'User',
-          color: myParticipant?.color ?? colors.mine,
+          name: myPresenceRef.current.name,
+          color: myPresenceRef.current.color,
           online: true,
         });
         return;
@@ -344,7 +429,7 @@ export function GroupTab() {
       channelRef.current = null;
       supabase?.removeChannel(channel);
     };
-  }, [myParticipant?.color, myParticipant?.display_name, myUserId, participants, session?.user?.email, sessionId, setActiveMoment, setActiveSection]);
+  }, [myUserId, sessionId]);
 
   useEffect(() => {
     if (suppressFormationEmitRef.current) {
