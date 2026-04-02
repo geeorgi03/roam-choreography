@@ -19,6 +19,7 @@ export interface QueueItem {
   status: 'queued' | 'uploading' | 'failed';
   /** When set, a section_clips entry will be created server-side after upload. */
   section_label?: string;
+  dual_pair_id?: string;
 }
 
 type UploadQueueStatus =
@@ -199,26 +200,29 @@ export class UploadQueueService {
         item.tus_upload_url = itemUrl;
         setTusUrls({ ...getTusUrls(), [item.local_id]: itemUrl });
       } else {
+        const requestBody =
+          item.session_id
+            ? {
+                session_id: item.session_id,
+                local_id: item.local_id,
+                recorded_at: item.recorded_at,
+                label: item.label,
+                ...(item.dual_pair_id ? { dual_pair_id: item.dual_pair_id } : {}),
+              }
+            : {
+                local_id: item.local_id,
+                recorded_at: item.recorded_at,
+                label: item.label,
+                ...(item.dual_pair_id ? { dual_pair_id: item.dual_pair_id } : {}),
+              };
+
         const res = await fetch(`${API_BASE}/clips/upload-url`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${item.token}`,
           },
-          body: JSON.stringify(
-            item.session_id
-              ? {
-                  session_id: item.session_id,
-                  local_id: item.local_id,
-                  recorded_at: item.recorded_at,
-                  label: item.label,
-                }
-              : {
-                  local_id: item.local_id,
-                  recorded_at: item.recorded_at,
-                  label: item.label,
-                }
-          ),
+          body: JSON.stringify(requestBody),
         });
         const data = (await res.json()) as
           | { clip_id: string; upload_url: string; mux_upload_id?: string }

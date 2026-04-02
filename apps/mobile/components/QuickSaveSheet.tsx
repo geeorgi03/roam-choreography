@@ -20,6 +20,8 @@ type Mode = 'saved' | 'new-session' | 'picker';
 export interface QuickSaveSheetProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
   videoUri: string | null;
+  secondaryVideoUri?: string | null;
+  dualPairId?: string;
   sessionId?: string | null;
   sectionName?: string | null;
   onDone: (next?: { navigateTo?: string }) => void;
@@ -38,6 +40,8 @@ async function parseJsonSafe(res: Response): Promise<{ parsed: unknown; raw: str
 export function QuickSaveSheet({
   bottomSheetRef,
   videoUri,
+  secondaryVideoUri,
+  dualPairId,
   sessionId,
   sectionName,
   onDone,
@@ -76,10 +80,31 @@ export function QuickSaveSheet({
     if (!session?.access_token) return false;
     setLoading(true);
     try {
-      const r = await saveClip(targetSessionId, videoUri, 'Clip', session.access_token);
+      const r = await saveClip(
+        targetSessionId,
+        videoUri,
+        'Clip',
+        session.access_token,
+        undefined,
+        dualPairId
+      );
       if (!r.ok) {
         Toast.show({ type: 'error', text1: 'Could not save clip' });
         return false;
+      }
+      if (dualPairId && secondaryVideoUri) {
+        const secondaryResult = await saveClip(
+          targetSessionId,
+          secondaryVideoUri,
+          'Clip',
+          session.access_token,
+          undefined,
+          dualPairId
+        );
+        if (!secondaryResult.ok) {
+          Toast.show({ type: 'error', text1: 'Could not save clip' });
+          return false;
+        }
       }
       Toast.show({ type: 'success', text1: 'Saved' });
       bottomSheetRef.current?.close();
@@ -88,7 +113,7 @@ export function QuickSaveSheet({
     } finally {
       setLoading(false);
     }
-  }, [videoUri, session?.access_token, bottomSheetRef, onDone]);
+  }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone]);
 
   const saveToSectionSession = useCallback(async () => {
     if (!sessionId) return false;
@@ -103,11 +128,26 @@ export function QuickSaveSheet({
         videoUri,
         'Clip',
         session.access_token,
-        sectionName ?? undefined
+        sectionName ?? undefined,
+        dualPairId
       );
       if (!r.ok) {
         Toast.show({ type: 'error', text1: 'Could not save clip' });
         return false;
+      }
+      if (dualPairId && secondaryVideoUri) {
+        const secondaryResult = await saveClip(
+          sessionId,
+          secondaryVideoUri,
+          'Clip',
+          session.access_token,
+          sectionName ?? undefined,
+          dualPairId
+        );
+        if (!secondaryResult.ok) {
+          Toast.show({ type: 'error', text1: 'Could not save clip' });
+          return false;
+        }
       }
       Toast.show({ type: 'success', text1: 'Saved' });
       bottomSheetRef.current?.close();
@@ -116,7 +156,7 @@ export function QuickSaveSheet({
     } finally {
       setLoading(false);
     }
-  }, [sessionId, sectionName, videoUri, session?.access_token, bottomSheetRef, onDone]);
+  }, [sessionId, sectionName, videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone]);
 
   const saveLater = useCallback(async () => {
     if (!videoUri) return false;

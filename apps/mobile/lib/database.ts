@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS clips (
   local_id TEXT PRIMARY KEY,
   server_id TEXT,
   session_id TEXT,
+  dual_pair_id TEXT,
   label TEXT,
   recorded_at TEXT,
   file_uri TEXT,
@@ -27,6 +28,7 @@ CREATE TABLE clips (
   local_id TEXT PRIMARY KEY,
   server_id TEXT,
   session_id TEXT,
+  dual_pair_id TEXT,
   label TEXT,
   recorded_at TEXT,
   file_uri TEXT,
@@ -41,18 +43,20 @@ CREATE TABLE clips (
   notes TEXT
 );
 INSERT INTO clips (
-  local_id, server_id, session_id, label, recorded_at, file_uri,
+  local_id, server_id, session_id, dual_pair_id, label, recorded_at, file_uri,
   upload_status, upload_progress, mux_playback_id,
   move_name, style, energy, difficulty, bpm, notes
 )
 SELECT
-  local_id, server_id, session_id, label, recorded_at, file_uri,
+  local_id, server_id, session_id, NULL, label, recorded_at, file_uri,
   upload_status, upload_progress, mux_playback_id,
   move_name, style, energy, difficulty, bpm, notes
 FROM clips_old;
 DROP TABLE clips_old;
 COMMIT;
 `;
+
+const MIGRATION_DUAL_PAIR_ID = 'ALTER TABLE clips ADD COLUMN dual_pair_id TEXT;';
 
 let _db: SQLiteDatabase | null = null;
 let _dbError: Error | null = null;
@@ -77,6 +81,17 @@ function initDb(): SQLiteDatabase | null {
       }
     } catch {
       // If PRAGMA/migration fails, keep DB usable for session clips.
+    }
+
+    // One-time migration: add dual_pair_id for future dual-camera pairing.
+    try {
+      const info = _db.getAllSync<{ name: string }>('PRAGMA table_info(clips)');
+      const dualPairCol = info?.find?.((c) => c.name === 'dual_pair_id');
+      if (!dualPairCol) {
+        _db.execSync(MIGRATION_DUAL_PAIR_ID);
+      }
+    } catch {
+      // If PRAGMA/migration fails, keep DB usable for single clips.
     }
 
     console.log('[database] SQLite initialised');
@@ -115,6 +130,7 @@ export interface ClipRow {
   local_id: string;
   server_id: string | null;
   session_id: string | null;
+  dual_pair_id?: string | null;
   label: string | null;
   recorded_at: string | null;
   file_uri: string | null;
@@ -132,6 +148,7 @@ export interface ClipRow {
 export interface InsertClipRow {
   local_id: string;
   session_id: string | null;
+  dual_pair_id?: string | null;
   label?: string | null;
   recorded_at?: string | null;
   file_uri?: string | null;
@@ -247,13 +264,14 @@ export function upsertClipFromServer(row: ServerClipSnapshot): string {
 export function insertClip(row: InsertClipRow): void {
   db.runSync(
     `INSERT INTO clips (
-      local_id, session_id, label, recorded_at, file_uri,
+      local_id, session_id, dual_pair_id, label, recorded_at, file_uri,
       upload_status, upload_progress, server_id, mux_playback_id,
       move_name, style, energy, difficulty, bpm, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       row.local_id,
       row.session_id,
+      row.dual_pair_id ?? null,
       row.label ?? null,
       row.recorded_at ?? null,
       row.file_uri ?? null,

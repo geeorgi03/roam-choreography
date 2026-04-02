@@ -16,7 +16,8 @@ export async function saveClip(
   fileUri: string,
   label: string,
   token: string,
-  sectionLabel?: string
+  sectionLabel?: string,
+  dualPairId?: string
 ): Promise<SaveClipResult> {
   try {
     const existing = getClipsForSession(sessionId);
@@ -28,6 +29,7 @@ export async function saveClip(
     insertClip({
       local_id,
       session_id: sessionId,
+      dual_pair_id: dualPairId ?? null,
       label: finalLabel,
       recorded_at,
       file_uri: fileUri,
@@ -42,6 +44,7 @@ export async function saveClip(
       recorded_at,
       token,
       section_label: sectionLabel,
+      dual_pair_id: dualPairId,
     });
 
     return { ok: true, local_id };
