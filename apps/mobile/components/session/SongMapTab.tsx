@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
 
@@ -12,18 +12,30 @@ interface Moment {
 
 export function SongMapTab() {
   const { 
+    sessionName,
+    setActiveTab,
     activeMoment, 
     setActiveMoment, 
     activeSection, 
     setActiveSection, 
     musicTrack, 
-    sectionClips 
+    sectionClips,
+    isPlaying,
+    handlePlayPause,
+    handleLoopToggle,
+    handleClearLoop,
+    loopRegion,
+    loopOpenAt,
+    durationMs,
+    soundRef,
+    setPlayheadMs
   } = useSessionContext();
   
   const [moments, setMoments] = useState<Moment[]>([{ id: '1', label: 'moment 1' }]);
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'counts' | 'partition'>('counts');
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [waveformWidth, setWaveformWidth] = useState(0);
 
   // Get sections from musicTrack or use placeholders
   const sections = musicTrack?.sections || [
@@ -64,6 +76,26 @@ export function SongMapTab() {
     return sectionClips.filter(clip => clip.section_label === sectionLabel).length;
   };
 
+  const handleSeekTo = (targetMs: number) => {
+    soundRef.current?.setPositionAsync(targetMs);
+    setPlayheadMs(targetMs);
+  };
+
+  const handleLoopButtonPress = () => {
+    if (loopRegion !== null && loopOpenAt === null) {
+      handleClearLoop();
+      handleLoopToggle();
+      return;
+    }
+    handleLoopToggle();
+  };
+
+  const loopLabel = loopOpenAt !== null
+    ? 'tap to close'
+    : 'set loop';
+
+  const waveformHeights = [12, 24, 18, 30, 16, 28, 20, 26, 14, 22, 18, 25];
+
   const renderGridLines = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
     
@@ -103,122 +135,155 @@ export function SongMapTab() {
 
   return (
     <View style={styles.container}>
-      {/* Canvas zone */}
-      <View style={styles.canvasZone}>
-        {/* Moment strip */}
-        <ScrollView 
-          horizontal 
-          style={styles.momentStrip}
-          showsHorizontalScrollIndicator={false}
-        >
-          {moments.map((moment) => (
-            <TouchableOpacity
-              key={moment.id}
-              style={[
-                styles.momentChip,
-                activeMoment === moment.id && styles.momentChipActive
-              ]}
-              onPress={() => handleMomentPress(moment.id)}
-              onLongPress={() => handleMomentLongPress(moment.id)}
-            >
-              {renamingMomentId === moment.id ? (
-                <TextInput
-                  style={styles.renameInput}
-                  defaultValue={moment.label}
-                  onBlur={(e) => handleRenameMoment(e.nativeEvent.text)}
-                  onSubmitEditing={(e) => handleRenameMoment(e.nativeEvent.text)}
-                  autoFocus
-                />
-              ) : (
-                <Text style={[
-                  styles.momentChipText,
-                  activeMoment === moment.id && styles.momentChipTextActive
-                ]}>
-                  {moment.label}
-                </Text>
-              )}
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={styles.addMomentButton}
-            onPress={handleAddMoment}
-          >
-            <Text style={styles.addMomentText}>+</Text>
-          </TouchableOpacity>
-        </ScrollView>
-
-        {/* Floor canvas */}
-        <View 
-          style={styles.floorCanvas}
-          onLayout={(e) => setCanvasSize({
-            width: e.nativeEvent.layout.width,
-            height: e.nativeEvent.layout.height
-          })}
-        >
-          {renderGridLines()}
-          
-          <Text style={styles.backstageLabel}>backstage</Text>
-          <Text style={styles.audienceLabel}>audience</Text>
-        </View>
+      <View style={styles.topBar}>
+        <Text style={styles.topBarSessionName}>{sessionName}</Text>
+        <TouchableOpacity style={styles.spatialChip} onPress={() => setActiveTab('spatial')}>
+          <Text style={styles.spatialChipText}>Spatial →</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Right section panel */}
-      <View style={styles.sectionPanel}>
-        <Text style={styles.sectionHeader}>SECTIONS</Text>
-        
-        {/* Counts | Partition toggle */}
-        <View style={styles.toggleRow}>
-          <TouchableOpacity
-            style={[
-              styles.toggleButton,
-              viewMode === 'counts' && styles.toggleButtonActive
-            ]}
-            onPress={() => setViewMode('counts')}
+      <View style={styles.middleRow}>
+        {/* Canvas zone */}
+        <View style={styles.canvasZone}>
+          {/* Moment strip */}
+          <ScrollView 
+            horizontal 
+            style={styles.momentStrip}
+            showsHorizontalScrollIndicator={false}
           >
-            <Text style={[
-              styles.toggleButtonText,
-              viewMode === 'counts' && styles.toggleButtonTextActive
-            ]}>
-              Counts
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[
-              styles.toggleButton,
-              viewMode === 'partition' && styles.toggleButtonActive
-            ]}
-            onPress={() => setViewMode('partition')}
-          >
-            <Text style={[
-              styles.toggleButtonText,
-              viewMode === 'partition' && styles.toggleButtonTextActive
-            ]}>
-              Partition
-            </Text>
-          </TouchableOpacity>
-        </View>
-        {viewMode === 'partition' ? (
-          <Text style={styles.partitionHint}>read-only in V3</Text>
-        ) : null}
+            {moments.map((moment) => (
+              <TouchableOpacity
+                key={moment.id}
+                style={[
+                  styles.momentChip,
+                  activeMoment === moment.id && styles.momentChipActive
+                ]}
+                onPress={() => handleMomentPress(moment.id)}
+                onLongPress={() => handleMomentLongPress(moment.id)}
+              >
+                {renamingMomentId === moment.id ? (
+                  <TextInput
+                    style={styles.renameInput}
+                    defaultValue={moment.label}
+                    onBlur={(e) => handleRenameMoment(e.nativeEvent.text)}
+                    onSubmitEditing={(e) => handleRenameMoment(e.nativeEvent.text)}
+                    autoFocus
+                  />
+                ) : (
+                  <Text style={[
+                    styles.momentChipText,
+                    activeMoment === moment.id && styles.momentChipTextActive
+                  ]}>
+                    {moment.label}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={styles.addMomentButton}
+              onPress={handleAddMoment}
+            >
+              <Text style={styles.addMomentText}>+</Text>
+            </TouchableOpacity>
+          </ScrollView>
 
-        {/* Section rows */}
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {sections.map((section) => {
-            const clipCount = getSectionClipCount(section.label);
-            const isActive = activeSection === section.label;
+          {/* Floor canvas */}
+          <View 
+            style={styles.floorCanvas}
+            onLayout={(e) => setCanvasSize({
+              width: e.nativeEvent.layout.width,
+              height: e.nativeEvent.layout.height
+            })}
+          >
+            {renderGridLines()}
             
-            if (viewMode === 'partition') {
+            <Text style={styles.backstageLabel}>backstage</Text>
+            <Text style={styles.audienceLabel}>audience</Text>
+          </View>
+        </View>
+
+        {/* Right section panel */}
+        <View style={styles.sectionPanel}>
+          <Text style={styles.sectionHeader}>SECTIONS</Text>
+          
+          {/* Counts | Partition toggle */}
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              style={[
+                styles.toggleButton,
+                viewMode === 'counts' && styles.toggleButtonActive
+              ]}
+              onPress={() => setViewMode('counts')}
+            >
+              <Text style={[
+                styles.toggleButtonText,
+                viewMode === 'counts' && styles.toggleButtonTextActive
+              ]}>
+                Counts
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.toggleButton,
+                viewMode === 'partition' && styles.toggleButtonActive
+              ]}
+              onPress={() => setViewMode('partition')}
+            >
+              <Text style={[
+                styles.toggleButtonText,
+                viewMode === 'partition' && styles.toggleButtonTextActive
+              ]}>
+                Partition
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {viewMode === 'partition' ? (
+            <Text style={styles.partitionHint}>read-only in V3</Text>
+          ) : null}
+
+          {/* Section rows */}
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {sections.map((section) => {
+              const clipCount = getSectionClipCount(section.label);
+              const isActive = activeSection === section.label;
+              
+              if (viewMode === 'partition') {
+                return (
+                  <View
+                    key={section.label}
+                    style={[
+                      styles.sectionRow,
+                      isActive && styles.sectionRowActive,
+                      styles.sectionRowReadOnly
+                    ]}
+                  >
+                    <View style={styles.sectionRowReadOnlyOverlay} />
+                    <Text style={[
+                      styles.sectionRowText,
+                      isActive && styles.sectionRowTextActive
+                    ]}>
+                      {section.label}
+                    </Text>
+                    <Text style={[
+                      styles.sectionCount,
+                      isActive && styles.sectionCountActive
+                    ]}>
+                      {clipCount}
+                    </Text>
+                  </View>
+                );
+              }
+
               return (
-                <View
+                <TouchableOpacity
                   key={section.label}
                   style={[
                     styles.sectionRow,
-                    isActive && styles.sectionRowActive,
-                    styles.sectionRowReadOnly
+                    isActive && styles.sectionRowActive
                   ]}
+                  onPress={() => setActiveSection(section.label)}
                 >
-                  <View style={styles.sectionRowReadOnlyOverlay} />
                   <Text style={[
                     styles.sectionRowText,
                     isActive && styles.sectionRowTextActive
@@ -231,35 +296,42 @@ export function SongMapTab() {
                   ]}>
                     {clipCount}
                   </Text>
-                </View>
+                </TouchableOpacity>
               );
-            }
+            })}
+          </ScrollView>
+        </View>
+      </View>
 
-            return (
-              <TouchableOpacity
-                key={section.label}
-                style={[
-                  styles.sectionRow,
-                  isActive && styles.sectionRowActive
-                ]}
-                onPress={() => setActiveSection(section.label)}
-              >
-                <Text style={[
-                  styles.sectionRowText,
-                  isActive && styles.sectionRowTextActive
-                ]}>
-                  {section.label}
-                </Text>
-                <Text style={[
-                  styles.sectionCount,
-                  isActive && styles.sectionCountActive
-                ]}>
-                  {clipCount}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+      <View style={styles.bottomBar}>
+        <TouchableOpacity onPress={handlePlayPause}>
+          <Text style={styles.transportIcon}>{isPlaying ? '⏸' : '▶'}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.waveformScrubber}
+          onLayout={(e) => setWaveformWidth(e.nativeEvent.layout.width)}
+          onPress={(e) => {
+            if (!waveformWidth) return;
+            const fraction = e.nativeEvent.locationX / waveformWidth;
+            handleSeekTo(fraction * durationMs);
+          }}
+        >
+          {waveformHeights.map((height, index) => (
+            <View key={`bar-${index}`} style={[styles.waveformBar, { height }]} />
+          ))}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleLoopButtonPress}>
+          <Text
+            style={[
+              styles.loopButtonText,
+              loopOpenAt !== null && styles.loopButtonTextAmber,
+            ]}
+          >
+            {loopLabel}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -268,8 +340,39 @@ export function SongMapTab() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     backgroundColor: colors.ground,
+  },
+  topBar: {
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    backgroundColor: colors.chrome,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
+  },
+  topBarSessionName: {
+    fontFamily: 'Fraunces',
+    fontSize: 18,
+    color: colors.active,
+  },
+  spatialChip: {
+    borderWidth: 1,
+    borderColor: colors.mine,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  spatialChipText: {
+    fontFamily: 'JetBrainsMono',
+    fontSize: 10,
+    color: colors.mine,
+  },
+  middleRow: {
+    flex: 1,
+    flexDirection: 'row',
   },
   canvasZone: {
     flex: 1,
@@ -454,5 +557,39 @@ const styles = StyleSheet.create({
   },
   sectionCountActive: {
     color: colors.active,
+  },
+  bottomBar: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    backgroundColor: colors.chrome,
+    borderTopWidth: 0.5,
+    borderTopColor: colors.border,
+  },
+  transportIcon: {
+    fontSize: 18,
+    color: colors.active,
+  },
+  waveformScrubber: {
+    flex: 1,
+    height: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    marginHorizontal: 12,
+  },
+  waveformBar: {
+    width: 2,
+    borderRadius: 1,
+    backgroundColor: colors.muted,
+  },
+  loopButtonText: {
+    fontFamily: 'JetBrainsMono',
+    fontSize: 10,
+    color: colors.muted,
+  },
+  loopButtonTextAmber: {
+    color: colors.amber,
   },
 });
