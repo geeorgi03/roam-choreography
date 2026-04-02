@@ -138,3 +138,16 @@ export interface SectionClip {
   position: number;
   created_at: ISODateTime;
 }
+
+export interface FormationData extends Record<string, unknown> {}
+
+export interface Moment {
+  id: UUID;
+  session_id: UUID;
+  name: string;
+  beat_position_ms: number;
+  formation: FormationData | null;
+  quality: Record<string, unknown> | null;
+  position: number;
+  created_at: ISODateTime;
+}

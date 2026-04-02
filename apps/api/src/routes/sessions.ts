@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requireAuth } from '../middleware/auth.js';
 import { supabase } from '../lib/supabase.js';
 import { checkSessionLimit } from '../lib/planGate.js';
-import type { Session, MusicTrack, Clip } from '@roam/types';
+import type { Session, MusicTrack, Clip, Moment, FormationData } from '@roam/types';
 
 const GROUP_COLOR_PALETTE = ['#e67c5c', '#4a90e2', '#8a6ee8', '#3ba287', '#f2b233', '#d35d9e'];
 
@@ -27,6 +27,113 @@ async function hasSessionAccess(sessionId: string, userId: string): Promise<bool
     .maybeSingle();
   if (participantError) return false;
   return Boolean(participant);
+}
+
+type MomentsSessionAccessResult =
+  | { status: 200 }
+  | { status: 403; error: 'Forbidden' }
+  | { status: 404; error: 'Not found' }
+  | { status: 500; error: string };
+
+type MomentsAccessCheckResult =
+  | { allowed: true }
+  | { allowed: false; reason: 'forbidden' }
+  | { allowed: false; reason: 'error'; error: string; errorCode?: string };
+
+/**
+ * Moments routes must distinguish:
+ * - 404: session does not exist
+ * - 403: session exists, but caller has no access
+ */
+async function hasMomentsSessionAccess(
+  sessionId: string,
+  userId: string,
+  sessionUserId: string
+): Promise<MomentsAccessCheckResult> {
+  // Owner check using the already-fetched session row; no extra query required.
+  if (sessionUserId === userId) return { allowed: true };
+
+  // Participant check must not swallow Supabase/query errors.
+  const { data: participant, error: participantError } = await supabase
+    .from('group_participants')
+    .select('id')
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (participantError) {
+    return {
+      allowed: false,
+      reason: 'error',
+      error: participantError.message,
+      errorCode: (participantError as { code?: string }).code,
+    };
+  }
+  if (participant) return { allowed: true };
+  return { allowed: false, reason: 'forbidden' };
+}
+
+function isInvalidUuidCastError(error: unknown): boolean {
+  // Postgres uses SQLSTATE `22P02` for "invalid input syntax" (including invalid UUID casts).
+  const e = error as { code?: string; message?: string } | null | undefined;
+  const code = e?.code;
+  if (code === '22P02') return true;
+
+  const msg = (e?.message ?? '').toLowerCase();
+  return (
+    msg.includes('invalid input syntax') &&
+    msg.includes('uuid')
+  );
+}
+
+async function assertMomentsSessionAccess(
+  sessionId: string,
+  userId: string
+): Promise<MomentsSessionAccessResult> {
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, user_id')
+    .eq('id', sessionId)
+    .maybeSingle();
+
+  if (sessionError) {
+    if (isInvalidUuidCastError(sessionError)) return { status: 404, error: 'Not found' };
+    return { status: 500, error: sessionError.message };
+  }
+  if (!sessionRow) return { status: 404, error: 'Not found' };
+
+  const accessCheck = await hasMomentsSessionAccess(sessionId, userId, sessionRow.user_id as string);
+  if (accessCheck.allowed) return { status: 200 };
+  if (accessCheck.reason === 'forbidden') return { status: 403, error: 'Forbidden' };
+  if (accessCheck.reason === 'error' && isInvalidUuidCastError({ code: accessCheck.errorCode, message: accessCheck.error })) {
+    return { status: 404, error: 'Not found' };
+  }
+  return { status: 500, error: accessCheck.error };
+}
+
+async function safeReqJson<T>(
+  c: { req: { json: <U>() => Promise<U> } } | any
+): Promise<{ ok: true; data: T } | { ok: false }> {
+  try {
+    // Avoid passing type arguments to potentially `any`-typed request helpers.
+    const data = await c.req.json();
+    return { ok: true, data: data as T };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function isUniqueConstraintViolation(error: unknown): boolean {
+  // Supabase/PostgREST surfaces Postgres error codes (e.g. 23505) for constraint violations.
+  const e = error as { code?: string; message?: string } | null | undefined;
+  if (!e) return false;
+  if (e.code === '23505') return true;
+  const msg = (e.message ?? '').toLowerCase();
+  return (
+    msg.includes('duplicate key value') ||
+    msg.includes('unique constraint') ||
+    msg.includes('violates unique')
+  );
 }
 
 async function hasValidSessionShareToken(sessionId: string, token: string): Promise<boolean> {
@@ -133,7 +240,9 @@ app.post('/:id/join', async (c) => {
   const userId = c.get('userId');
   const userEmail = c.get('userEmail');
   const sessionId = c.req.param('id');
-  const body = await c.req.json<{ share_token?: string }>().catch(() => ({}));
+  const body = await c
+    .req.json<{ share_token?: string }>()
+    .catch(() => ({} as { share_token?: string }));
   const shareTokenBody =
     typeof body?.share_token === 'string' && body.share_token.trim()
       ? body.share_token.trim()
@@ -308,6 +417,245 @@ app.get('/:id/broadcasts', async (c) => {
   if (error) return c.json({ error: error.message }, 500);
 
   return c.json({ broadcasts: data ?? [] });
+});
+
+/** GET /sessions/:id/moments — list moments for a session */
+app.get('/:id/moments', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('moments')
+    .select('*')
+    .eq('session_id', sessionId)
+    .order('position', { ascending: true });
+
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ moments: data as Moment[] });
+});
+
+/** POST /sessions/:id/moments — create a moment in a session */
+app.post('/:id/moments', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+
+  const parsedBody = await safeReqJson<{ name?: unknown; beat_position_ms?: unknown }>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const body = parsedBody.data;
+  const name = typeof body?.name === 'string' ? body.name.trim() : '';
+
+  if (!name) return c.json({ error: 'name must be a non-empty string' }, 400);
+
+  const beatPositionRaw = body?.beat_position_ms;
+  const INT32_MIN = -2147483648;
+  const INT32_MAX = 2147483647;
+
+  if (beatPositionRaw === undefined) {
+    return c.json({ error: 'beat_position_ms is required' }, 400);
+  }
+  if (typeof beatPositionRaw !== 'number' || !Number.isFinite(beatPositionRaw)) {
+    return c.json({ error: 'beat_position_ms must be a finite number' }, 400);
+  }
+  if (!Number.isInteger(beatPositionRaw)) {
+    return c.json({ error: 'beat_position_ms must be an integer' }, 400);
+  }
+  if (beatPositionRaw < INT32_MIN || beatPositionRaw > INT32_MAX) {
+    return c.json({ error: 'beat_position_ms is out of bounds' }, 400);
+  }
+  const beatPositionMs = beatPositionRaw;
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  // Verify DB-level uniqueness exists before relying on retry logic.
+  // If the unique constraint migration hasn't been applied in this environment,
+  // fall back to a single atomic operation (per-session locking) that cannot
+  // produce duplicate positions under concurrent requests.
+  const MAX_ATTEMPTS = 8;
+
+  const { data: constraintExists, error: constraintCheckError } = await supabase
+    .rpc('moments_session_id_position_unique_constraint_exists');
+
+  const hasUniqueConstraint = !constraintCheckError && Boolean(constraintExists);
+
+  if (!hasUniqueConstraint) {
+    const { data: atomicData, error: atomicError } = await supabase.rpc(
+      'create_moment_atomic_with_position',
+      {
+        p_session_id: sessionId,
+        p_name: name,
+        p_beat_position_ms: beatPositionMs,
+      }
+    );
+
+    if (atomicError) {
+      return c.json(
+        {
+          error:
+            'Failed to create moment atomically (unique constraint missing and fallback RPC failed)',
+          details: atomicError.message,
+        },
+        500
+      );
+    }
+
+    return c.json(atomicData as Moment, 201);
+  }
+
+  // Unique constraint exists: retry read-max-then-insert on conflict.
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const { data: maxRows, error: maxError } = await supabase
+      .from('moments')
+      .select('position')
+      .eq('session_id', sessionId)
+      .order('position', { ascending: false })
+      .limit(1);
+
+    if (maxError) return c.json({ error: maxError.message }, 500);
+
+    const maxRow = Array.isArray(maxRows) && maxRows.length > 0 ? maxRows[0] : undefined;
+    const position = (maxRow?.position ?? -1) + 1;
+
+    const { data, error } = await supabase
+      .from('moments')
+      .insert({
+        session_id: sessionId,
+        name,
+        beat_position_ms: beatPositionMs,
+        position,
+        formation: null,
+        quality: null,
+      })
+      .select('*')
+      .single();
+
+    if (!error && data) return c.json(data as Moment, 201);
+
+    if (error && isUniqueConstraintViolation(error)) {
+      continue; // Another client claimed this (session_id, position); try next.
+    }
+
+    if (error) return c.json({ error: error.message }, 500);
+  }
+
+  return c.json(
+    {
+      error: 'Failed to create moment due to concurrent position conflicts',
+    },
+    500
+  );
+});
+
+/** PATCH /sessions/:id/moments/:momentId — update a moment name */
+app.patch('/:id/moments/:momentId', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const momentId = c.req.param('momentId');
+
+  const parsedBody = await safeReqJson<{ name?: unknown }>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const body = parsedBody.data;
+  const name = typeof body?.name === 'string' ? body.name.trim() : '';
+
+  if (!name) return c.json({ error: 'name must be a non-empty string' }, 400);
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('moments')
+    .update({ name })
+    .eq('id', momentId)
+    .eq('session_id', sessionId)
+    .select('*')
+    .maybeSingle();
+
+  if (error) {
+    if (isInvalidUuidCastError(error)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: error.message }, 500);
+  }
+  if (!data) return c.json({ error: 'Not found' }, 404);
+  return c.json(data as Moment);
+});
+
+/** GET /sessions/:id/moments/:momentId/formation — fetch moment formation */
+app.get('/:id/moments/:momentId/formation', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const momentId = c.req.param('momentId');
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('moments')
+    .select('formation')
+    .eq('id', momentId)
+    .eq('session_id', sessionId)
+    .maybeSingle();
+
+  if (error) {
+    if (isInvalidUuidCastError(error)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: error.message }, 500);
+  }
+  if (!data) return c.json({ error: 'Not found' }, 404);
+  return c.json({ formation: data.formation as FormationData | null });
+});
+
+/** PUT /sessions/:id/moments/:momentId/formation — update moment formation */
+app.put('/:id/moments/:momentId/formation', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const momentId = c.req.param('momentId');
+
+  const parsedBody = await safeReqJson<{ formation?: unknown }>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const body = parsedBody.data;
+  if (!body || typeof body !== 'object' || !('formation' in body)) {
+    return c.json({ error: 'formation is required' }, 400);
+  }
+
+  const formationInput = (body as { formation?: unknown }).formation;
+  const isPlainObject =
+    formationInput !== null &&
+    typeof formationInput === 'object' &&
+    !Array.isArray(formationInput) &&
+    Object.getPrototypeOf(formationInput) === Object.prototype;
+
+  if (formationInput !== null && !isPlainObject) {
+    return c.json({ error: 'formation must be an object or null' }, 400);
+  }
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('moments')
+    .update({ formation: formationInput ?? null })
+    .eq('id', momentId)
+    .eq('session_id', sessionId)
+    .select('formation')
+    .maybeSingle();
+
+  if (error) {
+    if (isInvalidUuidCastError(error)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: error.message }, 500);
+  }
+  if (!data) return c.json({ error: 'Not found' }, 404);
+  return c.json({ formation: data.formation as FormationData | null });
 });
 
 export const sessionsRoutes = app;
