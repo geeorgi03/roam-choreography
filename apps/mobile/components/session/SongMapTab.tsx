@@ -19,22 +19,12 @@ export function SongMapTab() {
     activeSection, 
     setActiveSection, 
     musicTrack, 
-    sectionClips,
-    isPlaying,
-    handlePlayPause,
-    handleLoopToggle,
-    handleClearLoop,
-    loopRegion,
-    loopOpenAt,
-    durationMs,
-    soundRef,
-    setPlayheadMs
+    sectionClips
   } = useSessionContext();
   
   const [moments, setMoments] = useState<Moment[]>([{ id: '1', label: 'moment 1' }]);
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
-  const [waveformWidth, setWaveformWidth] = useState(0);
 
   // Get sections from musicTrack or use placeholders
   const sections = musicTrack?.sections || [
@@ -75,29 +65,9 @@ export function SongMapTab() {
     return sectionClips.filter(clip => clip.section_label === sectionLabel).length;
   };
 
-  const handleSeekTo = (targetMs: number) => {
-    soundRef.current?.setPositionAsync(targetMs);
-    setPlayheadMs(targetMs);
-  };
-
-  const handleLoopButtonPress = () => {
-    if (loopRegion !== null && loopOpenAt === null) {
-      handleClearLoop();
-      handleLoopToggle();
-      return;
-    }
-    handleLoopToggle();
-  };
-
   const handleCountsPress = () => {
     // Counts is intentionally the always-active mode in V3.
   };
-
-  const loopLabel = loopOpenAt !== null
-    ? 'tap to close'
-    : 'set loop';
-
-  const waveformHeights = [12, 24, 18, 30, 16, 28, 20, 26, 14, 22, 18, 25];
 
   const renderGridLines = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
@@ -276,36 +246,6 @@ export function SongMapTab() {
         </View>
       </View>
 
-      <View style={styles.bottomBar}>
-        <TouchableOpacity onPress={handlePlayPause}>
-          <Text style={styles.transportIcon}>{isPlaying ? '⏸' : '▶'}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.waveformScrubber}
-          onLayout={(e) => setWaveformWidth(e.nativeEvent.layout.width)}
-          onPress={(e) => {
-            if (!waveformWidth) return;
-            const fraction = e.nativeEvent.locationX / waveformWidth;
-            handleSeekTo(fraction * durationMs);
-          }}
-        >
-          {waveformHeights.map((height, index) => (
-            <View key={`bar-${index}`} style={[styles.waveformBar, { height }]} />
-          ))}
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={handleLoopButtonPress}>
-          <Text
-            style={[
-              styles.loopButtonText,
-              loopOpenAt !== null && styles.loopButtonTextAmber,
-            ]}
-          >
-            {loopLabel}
-          </Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -532,39 +472,5 @@ const styles = StyleSheet.create({
   },
   sectionCountActive: {
     color: colors.active,
-  },
-  bottomBar: {
-    height: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    backgroundColor: colors.chrome,
-    borderTopWidth: 0.5,
-    borderTopColor: colors.border,
-  },
-  transportIcon: {
-    fontSize: 18,
-    color: colors.active,
-  },
-  waveformScrubber: {
-    flex: 1,
-    height: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    marginHorizontal: 12,
-  },
-  waveformBar: {
-    width: 2,
-    borderRadius: 1,
-    backgroundColor: colors.muted,
-  },
-  loopButtonText: {
-    fontFamily: 'JetBrainsMono',
-    fontSize: 10,
-    color: colors.muted,
-  },
-  loopButtonTextAmber: {
-    color: colors.amber,
   },
 });

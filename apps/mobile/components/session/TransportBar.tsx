@@ -115,36 +115,6 @@ export function TransportBar({ variant }: TransportBarProps) {
     return 9; // 9dp
   };
 
-  const generateWaveformBars = () => {
-    const bars = [];
-    for (let i = 0; i < 20; i++) {
-      let height = 8 + Math.sin(i * 0.5) * 8; // Deterministic height based on position
-      
-      // Highlight bars within loop region
-      let backgroundColor = '#e8e3dc';
-      if (loopRegion && durationMs > 0) {
-        const barPosition = (i / 20) * durationMs;
-        if (barPosition >= loopRegion.start && barPosition <= loopRegion.end) {
-          backgroundColor = 'rgba(125,185,168,0.6)';
-        }
-      }
-      
-      bars.push(
-        <View
-          key={i}
-          style={[
-            styles.waveformBar,
-            {
-              height,
-              backgroundColor,
-            },
-          ]}
-        />
-      );
-    }
-    return bars;
-  };
-
   const handleLoopButtonPress = () => {
     // "set loop" should always enter loop capture flow; if a loop exists, reset it first.
     if (loopRegion !== null && loopOpenAt === null) {
@@ -166,12 +136,7 @@ export function TransportBar({ variant }: TransportBarProps) {
           </Text>
         </TouchableOpacity>
 
-        {/* Mini waveform decorative */}
-        <View style={styles.miniWaveformContainer}>
-          <View style={styles.miniWaveform}>
-            {generateWaveformBars()}
-          </View>
-        </View>
+        <View style={{ flex: 1 }} />
 
         {/* Loop button */}
         <TouchableOpacity
@@ -358,20 +323,5 @@ const styles = StyleSheet.create({
   },
   reducedLoopButtonText: {
     fontSize: 9,
-  },
-  miniWaveformContainer: {
-    flex: 1,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  miniWaveform: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  waveformBar: {
-    width: 2,
-    borderRadius: 1,
   },
 });
