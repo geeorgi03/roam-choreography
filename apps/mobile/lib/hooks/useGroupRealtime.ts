@@ -87,28 +87,35 @@ export function useGroupRealtime(
 
   const sendBroadcast = useCallback(
     async (message: string) => {
-      if (!accessToken) return;
+      if (!accessToken) return false;
       const trimmed = message.trim();
-      if (!trimmed) return;
+      if (!trimmed) return false;
 
-      await fetch(`${API_BASE}/sessions/${sessionId}/broadcast`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: trimmed }),
-      }).catch(() => {});
+      try {
+        const response = await fetch(`${API_BASE}/sessions/${sessionId}/broadcast`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message: trimmed }),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
     },
     [accessToken, sessionId]
   );
 
   useEffect(() => {
-    if (!sessionId || !accessToken || !supabase) return;
+    if (!sessionId || !accessToken) return;
 
     let mounted = true;
     const startupController = new AbortController();
     const startupSignal = startupController.signal;
+    let participantsChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
+    let broadcastsChannel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
 
     const start = async () => {
       const joinRes = await fetch(`${API_BASE}/sessions/${sessionId}/join`, {
@@ -175,68 +182,70 @@ export function useGroupRealtime(
       }, 30_000);
     };
 
-    const participantsChannel = supabase
-      .channel(`group_participants:session_id=eq.${sessionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'group_participants',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          if (!mounted) return;
-          setParticipants((prev) => upsertParticipantRow(prev, payload.new as GroupParticipant));
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'group_participants',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          if (!mounted) return;
-          const row = payload.new as GroupParticipant;
-          setParticipants((prev) => upsertParticipantRow(prev, row));
-          setMyParticipant((prev) => (prev && prev.id === row.id ? row : prev));
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'group_participants',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          if (!mounted) return;
-          const removed = payload.old as Partial<GroupParticipant>;
-          setParticipants((prev) => prev.filter((p) => p.id !== removed.id));
-        }
-      )
-      .subscribe();
+    if (supabase) {
+      participantsChannel = supabase
+        .channel(`group_participants:session_id=eq.${sessionId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'group_participants',
+            filter: `session_id=eq.${sessionId}`,
+          },
+          (payload) => {
+            if (!mounted) return;
+            setParticipants((prev) => upsertParticipantRow(prev, payload.new as GroupParticipant));
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'group_participants',
+            filter: `session_id=eq.${sessionId}`,
+          },
+          (payload) => {
+            if (!mounted) return;
+            const row = payload.new as GroupParticipant;
+            setParticipants((prev) => upsertParticipantRow(prev, row));
+            setMyParticipant((prev) => (prev && prev.id === row.id ? row : prev));
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'group_participants',
+            filter: `session_id=eq.${sessionId}`,
+          },
+          (payload) => {
+            if (!mounted) return;
+            const removed = payload.old as Partial<GroupParticipant>;
+            setParticipants((prev) => prev.filter((p) => p.id !== removed.id));
+          }
+        )
+        .subscribe();
 
-    const broadcastsChannel = supabase
-      .channel(`broadcasts:session_id=eq.${sessionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'broadcasts',
-          filter: `session_id=eq.${sessionId}`,
-        },
-        (payload) => {
-          if (!mounted) return;
-          setBroadcasts((prev) => upsertBroadcastRow(prev, payload.new as BroadcastRow));
-        }
-      )
-      .subscribe();
+      broadcastsChannel = supabase
+        .channel(`broadcasts:session_id=eq.${sessionId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'broadcasts',
+            filter: `session_id=eq.${sessionId}`,
+          },
+          (payload) => {
+            if (!mounted) return;
+            setBroadcasts((prev) => upsertBroadcastRow(prev, payload.new as BroadcastRow));
+          }
+        )
+        .subscribe();
+    }
 
     start().catch(() => {});
 
@@ -248,8 +257,8 @@ export function useGroupRealtime(
         clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;
       }
-      supabase?.removeChannel(participantsChannel);
-      supabase?.removeChannel(broadcastsChannel);
+      if (participantsChannel) supabase?.removeChannel(participantsChannel);
+      if (broadcastsChannel) supabase?.removeChannel(broadcastsChannel);
     };
   }, [sessionId, accessToken, shareToken]);
 

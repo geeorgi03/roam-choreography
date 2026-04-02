@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
 import { useGroupRealtime } from '../../lib/hooks/useGroupRealtime';
+import { supabase } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
 
 const colors = theme.light;
@@ -33,6 +34,13 @@ interface Dancer {
   positionNote: string | null;
 }
 
+interface PresenceEntry {
+  userId: string;
+  name: string;
+  color: string;
+  online: boolean;
+}
+
 const DANCER_POSITION_FALLBACKS: Array<{ top: number; left: number }> = [
   { top: 30, left: 20 },
   { top: 45, left: 40 },
@@ -44,11 +52,12 @@ const DANCER_POSITION_FALLBACKS: Array<{ top: number; left: number }> = [
   { top: 24, left: 50 },
 ];
 
-function isOnline(lastSeenAt: string | null): boolean {
-  if (!lastSeenAt) return false;
-  const deltaMs = Date.now() - new Date(lastSeenAt).getTime();
-  return Number.isFinite(deltaMs) && deltaMs <= 60_000;
-}
+const FALLBACK_DANCERS: Dancer[] = [
+  { id: 'd1', userId: 'd1', name: 'Amber', color: '#7FD1BF', online: true, positionX: null, positionY: null, positionNote: null },
+  { id: 'd2', userId: 'd2', name: 'Jules', color: '#F08A6C', online: true, positionX: null, positionY: null, positionNote: null },
+  { id: 'd3', userId: 'd3', name: 'Maya', color: '#8C6CE7', online: false, positionX: null, positionY: null, positionNote: null },
+  { id: 'd4', userId: 'd4', name: 'Noah', color: '#56B3FF', online: false, positionX: null, positionY: null, positionNote: null },
+];
 
 function getDancerPosition(dancer: Dancer, fallbackIndex: number): { top: number; left: number } {
   if (typeof dancer.positionX === 'number' && typeof dancer.positionY === 'number') {
@@ -94,36 +103,63 @@ export function GroupTab() {
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [broadcastText, setBroadcastText] = useState('');
-  const [presenceTick, setPresenceTick] = useState(0);
+  const [presenceMap, setPresenceMap] = useState<Record<string, PresenceEntry>>({});
+  const [presenceUnavailable, setPresenceUnavailable] = useState(false);
+  const [broadcastNotes, setBroadcastNotes] = useState<string[]>([]);
+  const [activeFormationBroadcast, setActiveFormationBroadcast] = useState<{ momentId: string | null; section: string | null } | null>(null);
+  const [newClipCue, setNewClipCue] = useState(false);
+  const [broadcastHint, setBroadcastHint] = useState<string | null>(null);
   const pulseValuesRef = useRef<Record<string, Animated.Value>>({});
   const knownClipIdsRef = useRef<Set<string>>(new Set());
+  const prevClipsLengthRef = useRef(clips.length);
+  const channelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null);
+  const suppressFormationEmitRef = useRef(false);
+  const myUserId = myParticipant?.user_id ?? session?.user?.id ?? null;
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setPresenceTick((tick) => tick + 1);
-    }, 10_000);
-    return () => clearInterval(timer);
-  }, []);
+  const dancers = useMemo<Dancer[]>(() => {
+    if (participants.length > 0) {
+      return participants.map((participant) => {
+        const presence = presenceMap[participant.user_id];
+        return {
+          id: participant.id,
+          userId: participant.user_id,
+          name: participant.display_name || presence?.name || 'User',
+          color: participant.color || presence?.color || colors.mine,
+          online: presence?.online ?? (presenceUnavailable ? participant.user_id === myUserId : false),
+          positionX: participant.position_x ?? null,
+          positionY: participant.position_y ?? null,
+          positionNote: participant.position_note ?? null,
+        };
+      });
+    }
 
-  const dancers = useMemo<Dancer[]>(
-    () =>
-      participants.map((participant) => ({
-        id: participant.id,
-        userId: participant.user_id,
-        name: participant.display_name,
-        color: participant.color,
-        online: isOnline(participant.last_seen_at),
-        positionX: participant.position_x,
-        positionY: participant.position_y,
-        positionNote: participant.position_note,
-      })),
-    [participants, presenceTick]
-  );
+    const liveDancers = Object.values(presenceMap).map((presence) => ({
+      id: presence.userId,
+      userId: presence.userId,
+      name: presence.name || 'User',
+      color: presence.color || colors.mine,
+      online: presence.online,
+      positionX: null,
+      positionY: null,
+      positionNote: null,
+    }));
+    if (liveDancers.length > 0) return liveDancers;
+    return FALLBACK_DANCERS;
+  }, [myUserId, participants, presenceMap, presenceUnavailable]);
 
-  const choreographerNotes = useMemo(() => broadcasts.map((b) => b.message), [broadcasts]);
+  const receivedNotes = useMemo(() => {
+    const realtimeNotes = [...broadcastNotes].reverse();
+    if (realtimeNotes.length > 0) return realtimeNotes;
+    const persistedNotes = broadcasts.map((entry) => entry.message);
+    if (persistedNotes.length > 0) return persistedNotes;
+    return ['no notes yet'];
+  }, [broadcastNotes, broadcasts]);
   const myDancer = useMemo(
-    () => dancers.find((dancer) => dancer.id === myParticipant?.id) ?? null,
-    [dancers, myParticipant?.id]
+    () =>
+      dancers.find((dancer) => dancer.id === myParticipant?.id) ??
+      dancers.find((dancer) => dancer.userId === session?.user?.id) ??
+      null,
+    [dancers, myParticipant?.id, session?.user?.id]
   );
   const positionNote = myDancer?.positionNote?.trim() || 'awaiting position note from choreographer';
 
@@ -140,9 +176,18 @@ export function GroupTab() {
   const handleRenameMoment = () => setRenamingMomentId(null);
 
   const handleBroadcast = async () => {
-    if (!broadcastText.trim()) return;
-    await sendBroadcast(broadcastText);
-    setBroadcastText('');
+    if (!broadcastText.trim() || broadcastText.length > 60) return;
+    const text = broadcastText.trim();
+    const sent = await sendBroadcast(text);
+    if (sent) {
+      if (presenceUnavailable || !channelRef.current) {
+        setBroadcastNotes((prev) => [...prev, text]);
+      }
+      setBroadcastText('');
+      setBroadcastHint(null);
+      return;
+    }
+    setBroadcastHint('send failed, retry');
   };
 
   const handleRecordPress = () => {
@@ -192,6 +237,143 @@ export function GroupTab() {
       <View key={index} style={[styles.waveformBar, { height, backgroundColor: colors.muted }]} />
     ));
   };
+
+  useEffect(() => {
+    if (!supabase || !sessionId) {
+      setPresenceUnavailable(true);
+      return;
+    }
+    const participantById = new Map(participants.map((participant) => [participant.id, participant]));
+    const participantByUserId = new Map(participants.map((participant) => [participant.user_id, participant]));
+    const resolvePresenceUserId = (key: unknown, latest?: Record<string, unknown>) => {
+      const payloadUserId =
+        (latest?.userId as string | undefined) ??
+        (latest?.user_id as string | undefined) ??
+        null;
+      if (payloadUserId) return payloadUserId;
+      if (typeof key === 'string' && key) {
+        if (participantByUserId.has(key)) return key;
+        const participant = participantById.get(key);
+        if (participant?.user_id) return participant.user_id;
+      }
+      return null;
+    };
+
+    const channel = supabase
+      .channel(`group:session:${sessionId}`)
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const next: Record<string, PresenceEntry> = {};
+        for (const [presenceKey, presences] of Object.entries(state)) {
+          const latest = Array.isArray(presences) ? (presences[presences.length - 1] as Record<string, unknown> | undefined) : undefined;
+          const userId = resolvePresenceUserId(presenceKey, latest);
+          if (!userId) continue;
+          next[userId] = {
+            userId,
+            name: (latest?.name as string | undefined) ?? next[userId]?.name ?? 'User',
+            color: (latest?.color as string | undefined) ?? next[userId]?.color ?? colors.mine,
+            online: true,
+          };
+        }
+        setPresenceMap(next);
+      })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        const presences = Array.isArray(newPresences) ? (newPresences as Array<Record<string, unknown>>) : [];
+        const latest = presences[presences.length - 1];
+        const userId = resolvePresenceUserId(key, latest);
+        if (!userId) return;
+        setPresenceMap((prev) => ({
+          ...prev,
+          [userId]: {
+            userId,
+            name: (latest?.name as string | undefined) ?? prev[userId]?.name ?? 'User',
+            color: (latest?.color as string | undefined) ?? prev[userId]?.color ?? colors.mine,
+            online: true,
+          },
+        }));
+      })
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        const presences = Array.isArray(leftPresences) ? (leftPresences as Array<Record<string, unknown>>) : [];
+        const latest = presences[presences.length - 1];
+        const userId = resolvePresenceUserId(key, latest);
+        if (!userId) return;
+        setPresenceMap((prev) => {
+          if (!prev[userId]) return prev;
+          return {
+            ...prev,
+            [userId]: {
+              ...prev[userId],
+              online: false,
+            },
+          };
+        });
+      })
+      .on('broadcast', { event: 'group:note' }, ({ payload }) => {
+        const text = typeof payload?.text === 'string' ? payload.text.trim().slice(0, 60) : '';
+        if (!text) return;
+        setBroadcastNotes((prev) => [...prev, text]);
+      })
+      .on('broadcast', { event: 'group:formation' }, ({ payload }) => {
+        const momentId = typeof payload?.momentId === 'string' ? payload.momentId : null;
+        const section = typeof payload?.section === 'string' ? payload.section : null;
+        setActiveFormationBroadcast({ momentId, section });
+        suppressFormationEmitRef.current = true;
+        setActiveMoment(momentId);
+        if (section) setActiveSection(section);
+      });
+
+    channelRef.current = channel;
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        setPresenceUnavailable(false);
+        if (!myUserId) return;
+        await channel.track({
+          userId: myUserId,
+          name: myParticipant?.display_name ?? session?.user?.email?.split('@')[0] ?? 'User',
+          color: myParticipant?.color ?? colors.mine,
+          online: true,
+        });
+        return;
+      }
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        setPresenceUnavailable(true);
+      }
+    });
+
+    return () => {
+      channelRef.current = null;
+      supabase?.removeChannel(channel);
+    };
+  }, [myParticipant?.color, myParticipant?.display_name, myUserId, participants, session?.user?.email, sessionId, setActiveMoment, setActiveSection]);
+
+  useEffect(() => {
+    if (suppressFormationEmitRef.current) {
+      suppressFormationEmitRef.current = false;
+      return;
+    }
+    if (!channelRef.current || activeMoment === null) return;
+    void channelRef.current.send({
+      type: 'broadcast',
+      event: 'group:formation',
+      payload: {
+        momentId: activeMoment,
+        section: activeSection,
+        senderUserId: myUserId,
+      },
+    });
+  }, [activeMoment, activeSection, myUserId]);
+
+  useEffect(() => {
+    const previousLength = prevClipsLengthRef.current;
+    if (clips.length > previousLength) {
+      setNewClipCue(true);
+      const timer = setTimeout(() => setNewClipCue(false), 2_000);
+      prevClipsLengthRef.current = clips.length;
+      return () => clearTimeout(timer);
+    }
+    prevClipsLengthRef.current = clips.length;
+    return undefined;
+  }, [clips.length]);
 
   useEffect(() => {
     for (const dancer of dancers) {
@@ -326,7 +508,10 @@ export function GroupTab() {
             <TextInput
               style={styles.broadcastInput}
               value={broadcastText}
-              onChangeText={setBroadcastText}
+              onChangeText={(text) => {
+                setBroadcastText(text);
+                if (broadcastHint) setBroadcastHint(null);
+              }}
               placeholder="send note to all dancers..."
               placeholderTextColor={colors.muted}
               maxLength={60}
@@ -335,6 +520,17 @@ export function GroupTab() {
             <TouchableOpacity style={styles.broadcastButton} onPress={handleBroadcast}>
               <Text style={styles.broadcastButtonText}>→ all</Text>
             </TouchableOpacity>
+          </View>
+          {broadcastHint ? <Text style={styles.broadcastHint}>{broadcastHint}</Text> : null}
+          <View style={styles.receivedNotesPanel}>
+            <Text style={styles.receivedNotesHeader}>received notes</Text>
+            <ScrollView style={styles.receivedNotesList} showsVerticalScrollIndicator={false}>
+              {receivedNotes.map((note, index) => (
+                <Text key={`${note}-${index}`} style={styles.receivedNoteText}>
+                  {note}
+                </Text>
+              ))}
+            </ScrollView>
           </View>
 
           <TouchableOpacity style={styles.recordFab} onPress={handleRecordPress}>
@@ -387,8 +583,13 @@ export function GroupTab() {
       <View style={styles.dancerRightPanel}>
         <View style={styles.choreographerNotes}>
           <Text style={styles.choreographerNotesHeader}>CHOREOGRAPHER NOTES</Text>
+          {activeFormationBroadcast ? (
+            <Text style={styles.activeMomentHint}>
+              live formation: {activeFormationBroadcast.momentId ?? 'none'} / {activeFormationBroadcast.section ?? 'section'}
+            </Text>
+          ) : null}
           <ScrollView showsVerticalScrollIndicator={false}>
-            {choreographerNotes.map((note, index) => (
+            {receivedNotes.map((note, index) => (
               <Text key={`${note}-${index}`} style={styles.choreographerNoteText}>
                 {note}
               </Text>
@@ -396,7 +597,10 @@ export function GroupTab() {
           </ScrollView>
         </View>
 
-        <Text style={styles.clipsGridLabel}>ALL TAKES</Text>
+        <View style={styles.clipsGridLabelRow}>
+          <Text style={styles.clipsGridLabel}>ALL TAKES</Text>
+          {newClipCue ? <Text style={styles.newClipCue}>● new</Text> : null}
+        </View>
         <FlatList
           data={clips}
           keyExtractor={(clip) => clip.local_id}
@@ -521,11 +725,16 @@ const styles = StyleSheet.create({
   rosterDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   rosterName: { flex: 1, fontSize: 12, fontWeight: '700', color: colors.active },
   rosterStatus: { fontSize: 11, color: colors.muted },
-  broadcastRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 80 },
+  broadcastRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   broadcastInput: { flex: 1, fontSize: 11, color: colors.muted, padding: 8, borderWidth: 0.5, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.ground },
   charCount: { fontSize: 9, color: colors.muted },
   broadcastButton: { paddingHorizontal: 8, paddingVertical: 6 },
   broadcastButtonText: { color: colors.mine, fontWeight: '700', fontSize: 11 },
+  broadcastHint: { fontSize: 10, color: colors.warm, marginBottom: 66 },
+  receivedNotesPanel: { maxHeight: 72, marginBottom: 72 },
+  receivedNotesHeader: { fontSize: 9, color: colors.muted, marginBottom: 4, fontFamily: 'JetBrainsMono' },
+  receivedNotesList: { borderWidth: 0.5, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.ground },
+  receivedNoteText: { fontSize: 10, color: colors.active, paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: colors.border },
   recordFab: { position: 'absolute', bottom: 10, right: 10, width: 64, height: 64, borderRadius: 32, backgroundColor: '#e67c5c', alignItems: 'center', justifyContent: 'center' },
   recordFabInner: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
   dancerContainer: { flex: 1, backgroundColor: colors.ground },
@@ -538,7 +747,9 @@ const styles = StyleSheet.create({
   choreographerNotes: { maxHeight: 80, marginBottom: 12 },
   choreographerNotesHeader: { fontSize: 8, color: colors.muted, fontFamily: 'JetBrainsMono', marginBottom: 6 },
   choreographerNoteText: { fontSize: 10, color: colors.active, borderBottomWidth: 0.5, borderBottomColor: colors.border, paddingVertical: 4 },
-  clipsGridLabel: { fontSize: 11, color: colors.muted, fontFamily: 'JetBrainsMono', marginBottom: 8 },
+  clipsGridLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  clipsGridLabel: { fontSize: 11, color: colors.muted, fontFamily: 'JetBrainsMono' },
+  newClipCue: { fontSize: 10, color: '#2aaea1', fontFamily: 'JetBrainsMono' },
   clipThumb: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden', position: 'relative' },
   clipThumbRef: { backgroundColor: colors.warm },
   clipThumbMine: { backgroundColor: colors.mine },
@@ -552,4 +763,5 @@ const styles = StyleSheet.create({
   dancerFabContainer: { position: 'absolute', bottom: 10, right: 10, alignItems: 'center' },
   dancerFabLabel: { fontSize: 9, color: colors.muted, marginBottom: 2 },
   dancerFabSublabel: { fontSize: 9, color: colors.inactive, marginBottom: 8 },
+  activeMomentHint: { fontSize: 8, color: colors.inactive, marginTop: 4 },
 });
