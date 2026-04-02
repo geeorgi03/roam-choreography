@@ -55,6 +55,8 @@ export function TransportBar({ variant }: TransportBarProps) {
     durationMs,
     playbackSpeed,
     setPlaybackSpeed,
+    handleSeekBack,
+    handleSeekForward,
     loopRegion,
     loopOpenAt,
     handlePlayPause,
@@ -89,9 +91,9 @@ export function TransportBar({ variant }: TransportBarProps) {
       return 'tap to close';
     }
     if (loopRegion !== null && loopOpenAt === null) {
-      return 'LOOP';
+      return 'set loop';
     }
-    return 'LOOP';
+    return 'set loop';
   };
 
   const getLoopDotColor = () => {
@@ -165,6 +167,16 @@ export function TransportBar({ variant }: TransportBarProps) {
 
   return (
     <View style={[styles.container, styles.fullContainer]}>
+      {/* Seek-back button */}
+      <TouchableOpacity
+        style={styles.seekButton}
+        onPress={handleSeekBack}
+      >
+        <Text style={{ fontFamily: theme.typography.monoFamily, color: theme.light.muted }}>
+          {'⏮'}
+        </Text>
+      </TouchableOpacity>
+
       {/* Play/pause button */}
       <TouchableOpacity
         style={[styles.playButton, styles.fullPlayButton]}
@@ -172,6 +184,16 @@ export function TransportBar({ variant }: TransportBarProps) {
       >
         <Text style={styles.playButtonText}>
           {isPlaying ? '⏸' : '▶'}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Seek-forward button */}
+      <TouchableOpacity
+        style={styles.seekButton}
+        onPress={handleSeekForward}
+      >
+        <Text style={{ fontFamily: theme.typography.monoFamily, color: theme.light.muted }}>
+          {'⏭'}
         </Text>
       </TouchableOpacity>
 
@@ -323,5 +345,13 @@ const styles = StyleSheet.create({
   },
   reducedLoopButtonText: {
     fontSize: 9,
+  },
+  seekButton: {
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: theme.light.border,
+    backgroundColor: theme.light.chrome,
   },
 });
