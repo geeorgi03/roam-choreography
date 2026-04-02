@@ -33,7 +33,6 @@ export function SongMapTab() {
   
   const [moments, setMoments] = useState<Moment[]>([{ id: '1', label: 'moment 1' }]);
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'counts' | 'partition'>('counts');
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [waveformWidth, setWaveformWidth] = useState(0);
 
@@ -90,6 +89,10 @@ export function SongMapTab() {
     handleLoopToggle();
   };
 
+  const handleCountsPress = () => {
+    // Counts is intentionally the always-active mode in V3.
+  };
+
   const loopLabel = loopOpenAt !== null
     ? 'tap to close'
     : 'set loop';
@@ -137,9 +140,12 @@ export function SongMapTab() {
     <View style={styles.container}>
       <View style={styles.topBar}>
         <Text style={styles.topBarSessionName}>{sessionName}</Text>
-        <TouchableOpacity style={styles.spatialChip} onPress={() => setActiveTab('spatial')}>
-          <Text style={styles.spatialChipText}>Spatial →</Text>
-        </TouchableOpacity>
+        <View style={styles.topBarRight}>
+          <Text style={styles.topBarSectionLabel}>{activeSection}</Text>
+          <TouchableOpacity style={styles.spatialChip} onPress={() => setActiveTab('spatial')}>
+            <Text style={styles.spatialChipText}>Spatial →</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.middleRow}>
@@ -211,69 +217,36 @@ export function SongMapTab() {
             <TouchableOpacity
               style={[
                 styles.toggleButton,
-                viewMode === 'counts' && styles.toggleButtonActive
+                styles.toggleButtonActive
               ]}
-              onPress={() => setViewMode('counts')}
+              onPress={handleCountsPress}
             >
               <Text style={[
                 styles.toggleButtonText,
-                viewMode === 'counts' && styles.toggleButtonTextActive
+                styles.toggleButtonTextActive
               ]}>
                 Counts
               </Text>
             </TouchableOpacity>
             
-            <TouchableOpacity
+            <View
               style={[
                 styles.toggleButton,
-                viewMode === 'partition' && styles.toggleButtonActive
+                { opacity: 0.4 }
               ]}
-              onPress={() => setViewMode('partition')}
             >
-              <Text style={[
-                styles.toggleButtonText,
-                viewMode === 'partition' && styles.toggleButtonTextActive
-              ]}>
+              <Text style={styles.toggleButtonText}>
                 Partition
               </Text>
-            </TouchableOpacity>
+            </View>
           </View>
-          {viewMode === 'partition' ? (
-            <Text style={styles.partitionHint}>read-only in V3</Text>
-          ) : null}
+          <Text style={styles.partitionHint}>read-only in V3</Text>
 
           {/* Section rows */}
           <ScrollView showsVerticalScrollIndicator={false}>
             {sections.map((section) => {
               const clipCount = getSectionClipCount(section.label);
               const isActive = activeSection === section.label;
-              
-              if (viewMode === 'partition') {
-                return (
-                  <View
-                    key={section.label}
-                    style={[
-                      styles.sectionRow,
-                      isActive && styles.sectionRowActive,
-                      styles.sectionRowReadOnly
-                    ]}
-                  >
-                    <View style={styles.sectionRowReadOnlyOverlay} />
-                    <Text style={[
-                      styles.sectionRowText,
-                      isActive && styles.sectionRowTextActive
-                    ]}>
-                      {section.label}
-                    </Text>
-                    <Text style={[
-                      styles.sectionCount,
-                      isActive && styles.sectionCountActive
-                    ]}>
-                      {clipCount}
-                    </Text>
-                  </View>
-                );
-              }
 
               return (
                 <TouchableOpacity
@@ -357,6 +330,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Fraunces',
     fontSize: 18,
     color: colors.active,
+  },
+  topBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  topBarSectionLabel: {
+    fontFamily: 'JetBrainsMono',
+    fontSize: 10,
+    color: colors.muted,
   },
   spatialChip: {
     borderWidth: 1,
@@ -533,14 +516,6 @@ const styles = StyleSheet.create({
   sectionRowActive: {
     borderColor: '#7db9a8',
     backgroundColor: 'rgba(125,185,168,0.12)',
-  },
-  sectionRowReadOnly: {
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  sectionRowReadOnlyOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   sectionRowText: {
     fontSize: 11,

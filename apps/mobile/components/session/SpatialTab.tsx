@@ -66,7 +66,7 @@ export function SpatialTab() {
   } = useSessionContext();
   
   // Same moments state as SongMapTab (shared via context)
-  const [moments] = useState<Moment[]>([{ id: '1', label: 'moment 1' }]);
+  const [moments, setMoments] = useState<Moment[]>([{ id: '1', label: 'moment 1' }]);
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
   
   // Canvas state
@@ -109,6 +109,15 @@ export function SpatialTab() {
       // Update local moments state (same as SongMapTab)
       setRenamingMomentId(null);
     }
+  };
+
+  const handleAddMoment = () => {
+    const newMoment = {
+      id: String(moments.length + 1),
+      label: `moment ${moments.length + 1}`,
+    };
+    setMoments([...moments, newMoment]);
+    setActiveMoment(newMoment.id);
   };
 
   const maxLeftPx = Math.max(0, canvasSize.width - DOT_SIZE);
@@ -432,6 +441,12 @@ export function SpatialTab() {
               )}
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={styles.addMomentButton}
+            onPress={handleAddMoment}
+          >
+            <Text style={styles.addMomentText}>+</Text>
+          </TouchableOpacity>
         </ScrollView>
 
         {/* Floor canvas */}
@@ -695,6 +710,22 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     minWidth: 60,
+  },
+  addMomentButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.ground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  addMomentText: {
+    fontSize: 14,
+    color: colors.muted,
+    fontWeight: '600',
   },
   floorCanvas: {
     flex: 1,
