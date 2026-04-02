@@ -1,16 +1,15 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { Audio, type AVPlaybackStatus } from 'expo-av';
 import { ClipRow } from '../database';
-import { SectionClip } from '@roam/types';
+import { FormationData, Moment, QualityData, SectionClip } from '@roam/types';
 import { useClips } from '../hooks/useClips';
 import { useMusicTrackStatus } from '../hooks/useMusicTrackStatus';
 import { useNotePins } from '../hooks/useNotePins';
+import useMoments from '../hooks/useMoments';
 import { useInbox } from '../hooks/useInbox';
 import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
 import { API_BASE } from '../api';
-
-const FALLBACK_MAP_MOMENT_ID = '1';
 
 export interface SessionContextValue {
   sessionId: string;
@@ -69,6 +68,13 @@ export interface SessionContextValue {
   closeSheet: (expectedSheetId?: string) => void;
   closeSheetIfActive: (sheetId: string) => void;
   openClipSheet: (clip: ClipRow) => void;
+
+  moments: Moment[];
+  isLoadingMoments: boolean;
+  createMoment: (name: string, beatPositionMs: number) => Promise<Moment | null>;
+  renameMoment: (momentId: string, name: string) => Promise<void>;
+  updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
+  updateQuality: (momentId: string, quality: QualityData | null) => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -100,6 +106,14 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const { clips, retryClip } = useClips(sessionId);
   const { musicTrack, isAnalysing } = useMusicTrackStatus(sessionId);
   const { notes, createNote, deleteNote } = useNotePins(sessionId);
+  const {
+    moments,
+    isLoading: isLoadingMoments,
+    createMoment,
+    renameMoment,
+    updateFormation,
+    updateQuality,
+  } = useMoments(sessionId);
   const { count: inboxCount, refreshCount } = useInbox();
   const { session } = useSession();
 
@@ -124,6 +138,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   useEffect(() => {
     refreshCount().catch(() => {});
   }, [refreshCount]);
+
+  useEffect(() => {
+    if (activeMoment === null && moments.length > 0) {
+      setActiveMoment(moments[0].id);
+    }
+  }, [moments, activeMoment]);
 
   useEffect(() => {
     if (!sessionId || !session?.access_token) return;
@@ -319,13 +339,13 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   }, [isPlaying, openSheet]);
 
   const jumpToSongMap = useCallback(() => {
-    const nextMapMoment = activeMoment ?? FALLBACK_MAP_MOMENT_ID;
-    if (nextMapMoment !== activeMoment) {
+    const nextMapMoment = activeMoment ?? moments[0]?.id ?? null;
+    if (nextMapMoment !== null && nextMapMoment !== activeMoment) {
       setActiveMoment(nextMapMoment);
     }
     closeSheet();
     setActiveTab('song-map');
-  }, [activeMoment, setActiveMoment, closeSheet, setActiveTab]);
+  }, [activeMoment, moments, setActiveMoment, closeSheet, setActiveTab]);
 
   const value: SessionContextValue = {
     sessionId,
@@ -371,6 +391,13 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     deleteNote,
     inboxCount,
     refreshCount,
+
+    moments,
+    isLoadingMoments,
+    createMoment,
+    renameMoment,
+    updateFormation,
+    updateQuality,
     
     // Handlers
     handlePlayPause,

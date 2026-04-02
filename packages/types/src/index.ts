@@ -141,13 +141,21 @@ export interface SectionClip {
 
 export interface FormationData extends Record<string, unknown> {}
 
+export interface QualityData {
+  initiation?: string;
+  relationship_quality?: string;
+  note_text?: string;
+  note_audio_url?: string | null;
+  quality_reference_clip_id?: string | null;
+}
+
 export interface Moment {
   id: UUID;
   session_id: UUID;
   name: string;
   beat_position_ms: number;
   formation: FormationData | null;
-  quality: Record<string, unknown> | null;
+  quality: QualityData | null;
   position: number;
   created_at: ISODateTime;
 }

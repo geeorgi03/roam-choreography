@@ -2,13 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
+import type { Moment } from '@roam/types';
 
 const colors = theme.light;
-
-interface Moment {
-  id: string;
-  label: string;
-}
 
 export function SongMapTab() {
   const { 
@@ -19,10 +15,12 @@ export function SongMapTab() {
     activeSection, 
     setActiveSection, 
     musicTrack, 
-    sectionClips
+    sectionClips,
+    moments,
+    createMoment,
+    renameMoment,
+    playheadMs,
   } = useSessionContext();
-  
-  const [moments, setMoments] = useState<Moment[]>([{ id: '1', label: 'moment 1' }]);
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
@@ -35,13 +33,9 @@ export function SongMapTab() {
     { label: 'OUTRO' },
   ];
 
-  const handleAddMoment = () => {
-    const newMoment = {
-      id: String(moments.length + 1),
-      label: `moment ${moments.length + 1}`,
-    };
-    setMoments([...moments, newMoment]);
-    setActiveMoment(newMoment.id);
+  const handleAddMoment = async () => {
+    const newMoment = await createMoment(`moment ${moments.length + 1}`, Math.round(playheadMs));
+    if (newMoment) setActiveMoment(newMoment.id);
   };
 
   const handleMomentPress = (momentId: string) => {
@@ -52,13 +46,10 @@ export function SongMapTab() {
     setRenamingMomentId(momentId);
   };
 
-  const handleRenameMoment = (newLabel: string) => {
-    if (renamingMomentId) {
-      setMoments(moments.map(m => 
-        m.id === renamingMomentId ? { ...m, label: newLabel } : m
-      ));
-      setRenamingMomentId(null);
-    }
+  const handleRenameMoment = async (newLabel: string) => {
+    if (!renamingMomentId) return;
+    await renameMoment(renamingMomentId, newLabel);
+    setRenamingMomentId(null);
   };
 
   const getSectionClipCount = (sectionLabel: string) => {
@@ -127,7 +118,7 @@ export function SongMapTab() {
             style={styles.momentStrip}
             showsHorizontalScrollIndicator={false}
           >
-            {moments.map((moment) => (
+            {moments.map((moment: Moment) => (
               <TouchableOpacity
                 key={moment.id}
                 style={[
@@ -140,7 +131,7 @@ export function SongMapTab() {
                 {renamingMomentId === moment.id ? (
                   <TextInput
                     style={styles.renameInput}
-                    defaultValue={moment.label}
+                    defaultValue={moment.name}
                     onBlur={(e) => handleRenameMoment(e.nativeEvent.text)}
                     onSubmitEditing={(e) => handleRenameMoment(e.nativeEvent.text)}
                     autoFocus
@@ -150,7 +141,7 @@ export function SongMapTab() {
                     styles.momentChipText,
                     activeMoment === moment.id && styles.momentChipTextActive
                   ]}>
-                    {moment.label}
+                    {moment.name}
                   </Text>
                 )}
               </TouchableOpacity>

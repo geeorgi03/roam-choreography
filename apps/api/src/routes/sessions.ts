@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requireAuth } from '../middleware/auth.js';
 import { supabase } from '../lib/supabase.js';
 import { checkSessionLimit } from '../lib/planGate.js';
-import type { Session, MusicTrack, Clip, Moment, FormationData } from '@roam/types';
+import type { Session, MusicTrack, Clip, Moment, FormationData, QualityData } from '@roam/types';
 
 const GROUP_COLOR_PALETTE = ['#e67c5c', '#4a90e2', '#8a6ee8', '#3ba287', '#f2b233', '#d35d9e'];
 
@@ -656,6 +656,77 @@ app.put('/:id/moments/:momentId/formation', async (c) => {
   }
   if (!data) return c.json({ error: 'Not found' }, 404);
   return c.json({ formation: data.formation as FormationData | null });
+});
+
+/** GET /sessions/:id/moments/:momentId/quality — fetch moment quality */
+app.get('/:id/moments/:momentId/quality', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const momentId = c.req.param('momentId');
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('moments')
+    .select('quality')
+    .eq('id', momentId)
+    .eq('session_id', sessionId)
+    .maybeSingle();
+
+  if (error) {
+    if (isInvalidUuidCastError(error)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: error.message }, 500);
+  }
+  if (!data) return c.json({ error: 'Not found' }, 404);
+  return c.json({ quality: data.quality as QualityData | null });
+});
+
+/** PUT /sessions/:id/moments/:momentId/quality — update moment quality */
+app.put('/:id/moments/:momentId/quality', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const momentId = c.req.param('momentId');
+
+  const parsedBody = await safeReqJson<{ quality?: unknown }>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const body = parsedBody.data;
+  if (!body || typeof body !== 'object' || !('quality' in body)) {
+    return c.json({ error: 'quality is required' }, 400);
+  }
+
+  const qualityInput = (body as { quality?: unknown }).quality;
+  const isPlainObject =
+    qualityInput !== null &&
+    typeof qualityInput === 'object' &&
+    !Array.isArray(qualityInput) &&
+    Object.getPrototypeOf(qualityInput) === Object.prototype;
+
+  if (qualityInput !== null && !isPlainObject) {
+    return c.json({ error: 'quality must be an object or null' }, 400);
+  }
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('moments')
+    .update({ quality: qualityInput ?? null })
+    .eq('id', momentId)
+    .eq('session_id', sessionId)
+    .select('quality')
+    .maybeSingle();
+
+  if (error) {
+    if (isInvalidUuidCastError(error)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: error.message }, 500);
+  }
+  if (!data) return c.json({ error: 'Not found' }, 404);
+  return c.json({ quality: data.quality as QualityData | null });
 });
 
 export const sessionsRoutes = app;
