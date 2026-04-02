@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
   },
   sessionName: {
     fontFamily: theme.typography.displayFamily,
-    fontSize: 36,
+    fontSize: 22,
     fontWeight: '500',
     color: colors.active,
   },

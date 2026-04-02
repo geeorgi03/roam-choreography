@@ -188,7 +188,7 @@ export function SongMapTab() {
               styles.toggleButton,
               viewMode === 'partition' && styles.toggleButtonActive
             ]}
-            onPress={() => {}} // Read-only in V3
+            onPress={() => setViewMode('partition')}
           >
             <Text style={[
               styles.toggleButtonText,
@@ -198,6 +198,9 @@ export function SongMapTab() {
             </Text>
           </TouchableOpacity>
         </View>
+        {viewMode === 'partition' ? (
+          <Text style={styles.partitionHint}>read-only in V3</Text>
+        ) : null}
 
         {/* Section rows */}
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -205,6 +208,33 @@ export function SongMapTab() {
             const clipCount = getSectionClipCount(section.label);
             const isActive = activeSection === section.label;
             
+            if (viewMode === 'partition') {
+              return (
+                <View
+                  key={section.label}
+                  style={[
+                    styles.sectionRow,
+                    isActive && styles.sectionRowActive,
+                    styles.sectionRowReadOnly
+                  ]}
+                >
+                  <View style={styles.sectionRowReadOnlyOverlay} />
+                  <Text style={[
+                    styles.sectionRowText,
+                    isActive && styles.sectionRowTextActive
+                  ]}>
+                    {section.label}
+                  </Text>
+                  <Text style={[
+                    styles.sectionCount,
+                    isActive && styles.sectionCountActive
+                  ]}>
+                    {clipCount}
+                  </Text>
+                </View>
+              );
+            }
+
             return (
               <TouchableOpacity
                 key={section.label}
@@ -356,6 +386,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 6,
   },
+  partitionHint: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 9,
+    color: colors.muted,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
   toggleButton: {
     flex: 1,
     height: 28,
@@ -391,8 +428,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sectionRowActive: {
-    borderColor: colors.mine,
-    backgroundColor: colors.mineBg,
+    borderColor: '#7db9a8',
+    backgroundColor: 'rgba(125,185,168,0.12)',
+  },
+  sectionRowReadOnly: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  sectionRowReadOnlyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   sectionRowText: {
     fontSize: 11,

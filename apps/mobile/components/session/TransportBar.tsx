@@ -89,9 +89,9 @@ export function TransportBar({ variant }: TransportBarProps) {
       return 'tap to close';
     }
     if (loopRegion !== null && loopOpenAt === null) {
-      return 'set loop';
+      return 'LOOP';
     }
-    return 'set loop';
+    return 'LOOP';
   };
 
   const getLoopDotColor = () => {
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0.5,
   },
   fullLoopButton: {
-    width: 102,
+    width: 110,
   },
   reducedLoopButton: {},
   loopDot: {

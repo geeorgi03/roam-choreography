@@ -221,15 +221,15 @@ export function SpatialTab() {
           <TouchableOpacity
             style={[
               styles.toolButton,
-              toolState.path === 'active' && styles.toolButtonActive
+              toolState.path === 'active' && styles.toolButtonActive,
+              isToolLocked('path') && { opacity: 0.3 },
             ]}
             onPress={() => {}} // Path unlocked after dot placement
             disabled={isToolLocked('path')}
           >
             <Text style={[
               styles.toolButtonText,
-              toolState.path === 'active' && styles.toolButtonTextActive,
-              isToolLocked('path') && styles.toolButtonTextLocked
+              toolState.path === 'active' && styles.toolButtonTextActive
             ]}>
               Path
             </Text>
@@ -238,15 +238,15 @@ export function SpatialTab() {
           <TouchableOpacity
             style={[
               styles.toolButton,
-              toolState.relationship === 'active' && styles.toolButtonActive
+              toolState.relationship === 'active' && styles.toolButtonActive,
+              isToolLocked('relationship') && { opacity: 0.3 },
             ]}
             onPress={() => {}} // Relationship unlocked after path
             disabled={isToolLocked('relationship')}
           >
             <Text style={[
               styles.toolButtonText,
-              toolState.relationship === 'active' && styles.toolButtonTextActive,
-              isToolLocked('relationship') && styles.toolButtonTextLocked
+              toolState.relationship === 'active' && styles.toolButtonTextActive
             ]}>
               Relationship
             </Text>
@@ -462,9 +462,6 @@ const styles = StyleSheet.create({
   },
   toolButtonTextActive: {
     color: '#ffffff',
-  },
-  toolButtonTextLocked: {
-    opacity: 0.3,
   },
   rightPanel: {
     flex: 0.35,
