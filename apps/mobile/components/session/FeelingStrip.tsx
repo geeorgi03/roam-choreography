@@ -6,35 +6,44 @@ import { theme } from '../../lib/theme';
 const colors = theme.light;
 
 export function FeelingStrip() {
-  const { sessionName } = useSessionContext();
+  const { sessionName, openSheet } = useSessionContext();
   const [phrase, setPhrase] = useState('');
   const [phraseEditing, setPhraseEditing] = useState(false);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sessionName} numberOfLines={1}>
-        {sessionName}
-      </Text>
-      <View>
-        {phraseEditing ? (
-          <TextInput
-            style={styles.phrase}
-            value={phrase}
-            onChangeText={setPhrase}
-            onBlur={() => setPhraseEditing(false)}
-            autoFocus
-            placeholder="add a feeling phrase..."
-            placeholderTextColor={colors.muted}
-          />
-        ) : (
-          <TouchableOpacity activeOpacity={0.8} onPress={() => setPhraseEditing(true)}>
-            <Text style={styles.phrase} numberOfLines={1}>
-              {phrase || 'add a feeling phrase…'}
-            </Text>
-          </TouchableOpacity>
-        )}
+      <View style={styles.textContent}>
+        <Text style={styles.sessionName} numberOfLines={1}>
+          {sessionName}
+        </Text>
+        <View>
+          {phraseEditing ? (
+            <TextInput
+              style={styles.phrase}
+              value={phrase}
+              onChangeText={setPhrase}
+              onBlur={() => setPhraseEditing(false)}
+              autoFocus
+              placeholder="add a feeling phrase..."
+              placeholderTextColor={colors.muted}
+            />
+          ) : (
+            <TouchableOpacity activeOpacity={0.8} onPress={() => setPhraseEditing(true)}>
+              <Text style={styles.phrase} numberOfLines={1}>
+                {phrase || 'add a feeling phrase…'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-      <View style={styles.dot} />
+      <View style={styles.iconRow}>
+        <TouchableOpacity style={styles.iconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
+          <Text style={styles.iconText}>↗</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.iconButton} onPress={() => {}} activeOpacity={0.8}>
+          <Text style={styles.iconText}>⋮</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -48,7 +57,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    position: 'relative',
+  },
+  textContent: {
+    flexShrink: 1,
   },
   sessionName: {
     fontFamily: theme.typography.displayFamily,
@@ -63,13 +74,21 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginLeft: 12,
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.amber,
-    position: 'absolute',
-    top: 8,
-    right: 12,
+  iconRow: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  iconButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconText: {
+    fontSize: 14,
+    color: colors.muted,
   },
 });

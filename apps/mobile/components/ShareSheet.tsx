@@ -19,6 +19,7 @@ export interface ShareSheetProps {
   hasMusic: boolean;
   untaggedClipCount: number;
   bottomSheetRef: React.RefObject<BottomSheet | null>;
+  onClose: () => void;
 }
 
 export function ShareSheet({
@@ -27,6 +28,7 @@ export function ShareSheet({
   hasMusic,
   untaggedClipCount,
   bottomSheetRef,
+  onClose,
 }: ShareSheetProps) {
   const { shareUrl, share, revoke, isShared, loading, error } = useShare(sessionId);
   const [revoked, setRevoked] = React.useState(false);
@@ -80,6 +82,7 @@ export function ShareSheet({
       index={-1}
       snapPoints={['40%']}
       enablePanDownToClose
+      onClose={onClose}
       backgroundStyle={styles.sheet}
       handleIndicatorStyle={styles.handle}
     >

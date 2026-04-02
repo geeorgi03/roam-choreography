@@ -114,6 +114,7 @@ export function GroupTab() {
     loopRegion,
     openClipSheet,
     musicTrack,
+    openSheet,
   } = useSessionContext();
   const { participants, myParticipant, isChoreographer, broadcasts, sendBroadcast, updatePosition } = useGroupRealtime(
     sessionId,
@@ -617,6 +618,13 @@ export function GroupTab() {
   if (isChoreographer) {
     return (
       <View style={styles.container}>
+        <View style={styles.choreographerHeader}>
+          <View style={styles.choreographerHeaderActions}>
+            <TouchableOpacity style={styles.headerIconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
+              <Text style={styles.headerIcon}>↗</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
         <View style={styles.leftPanel}>
           <ScrollView horizontal style={styles.sectionStrip} showsHorizontalScrollIndicator={false}>
             {sections.map((section) => (
@@ -853,6 +861,27 @@ export function GroupTab() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, flexDirection: 'row', backgroundColor: colors.ground },
+  choreographerHeader: {
+    position: 'absolute',
+    top: 8,
+    right: 10,
+    zIndex: 2,
+  },
+  choreographerHeaderActions: {
+    flexDirection: 'row',
+    marginLeft: 'auto',
+  },
+  headerIconButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerIcon: {
+    fontSize: 14,
+    color: colors.muted,
+  },
   leftPanel: { flex: 0.57, flexDirection: 'column', borderRightWidth: 0.5, borderRightColor: colors.border },
   sectionStrip: {
     height: 32,

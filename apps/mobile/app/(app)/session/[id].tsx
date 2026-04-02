@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, BackHandler } from 'react-native';
-import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, BackHandler } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { SessionProvider, useSessionContext } from '../../../lib/contexts/SessionContext';
 import { FeelingStrip } from '../../../components/session/FeelingStrip';
@@ -22,16 +22,15 @@ const colors = theme.light;
 function SessionShellContent() {
   const { id, tab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const router = useRouter();
-  const navigation = useNavigation();
   const {
     activeTab,
     activeSheetId,
     closeSheet,
-    openSheet,
     selectedClipForSheet,
-    setSelectedClipForSheet,
-    openClipSheet,
     setActiveTab,
+    sessionName,
+    musicTrack,
+    clips,
   } = useSessionContext();
 
   // ── Bottom-sheet refs ────────────────────────────────────────────────────
@@ -117,28 +116,6 @@ function SessionShellContent() {
     return () => subscription.remove();
   }, [activeSheetId, closeSheet]);
 
-  // ── Navigation header setup ─────────────────────────────────────────────
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={() => openSheet('share')}
-          >
-            <Text style={styles.headerIcon}>⎘</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            onPress={() => {}}
-          >
-            <Text style={styles.headerIcon}>⋮</Text>
-          </TouchableOpacity>
-        </View>
-      ),
-    });
-  }, [navigation, openSheet]);
-
   // ── Tab content rendering ───────────────────────────────────────────────
   const renderTabContent = () => {
     switch (activeTab) {
@@ -157,6 +134,16 @@ function SessionShellContent() {
 
   // ── Transport variant based on active tab ───────────────────────────────
   const transportVariant = activeTab === 'workbench' ? 'full' : 'reduced';
+  const untaggedClipCount = clips.filter((clip) => {
+    return (
+      !clip.move_name &&
+      !clip.style &&
+      !clip.energy &&
+      !clip.difficulty &&
+      clip.bpm == null &&
+      !clip.notes
+    );
+  }).length;
 
   return (
     <View style={styles.container}>
@@ -171,9 +158,12 @@ function SessionShellContent() {
 
       {/* Sheets */}
       <ShareSheet
-        ref={shareSheetRef}
         sessionId={id!}
-        onClose={() => closeSheet()}
+        sessionName={sessionName}
+        hasMusic={!!musicTrack}
+        untaggedClipCount={untaggedClipCount}
+        bottomSheetRef={shareSheetRef}
+        onClose={closeSheet}
       />
       <CaptureSheet
         ref={captureSheetRef}
@@ -228,22 +218,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.ground,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerIconBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.chrome,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerIcon: {
-    color: colors.active,
-    fontSize: 14,
   },
   tabContent: {
     flex: 1,
