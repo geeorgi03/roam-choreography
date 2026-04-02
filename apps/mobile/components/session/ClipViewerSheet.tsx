@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Video, AVPlaybackStatus } from 'expo-av';
+import { SectionClip } from '@roam/types';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
 import { theme } from '../../lib/theme';
@@ -16,7 +17,7 @@ interface ClipViewerSheetProps {
 }
 
 export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProps>(function ClipViewerSheet({ onClose }, ref) {
-  const { selectedClipForSheet, activeSheetId, loopRegion, activeSection, sectionClips, sessionId, jumpToSongMap } = useSessionContext();
+  const { selectedClipForSheet, activeSheetId, loopRegion, activeSection, sectionClips, setSectionClips, sessionId, jumpToSongMap } = useSessionContext();
   const { session } = useSession();
   const videoRef = useRef<Video>(null);
   const positionMsRef = useRef<number>(0);
@@ -68,7 +69,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     if (!selectedClipForSheet.server_id || !session?.access_token) return;
     
     try {
-      const response = await fetch(`${API_BASE}/sessions/${sessionId}/assembly`, {
+      const response = await fetch(`${API_BASE}/sessions/${sessionId}/assembly/section-clip`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -81,6 +82,8 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       });
 
       if (response.ok) {
+        const newSectionClip = (await response.json()) as SectionClip;
+        setSectionClips([...sectionClips, newSectionClip]);
         console.log('Clip saved to session');
       }
     } catch (error) {
