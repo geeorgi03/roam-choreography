@@ -10,13 +10,11 @@ import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
 import { API_BASE } from '../api';
 
-const FALLBACK_MAP_MOMENT_ID = '1';
-
 export interface SessionContextValue {
   sessionId: string;
   sessionName: string;
   setSessionName: (name: string) => void;
-  activeTab: 'workbench' | 'spatial' | 'beat-grid' | 'song-map' | 'group';
+  activeTab: 'workbench' | 'spatial' | 'song-map' | 'group';
   setActiveTab: (tab: SessionContextValue['activeTab']) => void;
   activeSection: string;
   setActiveSection: (section: string) => void;
@@ -295,13 +293,9 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   }, [isPlaying, openSheet]);
 
   const jumpToSongMap = useCallback(() => {
-    const nextMapMoment = activeMoment ?? FALLBACK_MAP_MOMENT_ID;
-    if (nextMapMoment !== activeMoment) {
-      setActiveMoment(nextMapMoment);
-    }
     closeSheet();
     setActiveTab('song-map');
-  }, [activeMoment, setActiveMoment, closeSheet, setActiveTab]);
+  }, [closeSheet, setActiveTab]);
 
   const value: SessionContextValue = {
     sessionId,
