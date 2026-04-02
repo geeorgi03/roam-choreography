@@ -12,42 +12,6 @@ interface TransportBarProps {
   variant: 'full' | 'reduced';
 }
 
-const getThemeStyles = () => ({
-  container: {
-    backgroundColor: theme.light.chrome,
-    borderTopWidth: 0.5,
-    borderTopColor: theme.light.border,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-  },
-  playButton: {
-    backgroundColor: theme.light.active,
-  },
-  playButtonText: {
-    color: '#ffffff',
-    fontFamily: theme.typography.monoFamily,
-  },
-  speedLabel: {
-    fontFamily: theme.typography.monoFamily,
-    color: theme.light.muted,
-  },
-  speedButton: {
-    borderColor: theme.light.border,
-    backgroundColor: theme.light.chrome,
-  },
-  activeSpeedButton: {
-    backgroundColor: theme.light.active,
-    borderColor: theme.light.active,
-  },
-  speedButtonText: {
-    fontFamily: theme.typography.monoFamily,
-    color: theme.light.muted,
-  },
-  activeSpeedButtonText: {
-    color: '#ffffff',
-  },
-});
-
 export function TransportBar({ variant }: TransportBarProps) {
   const {
     isPlaying,
