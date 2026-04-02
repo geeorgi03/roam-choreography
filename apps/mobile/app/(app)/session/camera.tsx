@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
@@ -28,14 +27,19 @@ export default function CameraScreen() {
   const [dualPairId, setDualPairId] = useState<string | undefined>(undefined);
   const [dualEnabled, setDualEnabled] = useState(false);
   const [showFallbackNotice, setShowFallbackNotice] = useState(false);
+  const [showRecordErrorNotice, setShowRecordErrorNotice] = useState(false);
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
+  const frontRecordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const quickSaveRef = useRef<BottomSheet | null>(null);
   const frontCameraRef = useRef<CameraView>(null);
   const fpsFramesRef = useRef<number[]>([]);
   const lowFpsStartRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoOpenQuickSaveRef = useRef(false);
+  const dualRequestedAtStartRef = useRef(false);
+  const didAutoFallbackRef = useRef(false);
 
   useEffect(() => {
     if (!cameraPermission?.granted) requestCameraPermission();
@@ -53,6 +57,18 @@ export default function CameraScreen() {
 
   const triggerFallback = useCallback(() => {
     stopFpsMonitor();
+    if (isRecording && dualEnabled) {
+      if (frontRecordingPromiseRef.current && frontCameraRef.current) {
+        try {
+          frontCameraRef.current.stopRecording();
+        } catch {
+          // idempotent: repeated fallback triggers can occur while dual is winding down
+        }
+      }
+      frontRecordingPromiseRef.current = null;
+    }
+    didAutoFallbackRef.current = true;
+    dualRequestedAtStartRef.current = false;
     setDualEnabled(false);
     setShowFallbackNotice(true);
     if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
@@ -60,7 +76,7 @@ export default function CameraScreen() {
       setShowFallbackNotice(false);
       fallbackTimerRef.current = null;
     }, 4000);
-  }, [stopFpsMonitor]);
+  }, [dualEnabled, isRecording, stopFpsMonitor]);
 
   useEffect(() => {
     if (!dualEnabled || !isRecording) {
@@ -109,39 +125,104 @@ export default function CameraScreen() {
     return () => {
       stopFpsMonitor();
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+      if (recordErrorTimerRef.current) clearTimeout(recordErrorTimerRef.current);
     };
   }, [stopFpsMonitor]);
 
   const handleRecordPress = async () => {
     if (!cameraRef.current) return;
     if (!isRecording) {
+      const shouldAttemptDual = dualEnabled && !!frontCameraRef.current;
+      dualRequestedAtStartRef.current = shouldAttemptDual;
+      didAutoFallbackRef.current = false;
+      setFrontRecordedUri(null);
+      setDualPairId(undefined);
       try {
-        const promise = cameraRef.current.recordAsync();
-        recordingPromiseRef.current = promise;
+        recordingPromiseRef.current = cameraRef.current.recordAsync();
+        frontRecordingPromiseRef.current = null;
+        if (shouldAttemptDual) {
+          try {
+            frontRecordingPromiseRef.current = frontCameraRef.current?.recordAsync() ?? null;
+          } catch {
+            triggerFallback();
+          }
+        }
         setIsRecording(true);
-      } catch (e) {
+      } catch {
+        recordingPromiseRef.current = null;
+        frontRecordingPromiseRef.current = null;
+        dualRequestedAtStartRef.current = false;
         setIsRecording(false);
       }
     } else {
       if (cameraRef.current.stopRecording && recordingPromiseRef.current) {
-        cameraRef.current.stopRecording();
-        const result = await recordingPromiseRef.current;
-        if (result?.uri) {
-          if (dualEnabled) {
+        const mainPromise = recordingPromiseRef.current;
+        const frontPromise = frontRecordingPromiseRef.current;
+        const dualRequestedAtStart = dualRequestedAtStartRef.current;
+        let mainResult: { uri: string } | undefined;
+        let frontResult: { uri: string } | undefined;
+        let canSaveMain = false;
+        try {
+          cameraRef.current.stopRecording();
+          if (frontPromise) {
+            try {
+              frontCameraRef.current?.stopRecording?.();
+            } catch {
+              // best effort: front stop can race with fallback stop
+            }
+          }
+          [mainResult, frontResult] = await Promise.all([
+            mainPromise,
+            frontPromise ?? Promise.resolve(undefined),
+          ]);
+          canSaveMain = !!mainResult?.uri;
+        } catch {
+          if (frontPromise) {
+            didAutoFallbackRef.current = true;
+            try {
+              mainResult = await mainPromise;
+              canSaveMain = !!mainResult?.uri;
+            } catch {
+              canSaveMain = false;
+            }
+          }
+          if (!canSaveMain) {
+            setShowRecordErrorNotice(true);
+            if (recordErrorTimerRef.current) clearTimeout(recordErrorTimerRef.current);
+            recordErrorTimerRef.current = setTimeout(() => {
+              setShowRecordErrorNotice(false);
+              recordErrorTimerRef.current = null;
+            }, 4000);
+          }
+          frontResult = undefined;
+        } finally {
+          await Promise.allSettled([frontPromise ?? Promise.resolve(undefined)]);
+          setIsRecording(false);
+          recordingPromiseRef.current = null;
+          frontRecordingPromiseRef.current = null;
+          dualRequestedAtStartRef.current = false;
+        }
+
+        if (mainResult?.uri) {
+          const dualHealthy =
+            dualRequestedAtStart &&
+            !didAutoFallbackRef.current &&
+            !!frontResult?.uri;
+          if (dualHealthy) {
             const nextDualPairId = crypto.randomUUID();
             setDualPairId(nextDualPairId);
-            // TODO: dual recording (front + back) once expo-camera supports simultaneous capture.
-            setFrontRecordedUri(null);
+            setFrontRecordedUri(frontResult.uri);
             autoOpenQuickSaveRef.current = true;
           } else {
             setDualPairId(undefined);
             setFrontRecordedUri(null);
           }
-          setRecordedUri(result.uri);
+          setRecordedUri(mainResult.uri);
+        } else {
+          setDualPairId(undefined);
+          setFrontRecordedUri(null);
         }
-        recordingPromiseRef.current = null;
       }
-      setIsRecording(false);
     }
   };
 
@@ -154,6 +235,8 @@ export default function CameraScreen() {
     setRecordedUri(null);
     setFrontRecordedUri(null);
     setDualPairId(undefined);
+    didAutoFallbackRef.current = false;
+    dualRequestedAtStartRef.current = false;
   };
 
   if (!cameraPermission?.granted) {
@@ -233,7 +316,12 @@ export default function CameraScreen() {
       />
       {dualEnabled ? (
         <View style={styles.pipContainer}>
-          <CameraView ref={frontCameraRef} style={StyleSheet.absoluteFill} facing="front" />
+          <CameraView ref={frontCameraRef} style={StyleSheet.absoluteFill} mode="video" facing="front" />
+        </View>
+      ) : null}
+      {showRecordErrorNotice ? (
+        <View style={styles.fallbackNotice}>
+          <Text style={styles.fallbackNoticeText}>could not save this take - please retry</Text>
         </View>
       ) : null}
       {showFallbackNotice ? (
