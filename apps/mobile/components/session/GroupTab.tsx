@@ -122,6 +122,8 @@ export function GroupTab() {
 
   void createMoment;
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
+  // Guard against duplicate rename commits caused by `onSubmitEditing` followed by `onBlur`.
+  const renameCommitGuardRef = useRef(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [broadcastText, setBroadcastText] = useState('');
   const [presenceMap, setPresenceMap] = useState<Record<string, PresenceEntry>>({});
@@ -244,9 +246,19 @@ export function GroupTab() {
 
   const handleMomentPress = (momentId: string) => setActiveMoment(momentId);
   const handleMomentLongPress = (momentId: string) => setRenamingMomentId(momentId);
+  useEffect(() => {
+    // Each rename edit session gets its own "commit once" lifecycle.
+    if (renamingMomentId) renameCommitGuardRef.current = false;
+  }, [renamingMomentId]);
   const handleRenameMoment = useCallback(
     (newLabel: string) => {
       if (!renamingMomentId) return;
+      // Prevent duplicate PATCH requests for the same edit caused by blur after submit.
+      if (renameCommitGuardRef.current) {
+        setRenamingMomentId(null);
+        return;
+      }
+      renameCommitGuardRef.current = true;
       void renameMoment(renamingMomentId, newLabel);
       setRenamingMomentId(null);
     },
