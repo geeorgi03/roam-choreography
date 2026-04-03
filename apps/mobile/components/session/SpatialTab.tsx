@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   GestureResponderEvent,
   PanResponder,
   PanResponderGestureState,
@@ -66,6 +67,7 @@ export function SpatialTab() {
     moments,
     createMoment,
     renameMoment,
+    deleteMoment,
     updateFormation,
     updateQuality,
     playheadMs,
@@ -231,7 +233,26 @@ export function SpatialTab() {
   };
 
   const handleMomentLongPress = (momentId: string) => {
-    setRenamingMomentId(momentId);
+    const moment = moments.find(m => m.id === momentId);
+    if (!moment) return;
+    
+    Alert.alert(
+      moment.name,
+      undefined,
+      [
+        { text: 'Rename', onPress: () => setRenamingMomentId(momentId) },
+        { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleDeleteMoment = async (momentId: string) => {
+    await deleteMoment(momentId);
+    if (activeMoment === momentId) {
+      const remaining = moments.filter(m => m.id !== momentId);
+      setActiveMoment(remaining[0]?.id ?? null);
+    }
   };
 
   const handleRenameMoment = async (_newLabel: string) => {

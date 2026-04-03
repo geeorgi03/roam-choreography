@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
 import type { Moment } from '@roam/types';
@@ -19,6 +19,7 @@ export function SongMapTab() {
     moments,
     createMoment,
     renameMoment,
+    deleteMoment,
     playheadMs,
     momentsConnectionStatus,
   } = useSessionContext();
@@ -44,7 +45,26 @@ export function SongMapTab() {
   };
 
   const handleMomentLongPress = (momentId: string) => {
-    setRenamingMomentId(momentId);
+    const moment = moments.find(m => m.id === momentId);
+    if (!moment) return;
+    
+    Alert.alert(
+      moment.name,
+      undefined,
+      [
+        { text: 'Rename', onPress: () => setRenamingMomentId(momentId) },
+        { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
+
+  const handleDeleteMoment = async (momentId: string) => {
+    await deleteMoment(momentId);
+    if (activeMoment === momentId) {
+      const remaining = moments.filter(m => m.id !== momentId);
+      setActiveMoment(remaining[0]?.id ?? null);
+    }
   };
 
   const handleRenameMoment = async (newLabel: string) => {
