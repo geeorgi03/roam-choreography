@@ -73,6 +73,8 @@ export interface SessionContextValue {
   isLoadingMoments: boolean;
   createMoment: (name: string, beatPositionMs: number) => Promise<Moment | null>;
   renameMoment: (momentId: string, name: string) => Promise<void>;
+  mergeMoment: (row: Moment) => void;
+  removeMoment: (momentId: string) => void;
   updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
   updateQuality: (momentId: string, quality: QualityData | null) => Promise<void>;
 }
@@ -111,6 +113,8 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     isLoading: isLoadingMoments,
     createMoment,
     renameMoment,
+    mergeMoment,
+    removeMoment,
     updateFormation,
     updateQuality,
   } = useMoments(sessionId);
@@ -396,6 +400,8 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     isLoadingMoments,
     createMoment,
     renameMoment,
+    mergeMoment,
+    removeMoment,
     updateFormation,
     updateQuality,
     

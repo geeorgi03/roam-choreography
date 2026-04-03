@@ -22,6 +22,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.useSessionContext = exports.SessionProvider = void 0;
 const react_1 = __importStar(require("react"));
@@ -29,6 +32,7 @@ const expo_av_1 = require("expo-av");
 const useClips_1 = require("../hooks/useClips");
 const useMusicTrackStatus_1 = require("../hooks/useMusicTrackStatus");
 const useNotePins_1 = require("../hooks/useNotePins");
+const useMoments_1 = __importDefault(require("../hooks/useMoments"));
 const useInbox_1 = require("../hooks/useInbox");
 const useSession_1 = require("../hooks/useSession");
 const supabase_1 = require("../supabase");
@@ -59,6 +63,7 @@ function SessionProvider({ sessionId, children }) {
     const { clips, retryClip } = (0, useClips_1.useClips)(sessionId);
     const { musicTrack, isAnalysing } = (0, useMusicTrackStatus_1.useMusicTrackStatus)(sessionId);
     const { notes, createNote, deleteNote } = (0, useNotePins_1.useNotePins)(sessionId);
+    const { moments, isLoading: isLoadingMoments, createMoment, renameMoment, mergeMoment, removeMoment, updateFormation, updateQuality, } = (0, useMoments_1.default)(sessionId);
     const { count: inboxCount, refreshCount } = (0, useInbox_1.useInbox)();
     const { session } = (0, useSession_1.useSession)();
     // Effects from original session file
@@ -85,6 +90,11 @@ function SessionProvider({ sessionId, children }) {
     (0, react_1.useEffect)(() => {
         refreshCount().catch(() => { });
     }, [refreshCount]);
+    (0, react_1.useEffect)(() => {
+        if (activeMoment === null && moments.length > 0) {
+            setActiveMoment(moments[0].id);
+        }
+    }, [moments, activeMoment]);
     (0, react_1.useEffect)(() => {
         if (!sessionId || !session?.access_token)
             return;
@@ -257,12 +267,12 @@ function SessionProvider({ sessionId, children }) {
     }, [isPlaying, openSheet]);
     const jumpToSongMap = (0, react_1.useCallback)(() => {
         const nextMapMoment = activeMoment ?? moments[0]?.id ?? null;
-        if (nextMapMoment !== null && nextMapMoment !== activeMoment) {
+        if (nextMapMoment && nextMapMoment !== activeMoment) {
             setActiveMoment(nextMapMoment);
         }
         closeSheet();
         setActiveTab('song-map');
-    }, [activeMoment, moments, setActiveMoment, closeSheet, setActiveTab]);
+    }, [activeMoment, moments, closeSheet, setActiveTab]);
     const value = {
         sessionId,
         sessionName,
@@ -306,6 +316,14 @@ function SessionProvider({ sessionId, children }) {
         deleteNote,
         inboxCount,
         refreshCount,
+        moments,
+        isLoadingMoments,
+        createMoment,
+        renameMoment,
+        mergeMoment,
+        removeMoment,
+        updateFormation,
+        updateQuality,
         // Handlers
         handlePlayPause,
         handleSeekBack,

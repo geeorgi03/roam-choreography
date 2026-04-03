@@ -30,8 +30,7 @@ const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const theme_1 = require("../../lib/theme");
 const colors = theme_1.theme.light;
 function SongMapTab() {
-    const { sessionName, setActiveTab, activeMoment, setActiveMoment, activeSection, setActiveSection, musicTrack, sectionClips } = (0, SessionContext_1.useSessionContext)();
-    const [moments, setMoments] = (0, react_1.useState)([{ id: '1', label: 'moment 1' }]);
+    const { sessionName, setActiveTab, activeMoment, setActiveMoment, activeSection, setActiveSection, musicTrack, sectionClips, moments, createMoment, renameMoment, playheadMs, } = (0, SessionContext_1.useSessionContext)();
     const [renamingMomentId, setRenamingMomentId] = (0, react_1.useState)(null);
     const [canvasSize, setCanvasSize] = (0, react_1.useState)({ width: 0, height: 0 });
     // Get sections from musicTrack or use placeholders
@@ -42,13 +41,10 @@ function SongMapTab() {
         { label: 'BRIDGE' },
         { label: 'OUTRO' },
     ];
-    const handleAddMoment = () => {
-        const newMoment = {
-            id: String(moments.length + 1),
-            label: `moment ${moments.length + 1}`,
-        };
-        setMoments([...moments, newMoment]);
-        setActiveMoment(newMoment.id);
+    const handleAddMoment = async () => {
+        const newMoment = await createMoment(`moment ${moments.length + 1}`, Math.round(playheadMs));
+        if (newMoment)
+            setActiveMoment(newMoment.id);
     };
     const handleMomentPress = (momentId) => {
         setActiveMoment(momentId);
@@ -56,11 +52,11 @@ function SongMapTab() {
     const handleMomentLongPress = (momentId) => {
         setRenamingMomentId(momentId);
     };
-    const handleRenameMoment = (newLabel) => {
-        if (renamingMomentId) {
-            setMoments(moments.map(m => m.id === renamingMomentId ? { ...m, label: newLabel } : m));
-            setRenamingMomentId(null);
-        }
+    const handleRenameMoment = async (newLabel) => {
+        if (!renamingMomentId)
+            return;
+        await renameMoment(renamingMomentId, newLabel);
+        setRenamingMomentId(null);
     };
     const getSectionClipCount = (sectionLabel) => {
         return sectionClips.filter(clip => clip.section_label === sectionLabel).length;
@@ -111,11 +107,11 @@ function SongMapTab() {
                 styles.momentChip,
                 activeMoment === moment.id && styles.momentChipActive
             ]} onPress={() => handleMomentPress(moment.id)} onLongPress={() => handleMomentLongPress(moment.id)}>
-                {renamingMomentId === moment.id ? (<react_native_1.TextInput style={styles.renameInput} defaultValue={moment.label} onBlur={(e) => handleRenameMoment(e.nativeEvent.text)} onSubmitEditing={(e) => handleRenameMoment(e.nativeEvent.text)} autoFocus/>) : (<react_native_1.Text style={[
+                {renamingMomentId === moment.id ? (<react_native_1.TextInput style={styles.renameInput} defaultValue={moment.name} onBlur={(e) => handleRenameMoment(e.nativeEvent.text)} onSubmitEditing={(e) => handleRenameMoment(e.nativeEvent.text)} autoFocus/>) : (<react_native_1.Text style={[
                     styles.momentChipText,
                     activeMoment === moment.id && styles.momentChipTextActive
                 ]}>
-                    {moment.label}
+                    {moment.name}
                   </react_native_1.Text>)}
               </react_native_1.TouchableOpacity>))}
             <react_native_1.TouchableOpacity style={styles.addMomentButton} onPress={handleAddMoment}>

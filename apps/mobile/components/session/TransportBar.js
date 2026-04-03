@@ -8,41 +8,6 @@ const react_1 = __importDefault(require("react"));
 const react_native_1 = require("react-native");
 const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const theme_1 = require("../../lib/theme");
-const getThemeStyles = () => ({
-    container: {
-        backgroundColor: theme_1.theme.light.chrome,
-        borderTopWidth: 0.5,
-        borderTopColor: theme_1.theme.light.border,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    playButton: {
-        backgroundColor: theme_1.theme.light.active,
-    },
-    playButtonText: {
-        color: '#ffffff',
-        fontFamily: theme_1.theme.typography.monoFamily,
-    },
-    speedLabel: {
-        fontFamily: theme_1.theme.typography.monoFamily,
-        color: theme_1.theme.light.muted,
-    },
-    speedButton: {
-        borderColor: theme_1.theme.light.border,
-        backgroundColor: theme_1.theme.light.chrome,
-    },
-    activeSpeedButton: {
-        backgroundColor: theme_1.theme.light.active,
-        borderColor: theme_1.theme.light.active,
-    },
-    speedButtonText: {
-        fontFamily: theme_1.theme.typography.monoFamily,
-        color: theme_1.theme.light.muted,
-    },
-    activeSpeedButtonText: {
-        color: '#ffffff',
-    },
-});
 function TransportBar({ variant }) {
     const { isPlaying, playheadMs, durationMs, playbackSpeed, setPlaybackSpeed, handleSeekBack, handleSeekForward, loopRegion, loopOpenAt, handlePlayPause, handleLoopToggle, handleClearLoop, } = (0, SessionContext_1.useSessionContext)();
     const getLoopButtonStyle = () => {

@@ -34,27 +34,41 @@ const DOT_SIZE = 14;
 const DOT_RADIUS = DOT_SIZE / 2;
 const SELECTED_DOT_SIZE = 20;
 const PATH_TOUCH_RADIUS = 18;
+const DEFAULT_DANCERS = [
+    { id: 'A', color: colors.mine, topPct: 40, leftPct: 30, orientationDeg: 0 },
+    { id: 'B', color: colors.active, topPct: 60, leftPct: 70, orientationDeg: 180 },
+];
+const DEFAULT_TOOL_STATE = {
+    position: 'active',
+    path: 'locked',
+    relationship: 'locked',
+};
 function SpatialTab() {
-    const { activeMoment, setActiveMoment, loopRegion, loopOpenAt, durationMs, handleLoopToggle, soundRef, setPlayheadMs, setActiveTab, } = (0, SessionContext_1.useSessionContext)();
-    // Same moments state as SongMapTab (shared via context)
-    const [moments, setMoments] = (0, react_1.useState)([{ id: '1', label: 'moment 1' }]);
+    const { activeMoment, setActiveMoment, moments, createMoment, renameMoment, updateFormation, updateQuality, playheadMs, loopRegion, loopOpenAt, durationMs, handleLoopToggle, soundRef, setPlayheadMs, setActiveTab, } = (0, SessionContext_1.useSessionContext)();
+    const activeMomentRecord = (0, react_1.useMemo)(() => {
+        if (!activeMoment)
+            return null;
+        return moments.find((m) => m.id === activeMoment) ?? null;
+    }, [moments, activeMoment]);
     const [renamingMomentId, setRenamingMomentId] = (0, react_1.useState)(null);
+    // Keep writes (e.g. drag-end persistence) pointed at the latest active moment.
+    const activeMomentRef = (0, react_1.useRef)(activeMoment);
+    (0, react_1.useEffect)(() => {
+        activeMomentRef.current = activeMoment;
+    }, [activeMoment]);
+    // Prevent rehydration/reset from firing on same-moment optimistic updates.
+    // We only want to fully reset transient interaction state when the active moment identity changes.
+    const prevActiveMomentIdRef = (0, react_1.useRef)(null);
     // Canvas state
     const [canvasSize, setCanvasSize] = (0, react_1.useState)({ width: 0, height: 0 });
-    const [dancers, setDancers] = (0, react_1.useState)([
-        { id: 'A', color: colors.mine, topPct: 40, leftPct: 30, orientationDeg: 0 },
-        { id: 'B', color: colors.active, topPct: 60, leftPct: 70, orientationDeg: 180 },
-    ]);
+    const [dancers, setDancers] = (0, react_1.useState)(DEFAULT_DANCERS);
+    const latestDancersRef = (0, react_1.useRef)(DEFAULT_DANCERS);
     const [selectedDancerId, setSelectedDancerId] = (0, react_1.useState)(null);
     const [selectedTool, setSelectedTool] = (0, react_1.useState)('position');
     const [pathsByDancer, setPathsByDancer] = (0, react_1.useState)({});
     const [waveformWidth, setWaveformWidth] = (0, react_1.useState)(0);
     // Tool progression state
-    const [toolState, setToolState] = (0, react_1.useState)({
-        position: 'active',
-        path: 'locked',
-        relationship: 'locked',
-    });
+    const [toolState, setToolState] = (0, react_1.useState)(DEFAULT_TOOL_STATE);
     const [hasDot, setHasDot] = (0, react_1.useState)(false);
     const [hasPath, setHasPath] = (0, react_1.useState)(false);
     const dragStartRef = (0, react_1.useRef)({});
@@ -63,25 +77,104 @@ function SpatialTab() {
     const [initiation, setInitiation] = (0, react_1.useState)('');
     const [relationshipQuality, setRelationshipQuality] = (0, react_1.useState)('');
     const [note, setNote] = (0, react_1.useState)('');
+    // Persist the quality edits without dropping deferred/forward-compatible fields.
+    // Server `PUT /quality` replaces the entire JSONB payload, so we merge the existing
+    // stored quality object with the edited fields before sending.
+    const commitQualityEdits = () => {
+        if (!activeMoment)
+            return;
+        const mergedQuality = {
+            ...(activeMomentRecord?.quality ?? {}),
+            initiation,
+            relationship_quality: relationshipQuality,
+            note_text: note,
+        };
+        void updateQuality(activeMoment, mergedQuality);
+    };
+    const persistFormation = (momentId, overrides) => {
+        // Backend requires `formation` to be a plain object (or null). Keep payload shape stable.
+        const payload = {
+            dancers: overrides?.dancers ?? latestDancersRef.current,
+            paths: overrides?.pathsByDancer ?? pathsByDancer,
+            toolState: overrides?.toolState ?? toolState,
+        };
+        void updateFormation(momentId, payload);
+    };
+    (0, react_1.useEffect)(() => {
+        latestDancersRef.current = dancers;
+    }, [dancers]);
+    (0, react_1.useEffect)(() => {
+        // Hydrate local UI state from the currently selected moment.
+        // Full UI rehydration/reset must only happen when the active moment identity changes.
+        const currentMomentId = activeMomentRecord?.id ?? null;
+        const identityChanged = prevActiveMomentIdRef.current !== currentMomentId;
+        prevActiveMomentIdRef.current = currentMomentId;
+        if (!activeMomentRecord) {
+            if (identityChanged) {
+                setDancers(DEFAULT_DANCERS);
+                setPathsByDancer({});
+                setSelectedDancerId(null);
+                setToolState(DEFAULT_TOOL_STATE);
+                setHasDot(false);
+                setHasPath(false);
+                setSelectedTool('position');
+                setInitiation('');
+                setRelationshipQuality('');
+                setNote('');
+            }
+            return;
+        }
+        const formation = activeMomentRecord.formation;
+        const hydratedDancers = Array.isArray(formation?.dancers) ? formation.dancers : DEFAULT_DANCERS;
+        const hydratedPathsByDancer = formation?.paths && typeof formation.paths === 'object' && !Array.isArray(formation.paths)
+            ? formation.paths
+            : {};
+        // Keep persisted spatial + quality data synchronized, even during same-moment optimistic updates.
+        setDancers(hydratedDancers);
+        setPathsByDancer(hydratedPathsByDancer);
+        const quality = activeMomentRecord.quality;
+        setInitiation(quality?.initiation ?? '');
+        setRelationshipQuality(quality?.relationship_quality ?? '');
+        setNote(quality?.note_text ?? '');
+        if (identityChanged) {
+            const hydratedToolState = (() => {
+                const ts = formation?.toolState;
+                if (!ts || typeof ts !== 'object' || Array.isArray(ts))
+                    return DEFAULT_TOOL_STATE;
+                const candidate = ts;
+                const isActiveOrLocked = (v) => v === 'active' || v === 'locked';
+                if (!isActiveOrLocked(candidate.position) ||
+                    !isActiveOrLocked(candidate.path) ||
+                    !isActiveOrLocked(candidate.relationship)) {
+                    return DEFAULT_TOOL_STATE;
+                }
+                return candidate;
+            })();
+            // Restore full spatial interaction state from moment formation (or deterministic defaults).
+            setSelectedDancerId(null);
+            setToolState(hydratedToolState);
+            // Derive tool progression flags from restored tool state.
+            setHasDot(hydratedToolState.path === 'active');
+            setHasPath(hydratedToolState.relationship === 'active');
+            setSelectedTool('position');
+        }
+    }, [activeMomentRecord]);
     const handleMomentPress = (momentId) => {
         setActiveMoment(momentId);
     };
     const handleMomentLongPress = (momentId) => {
         setRenamingMomentId(momentId);
     };
-    const handleRenameMoment = (_newLabel) => {
+    const handleRenameMoment = async (_newLabel) => {
         if (renamingMomentId) {
-            // Update local moments state (same as SongMapTab)
+            await renameMoment(renamingMomentId, _newLabel);
             setRenamingMomentId(null);
         }
     };
-    const handleAddMoment = () => {
-        const newMoment = {
-            id: String(moments.length + 1),
-            label: `moment ${moments.length + 1}`,
-        };
-        setMoments([...moments, newMoment]);
-        setActiveMoment(newMoment.id);
+    const handleAddMoment = async () => {
+        const newMoment = await createMoment(`moment ${moments.length + 1}`, Math.round(playheadMs));
+        if (newMoment)
+            setActiveMoment(newMoment.id);
     };
     const maxLeftPx = Math.max(0, canvasSize.width - DOT_SIZE);
     const maxTopPx = Math.max(0, canvasSize.height - DOT_SIZE);
@@ -127,8 +220,13 @@ function SpatialTab() {
             },
             targetDancerId: targetDancer.id,
         };
-        setPathsByDancer((prev) => ({ ...prev, [selectedDancer.id]: path }));
+        const targetMomentId = activeMomentRef.current;
+        const nextPathsByDancer = { ...pathsByDancer, [selectedDancer.id]: path };
+        const nextToolState = !hasPath ? { ...toolState, relationship: 'active' } : toolState;
+        setPathsByDancer(nextPathsByDancer);
         unlockRelationshipOnFirstPathCreation();
+        if (targetMomentId)
+            persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
     };
     const createPathForSelectedDancer = (event) => {
         if (selectedTool !== 'path' || toolState.path !== 'active' || !selectedDancerId || !canvasSize.width || !canvasSize.height) {
@@ -160,8 +258,13 @@ function SpatialTab() {
                 topPct: clamp(endTopPct, 0, 100),
             },
         };
-        setPathsByDancer((prev) => ({ ...prev, [selectedDancer.id]: path }));
+        const targetMomentId = activeMomentRef.current;
+        const nextPathsByDancer = { ...pathsByDancer, [selectedDancer.id]: path };
+        const nextToolState = !hasPath ? { ...toolState, relationship: 'active' } : toolState;
+        setPathsByDancer(nextPathsByDancer);
         unlockRelationshipOnFirstPathCreation();
+        if (targetMomentId)
+            persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
     };
     const handleCanvasTap = (event) => {
         createPathForSelectedDancer(event);
@@ -184,21 +287,30 @@ function SpatialTab() {
         const nextTopPx = clamp(dragStart.topPx + gestureState.dy, 0, maxTopPx);
         const hasMoved = Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1;
         dragStart.moved = dragStart.moved || hasMoved;
-        setDancers((prev) => prev.map((dancer) => dancer.id === dancerId
-            ? {
-                ...dancer,
-                leftPct: clamp(leftPxToPct(nextLeftPx), 0, 100),
-                topPct: clamp(topPxToPct(nextTopPx), 0, 100),
-                orientationDeg: hasMoved
-                    ? (Math.atan2(gestureState.dy, gestureState.dx) * 180) / Math.PI + 90
-                    : dancer.orientationDeg,
-            }
-            : dancer));
+        setDancers((prev) => {
+            const next = prev.map((dancer) => dancer.id === dancerId
+                ? {
+                    ...dancer,
+                    leftPct: clamp(leftPxToPct(nextLeftPx), 0, 100),
+                    topPct: clamp(topPxToPct(nextTopPx), 0, 100),
+                    orientationDeg: hasMoved
+                        ? (Math.atan2(gestureState.dy, gestureState.dx) * 180) / Math.PI + 90
+                        : dancer.orientationDeg,
+                }
+                : dancer);
+            // Keep drag-end persistence in sync with the most recent visual drag state.
+            latestDancersRef.current = next;
+            return next;
+        });
     };
     const endDancerDrag = (dancerId) => {
         const dragStart = dragStartRef.current[dancerId];
         if (dragStart?.moved) {
+            const targetMomentId = activeMomentRef.current;
+            const nextToolState = !hasDot ? { ...toolState, path: 'active' } : toolState;
             unlockPathOnFirstDotInteraction();
+            if (targetMomentId)
+                persistFormation(targetMomentId, { dancers: latestDancersRef.current, toolState: nextToolState });
         }
         delete dragStartRef.current[dancerId];
     };
@@ -301,11 +413,11 @@ function SpatialTab() {
                 styles.momentChip,
                 activeMoment === moment.id && styles.momentChipActive
             ]} onPress={() => handleMomentPress(moment.id)} onLongPress={() => handleMomentLongPress(moment.id)}>
-              {renamingMomentId === moment.id ? (<react_native_1.TextInput style={styles.renameInput} defaultValue={moment.label} onBlur={(e) => handleRenameMoment(e.nativeEvent.text)} onSubmitEditing={(e) => handleRenameMoment(e.nativeEvent.text)} autoFocus/>) : (<react_native_1.Text style={[
+              {renamingMomentId === moment.id ? (<react_native_1.TextInput style={styles.renameInput} defaultValue={moment.name} onBlur={(e) => handleRenameMoment(e.nativeEvent.text)} onSubmitEditing={(e) => handleRenameMoment(e.nativeEvent.text)} autoFocus/>) : (<react_native_1.Text style={[
                     styles.momentChipText,
                     activeMoment === moment.id && styles.momentChipTextActive
                 ]}>
-                  {moment.label}
+                  {moment.name}
                 </react_native_1.Text>)}
             </react_native_1.TouchableOpacity>))}
           <react_native_1.TouchableOpacity style={styles.addMomentButton} onPress={handleAddMoment}>
@@ -439,13 +551,21 @@ function SpatialTab() {
               {/* INITIATION */}
               <react_native_1.View style={styles.field}>
                 <react_native_1.Text style={styles.fieldLabel}>INITIATION</react_native_1.Text>
-                <react_native_1.TextInput style={styles.fieldInput} placeholder="spine, heart, sternum…" placeholderTextColor={colors.muted} value={initiation} onChangeText={setInitiation}/>
+                <react_native_1.TextInput style={styles.fieldInput} placeholder="spine, heart, sternum…" placeholderTextColor={colors.muted} value={initiation} onChangeText={setInitiation} onBlur={() => {
+                commitQualityEdits();
+            }} onSubmitEditing={() => {
+                commitQualityEdits();
+            }}/>
               </react_native_1.View>
 
               {/* RELATIONSHIP QUALITY */}
               <react_native_1.View style={styles.field}>
                 <react_native_1.Text style={styles.fieldLabel}>RELATIONSHIP QUALITY</react_native_1.Text>
-                <react_native_1.TextInput style={styles.fieldInput} placeholder="leads · follows · resists · echoes" placeholderTextColor={colors.muted} value={relationshipQuality} onChangeText={setRelationshipQuality}/>
+                <react_native_1.TextInput style={styles.fieldInput} placeholder="leads · follows · resists · echoes" placeholderTextColor={colors.muted} value={relationshipQuality} onChangeText={setRelationshipQuality} onBlur={() => {
+                commitQualityEdits();
+            }} onSubmitEditing={() => {
+                commitQualityEdits();
+            }}/>
               </react_native_1.View>
 
               {/* NOTE */}
@@ -455,7 +575,11 @@ function SpatialTab() {
                 note && styles.noteFieldFilled
             ]}>
                 <react_native_1.Text style={styles.fieldLabel}>NOTE</react_native_1.Text>
-                <react_native_1.TextInput style={styles.noteInput} placeholder="add a voice or text note…" placeholderTextColor={colors.muted} value={note} onChangeText={setNote} multiline/>
+                <react_native_1.TextInput style={styles.noteInput} placeholder="add a voice or text note…" placeholderTextColor={colors.muted} value={note} onChangeText={setNote} multiline onBlur={() => {
+                commitQualityEdits();
+            }} onSubmitEditing={() => {
+                commitQualityEdits();
+            }}/>
               </react_native_1.View>
 
               {/* QUALITY REFERENCE */}

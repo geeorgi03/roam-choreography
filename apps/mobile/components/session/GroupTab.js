@@ -79,9 +79,9 @@ function GroupTab() {
             ? token
             : null;
     const { session } = (0, useSession_1.useSession)();
-    const { sessionId, activeSection, setActiveSection, activeMoment, setActiveMoment, clips, loopRegion, openClipSheet, musicTrack, openSheet, } = (0, SessionContext_1.useSessionContext)();
+    const { sessionId, activeSection, setActiveSection, activeMoment, setActiveMoment, moments, createMoment, renameMoment, clips, loopRegion, openClipSheet, musicTrack, openSheet, } = (0, SessionContext_1.useSessionContext)();
     const { participants, myParticipant, isChoreographer, broadcasts, sendBroadcast, updatePosition } = (0, useGroupRealtime_1.useGroupRealtime)(sessionId, session?.access_token, inviteShareToken);
-    const [moments] = (0, react_1.useState)([{ id: '1', label: 'moment 1' }]);
+    void createMoment;
     const [renamingMomentId, setRenamingMomentId] = (0, react_1.useState)(null);
     const [canvasSize, setCanvasSize] = (0, react_1.useState)({ width: 0, height: 0 });
     const [broadcastText, setBroadcastText] = (0, react_1.useState)('');
@@ -199,7 +199,12 @@ function GroupTab() {
     ];
     const handleMomentPress = (momentId) => setActiveMoment(momentId);
     const handleMomentLongPress = (momentId) => setRenamingMomentId(momentId);
-    const handleRenameMoment = () => setRenamingMomentId(null);
+    const handleRenameMoment = (0, react_1.useCallback)((newLabel) => {
+        if (!renamingMomentId)
+            return;
+        void renameMoment(renamingMomentId, newLabel);
+        setRenamingMomentId(null);
+    }, [renamingMomentId, renameMoment]);
     const handleBroadcast = async () => {
         if (!broadcastText.trim() || broadcastText.length > 60)
             return;
@@ -590,8 +595,8 @@ function GroupTab() {
 
           <react_native_1.ScrollView horizontal style={styles.momentStrip} showsHorizontalScrollIndicator={false}>
             {moments.map((moment) => (<react_native_1.TouchableOpacity key={moment.id} style={[styles.momentChip, activeMoment === moment.id && styles.momentChipActive]} onPress={() => handleMomentPress(moment.id)} onLongPress={() => handleMomentLongPress(moment.id)}>
-                {renamingMomentId === moment.id ? (<react_native_1.TextInput style={styles.renameInput} defaultValue={moment.label} onBlur={handleRenameMoment} onSubmitEditing={handleRenameMoment} autoFocus/>) : (<react_native_1.Text style={[styles.momentChipText, activeMoment === moment.id && styles.momentChipTextActive]}>
-                    {moment.label}
+                {renamingMomentId === moment.id ? (<react_native_1.TextInput style={styles.renameInput} defaultValue={moment.name} onBlur={(event) => handleRenameMoment(event.nativeEvent.text)} onSubmitEditing={(event) => handleRenameMoment(event.nativeEvent.text)} autoFocus/>) : (<react_native_1.Text style={[styles.momentChipText, activeMoment === moment.id && styles.momentChipTextActive]}>
+                    {moment.name}
                   </react_native_1.Text>)}
               </react_native_1.TouchableOpacity>))}
           </react_native_1.ScrollView>

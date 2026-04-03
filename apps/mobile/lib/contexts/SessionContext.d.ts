@@ -1,7 +1,7 @@
 import React from 'react';
 import { Audio } from 'expo-av';
 import { ClipRow } from '../database';
-import { SectionClip } from '@roam/types';
+import { FormationData, Moment, QualityData, SectionClip } from '@roam/types';
 export interface SessionContextValue {
     sessionId: string;
     sessionName: string;
@@ -59,6 +59,14 @@ export interface SessionContextValue {
     closeSheet: (expectedSheetId?: string) => void;
     closeSheetIfActive: (sheetId: string) => void;
     openClipSheet: (clip: ClipRow) => void;
+    moments: Moment[];
+    isLoadingMoments: boolean;
+    createMoment: (name: string, beatPositionMs: number) => Promise<Moment | null>;
+    renameMoment: (momentId: string, name: string) => Promise<void>;
+    mergeMoment: (row: Moment) => void;
+    removeMoment: (momentId: string) => void;
+    updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
+    updateQuality: (momentId: string, quality: QualityData | null) => Promise<void>;
 }
 export declare function SessionProvider({ sessionId, children }: {
     sessionId: string;

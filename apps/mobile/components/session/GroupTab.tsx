@@ -9,11 +9,6 @@ import { theme } from '../../lib/theme';
 
 const colors = theme.light;
 
-interface Moment {
-  id: string;
-  label: string;
-}
-
 interface Dancer {
   id: string;
   userId: string;
@@ -110,6 +105,9 @@ export function GroupTab() {
     setActiveSection,
     activeMoment,
     setActiveMoment,
+    moments,
+    createMoment,
+    renameMoment,
     clips,
     loopRegion,
     openClipSheet,
@@ -122,7 +120,7 @@ export function GroupTab() {
     inviteShareToken
   );
 
-  const [moments] = useState<Moment[]>([{ id: '1', label: 'moment 1' }]);
+  void createMoment;
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [broadcastText, setBroadcastText] = useState('');
@@ -246,7 +244,14 @@ export function GroupTab() {
 
   const handleMomentPress = (momentId: string) => setActiveMoment(momentId);
   const handleMomentLongPress = (momentId: string) => setRenamingMomentId(momentId);
-  const handleRenameMoment = () => setRenamingMomentId(null);
+  const handleRenameMoment = useCallback(
+    (newLabel: string) => {
+      if (!renamingMomentId) return;
+      void renameMoment(renamingMomentId, newLabel);
+      setRenamingMomentId(null);
+    },
+    [renamingMomentId, renameMoment]
+  );
 
   const handleBroadcast = async () => {
     if (!broadcastText.trim() || broadcastText.length > 60) return;
@@ -684,14 +689,14 @@ export function GroupTab() {
                 {renamingMomentId === moment.id ? (
                   <TextInput
                     style={styles.renameInput}
-                    defaultValue={moment.label}
-                    onBlur={handleRenameMoment}
-                    onSubmitEditing={handleRenameMoment}
+                    defaultValue={moment.name}
+                    onBlur={(event) => handleRenameMoment(event.nativeEvent.text)}
+                    onSubmitEditing={(event) => handleRenameMoment(event.nativeEvent.text)}
                     autoFocus
                   />
                 ) : (
                   <Text style={[styles.momentChipText, activeMoment === moment.id && styles.momentChipTextActive]}>
-                    {moment.label}
+                    {moment.name}
                   </Text>
                 )}
               </TouchableOpacity>
