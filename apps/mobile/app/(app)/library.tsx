@@ -9,12 +9,12 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
 import { theme } from '../../lib/theme';
 import type { Clip } from '@roam/types';
 import { ClipCard } from '../../components/ClipCard';
 import type { ClipRow } from '../../lib/database';
 import { useSession } from '../../lib/hooks/useSession';
+import { ClipViewerSheetStandalone } from '../../components/session/ClipViewerSheetStandalone';
 
 import { API_BASE } from '../../lib/api';
 const colors = theme.light;
@@ -32,6 +32,7 @@ export default function LibraryScreen() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [selectedClip, setSelectedClip] = useState<ClipRow | null>(null);
 
   const [q, setQ] = useState<string>('');
   const [debouncedQ, setDebouncedQ] = useState<string>('');
@@ -41,6 +42,7 @@ export default function LibraryScreen() {
   const [bpmMin, setBpmMin] = useState<string>('');
   const [bpmMax, setBpmMax] = useState<string>('');
 
+  const clipSheetRef = useRef<any>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -145,29 +147,15 @@ export default function LibraryScreen() {
     };
   };
 
-  const openPlayer = (clip: Clip) => {
-    const id = (clip as unknown as { id: string }).id;
-    const mux_playback_id = (clip as unknown as { mux_playback_id?: string | null }).mux_playback_id ?? '';
-    const move_name = (clip as unknown as { move_name?: string | null }).move_name ?? '';
-    const style = (clip as unknown as { style?: string | null }).style ?? '';
-    const energy = (clip as unknown as { energy?: string | null }).energy ?? '';
-    const difficulty = (clip as unknown as { difficulty?: string | null }).difficulty ?? '';
-    const bpm = (clip as unknown as { bpm?: number | null }).bpm;
-    const notes = (clip as unknown as { notes?: string | null }).notes ?? '';
+  const openClipSheet = (clip: Clip) => {
+    const clipRow = toClipRow(clip);
+    setSelectedClip(clipRow);
+    clipSheetRef.current?.snapToIndex(0);
+  };
 
-    router.push({
-      pathname: '/(app)/session/clip-player',
-      params: {
-        clipId: id,
-        mux_playback_id,
-        move_name,
-        style,
-        energy,
-        difficulty,
-        bpm: bpm != null ? String(bpm) : '',
-        notes,
-      },
-    });
+  const closeClipViewer = () => {
+    setSelectedClip(null);
+    clipSheetRef.current?.close();
   };
 
   const anyFilter =
@@ -309,7 +297,7 @@ export default function LibraryScreen() {
           return (
             <ClipCard
               clip={clipRow}
-              onPress={() => openPlayer(item)}
+              onPress={() => openClipSheet(item)}
               onLongPress={() => {}}
             />
           );
@@ -334,6 +322,12 @@ export default function LibraryScreen() {
             <View style={{ height: 24 }} />
           )
         }
+      />
+      
+      <ClipViewerSheetStandalone
+        ref={clipSheetRef}
+        clip={selectedClip}
+        onClose={closeClipViewer}
       />
     </View>
   );

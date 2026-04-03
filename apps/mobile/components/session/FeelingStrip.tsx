@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
@@ -6,25 +6,62 @@ import { theme } from '../../lib/theme';
 const colors = theme.light;
 
 export function FeelingStrip() {
-  const { sessionName, openSheet } = useSessionContext();
+  const { sessionName, sessionPhrase, updateSessionMeta, openSheet } = useSessionContext();
   const [phrase, setPhrase] = useState('');
   const [phraseEditing, setPhraseEditing] = useState(false);
+  const [nameEditing, setNameEditing] = useState(false);
+  const [name, setName] = useState('');
+
+  // Sync with context values
+  useEffect(() => {
+    setPhrase(sessionPhrase || '');
+  }, [sessionPhrase]);
+
+  useEffect(() => {
+    setName(sessionName);
+  }, [sessionName]);
+
+  const handlePhraseBlur = async () => {
+    setPhraseEditing(false);
+    await updateSessionMeta({ phrase: phrase.trim() || null });
+  };
+
+  const handleNameBlur = async () => {
+    setNameEditing(false);
+    await updateSessionMeta({ name: name.trim() || 'Session' });
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.textContent}>
-        <Text style={styles.sessionName} numberOfLines={1}>
-          {sessionName}
-        </Text>
+        <View>
+          {nameEditing ? (
+            <TextInput
+              style={styles.sessionName}
+              value={name}
+              onChangeText={setName}
+              onBlur={handleNameBlur}
+              autoFocus
+              placeholder='Session name...'
+              placeholderTextColor={colors.muted}
+            />
+          ) : (
+            <TouchableOpacity activeOpacity={0.8} onPress={() => setNameEditing(true)}>
+              <Text style={styles.sessionName} numberOfLines={1}>
+                {name || 'Session'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <View>
           {phraseEditing ? (
             <TextInput
               style={styles.phrase}
               value={phrase}
               onChangeText={setPhrase}
-              onBlur={() => setPhraseEditing(false)}
+              onBlur={handlePhraseBlur}
               autoFocus
-              placeholder="add a feeling phrase..."
+              placeholder='add a feeling phrase...'
               placeholderTextColor={colors.muted}
             />
           ) : (

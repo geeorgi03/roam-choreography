@@ -14,7 +14,9 @@ import { API_BASE } from '../api';
 export interface SessionContextValue {
   sessionId: string;
   sessionName: string;
+  sessionPhrase: string | null;
   setSessionName: (name: string) => void;
+  updateSessionMeta: (meta: { name?: string; phrase?: string }) => Promise<void>;
   activeTab: 'workbench' | 'spatial' | 'song-map' | 'group';
   setActiveTab: (tab: SessionContextValue['activeTab']) => void;
   activeSection: string;
@@ -74,6 +76,7 @@ export interface SessionContextValue {
   momentsConnectionStatus: ConnectionStatus;
   createMoment: (name: string, beatPositionMs: number) => Promise<Moment | null>;
   renameMoment: (momentId: string, name: string) => Promise<void>;
+  deleteMoment: (momentId: string) => Promise<void>;
   mergeMoment: (row: Moment) => void;
   removeMoment: (momentId: string) => void;
   updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
@@ -85,6 +88,7 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 export function SessionProvider({ sessionId, children }: { sessionId: string; children: React.ReactNode }) {
   // State
   const [sessionName, setSessionName] = useState('Session');
+  const [sessionPhrase, setSessionPhrase] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SessionContextValue['activeTab']>('workbench');
   const [activeSection, setActiveSection] = useState('Section');
   const [activeMoment, setActiveMoment] = useState<string | null>(null);
@@ -115,6 +119,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     connectionStatus: momentsConnectionStatus,
     createMoment,
     renameMoment,
+    deleteMoment,
     mergeMoment,
     removeMoment,
     updateFormation,
@@ -133,8 +138,10 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
         });
         if (!res.ok) return;
         const data = await res.json();
-        const name = (data as { session?: { name?: string } }).session?.name;
+        const name = (data as { session?: { name?: string; phrase?: string } }).session?.name;
+        const phrase = (data as { session?: { name?: string; phrase?: string } }).session?.phrase;
         if (name) setSessionName(name);
+        if (phrase !== undefined) setSessionPhrase(phrase ?? null);
       } catch {
         // ignore
       }
@@ -353,10 +360,53 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setActiveTab('song-map');
   }, [activeMoment, moments, closeSheet, setActiveTab]);
 
+  const updateSessionMeta = useCallback(async (meta: { name?: string; phrase?: string }) => {
+    if (!sessionId || !session?.access_token) return;
+
+    const snapshotName = sessionName;
+    const snapshotPhrase = sessionPhrase;
+
+    if (meta.name !== undefined) {
+      setSessionName(meta.name.trim());
+    }
+    if (meta.phrase !== undefined) {
+      setSessionPhrase(meta.phrase?.trim() || null);
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(meta),
+      });
+
+      if (!res.ok) {
+        setSessionName(snapshotName);
+        setSessionPhrase(snapshotPhrase);
+        return;
+      }
+
+      const data = await res.json();
+      const updatedName = (data as { name?: string }).name;
+      const updatedPhrase = (data as { phrase?: string }).phrase;
+      
+      if (updatedName !== undefined) setSessionName(updatedName);
+      if (updatedPhrase !== undefined) setSessionPhrase(updatedPhrase ?? null);
+    } catch (error) {
+      setSessionName(snapshotName);
+      setSessionPhrase(snapshotPhrase);
+    }
+  }, [sessionId, session?.access_token, sessionName, sessionPhrase]);
+
   const value: SessionContextValue = {
     sessionId,
     sessionName,
+    sessionPhrase,
     setSessionName,
+    updateSessionMeta,
     activeTab,
     setActiveTab,
     activeSection,
@@ -403,6 +453,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     momentsConnectionStatus,
     createMoment,
     renameMoment,
+    deleteMoment,
     mergeMoment,
     removeMoment,
     updateFormation,

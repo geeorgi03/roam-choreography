@@ -293,6 +293,36 @@ app.put("/make-server-837ff822/sessions/:id", async (c) => {
   }
 });
 
+app.patch("/make-server-837ff822/sessions/:id", async (c) => {
+  try {
+    const userId = await getAuthenticatedUserId(c.req.raw);
+    if (!userId) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    
+    const sessionId = c.req.param('id');
+    const updates = await c.req.json();
+    
+    const existing = await kv.get(`session:${userId}:${sessionId}`);
+    if (!existing) {
+      return c.json({ error: 'Session not found' }, 404);
+    }
+    
+    const session = { ...existing, ...updates, id: sessionId, userId };
+    await kv.set(`session:${userId}:${sessionId}`, session);
+
+    const { error: pgErr } = await upsertSessionRowFromKvSession(userId, sessionId, session as Record<string, unknown>);
+    if (pgErr) {
+      return c.json({ error: 'Failed to persist session' }, 500);
+    }
+
+    return c.json({ session });
+  } catch (error) {
+    console.log(`Error updating session: ${error}`);
+    return c.json({ error: 'Failed to update session' }, 500);
+  }
+});
+
 app.delete("/make-server-837ff822/sessions/:id", async (c) => {
   try {
     const userId = await getAuthenticatedUserId(c.req.raw);

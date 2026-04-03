@@ -235,6 +235,59 @@ app.get('/:id', async (c) => {
   return c.json({ session, music_track, clips: clips as Clip[] });
 });
 
+/** PATCH /sessions/:id — update session name and/or phrase (owner only) */
+app.patch('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  const parsedBody = await safeReqJson<{ name?: unknown; phrase?: unknown }>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const body = parsedBody.data;
+
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string' || !body.name.trim()) {
+      return c.json({ error: 'name must be a non-empty string' }, 400);
+    }
+  }
+
+  if (body.phrase !== undefined) {
+    if (typeof body.phrase !== 'string') {
+      return c.json({ error: 'phrase must be a string' }, 400);
+    }
+  }
+
+  if (body.name === undefined && body.phrase === undefined) {
+    return c.json({ error: 'No updatable fields provided' }, 400);
+  }
+
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, user_id')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (sessionError) {
+    if (isInvalidUuidCastError(sessionError)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: sessionError.message }, 500);
+  }
+  if (!sessionRow) return c.json({ error: 'Not found' }, 404);
+  if (sessionRow.user_id !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+  const updates: Record<string, unknown> = {};
+  if (body.name !== undefined) updates.name = body.name.trim();
+  if (body.phrase !== undefined) updates.phrase = body.phrase.trim() || null;
+
+  const { data, error } = await supabase
+    .from('sessions')
+    .update(updates)
+    .eq('id', id)
+    .select('id, user_id, name, phrase, created_at')
+    .single();
+
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json(data as Session);
+});
+
 /** POST /sessions/:id/join — join/upsert a group participant row */
 app.post('/:id/join', async (c) => {
   const userId = c.get('userId');
@@ -585,6 +638,33 @@ app.patch('/:id/moments/:momentId', async (c) => {
   }
   if (!data) return c.json({ error: 'Not found' }, 404);
   return c.json(data as Moment);
+});
+
+/** DELETE /sessions/:id/moments/:momentId — delete a moment */
+app.delete('/:id/moments/:momentId', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const momentId = c.req.param('momentId');
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('moments')
+    .delete()
+    .eq('id', momentId)
+    .eq('session_id', sessionId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    if (isInvalidUuidCastError(error)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: error.message }, 500);
+  }
+  if (!data) return c.json({ error: 'Not found' }, 404);
+  return c.body(null, 204);
 });
 
 /** GET /sessions/:id/moments/:momentId/formation — fetch moment formation */

@@ -307,6 +307,37 @@ export default function useMoments(sessionId: string | null) {
     [sessionId, moments, token]
   );
 
+  const deleteMoment = useCallback(
+    async (momentId: string): Promise<boolean> => {
+      if (!sessionId) return false;
+      const prevMoment = moments.find((m) => m.id === momentId);
+
+      removeMoment(momentId);
+
+      try {
+        if (!token) throw new Error('Not signed in');
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const res = await fetch(`${API_BASE}/sessions/${sessionId}/moments/${momentId}`, {
+          method: 'DELETE',
+          headers,
+        });
+
+        if (!res.ok) throw new Error('Failed to delete moment');
+        return true;
+      } catch {
+        if (prevMoment) {
+          setMoments((prev) => {
+            const idx = prev.findIndex((m) => m.position > prevMoment.position);
+            return idx === -1 ? [...prev, prevMoment] : [...prev.slice(0, idx), prevMoment, ...prev.slice(idx)];
+          });
+        }
+        return false;
+      }
+    },
+    [sessionId, moments, token, removeMoment]
+  );
+
   const updateFormation = useCallback(
     async (momentId: string, formation: FormationData | null): Promise<void> => {
       if (!sessionId) return;
@@ -377,6 +408,7 @@ export default function useMoments(sessionId: string | null) {
     connectionStatus,
     createMoment,
     renameMoment,
+    deleteMoment,
     updateFormation,
     updateQuality,
     mergeMoment,

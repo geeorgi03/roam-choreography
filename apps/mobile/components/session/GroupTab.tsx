@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Image, Animated, Share } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Image, Animated, Share, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
@@ -108,6 +108,7 @@ export function GroupTab() {
     setActiveMoment,
     moments,
     renameMoment,
+    deleteMoment,
     clips,
     loopRegion,
     openClipSheet,
@@ -245,8 +246,18 @@ export function GroupTab() {
 
   const handleMomentPress = (momentId: string) => setActiveMoment(momentId);
   const handleMomentLongPress = (momentId: string) => {
-    setRenamingMomentId(momentId);
-    submittedRef.current = false;
+    const moment = moments.find(m => m.id === momentId);
+    if (!moment) return;
+    
+    Alert.alert(
+      moment.name,
+      undefined,
+      [
+        { text: 'Rename', onPress: () => setRenamingMomentId(momentId) },
+        { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const handleRenameMoment = useCallback(
@@ -263,6 +274,14 @@ export function GroupTab() {
     },
     [renamingMomentId, renameMoment]
   );
+
+  const handleDeleteMoment = async (momentId: string) => {
+    await deleteMoment(momentId);
+    if (activeMoment === momentId) {
+      const remaining = moments.filter(m => m.id !== momentId);
+      setActiveMoment(remaining[0]?.id ?? null);
+    }
+  };
 
   const handleBroadcast = async () => {
     if (!broadcastText.trim() || broadcastText.length > 60) return;

@@ -60,8 +60,8 @@ export function SongMapTab() {
   };
 
   const handleDeleteMoment = async (momentId: string) => {
-    await deleteMoment(momentId);
-    if (activeMoment === momentId) {
+    const success = await deleteMoment(momentId);
+    if (success && activeMoment === momentId) {
       const remaining = moments.filter(m => m.id !== momentId);
       setActiveMoment(remaining[0]?.id ?? null);
     }
