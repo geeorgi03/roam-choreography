@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE } from '../api';
 import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
@@ -10,7 +10,7 @@ interface ReconnectState {
   backoffMs: number[];
 }
 
-export interface ConnectionStatus {
+interface ConnectionStatus {
   isConnected: boolean;
   hasError: boolean;
   errorMessage?: string;
@@ -31,8 +31,6 @@ export default function useMoments(sessionId: string | null) {
     maxAttempts: 5,
     backoffMs: [1000, 2000, 4000, 8000, 16000],
   });
-  const isReconnectingInFlight = useRef(false);
-  const reconnectPendingRef = useRef(false);
   const channelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null);
   const mounted = useRef(true);
 
@@ -88,8 +86,36 @@ export default function useMoments(sessionId: string | null) {
     setMoments((prev) => prev.filter((m) => m.id !== momentId));
   }, []);
 
+  const scheduleReconnect = useCallback(() => {
+    const { attempts, maxAttempts, backoffMs: backoffIntervals } = reconnectStateRef.current;
+    
+    if (attempts >= maxAttempts) {
+      setConnectionStatus({
+        isConnected: false,
+        hasError: true,
+        errorMessage: 'Connection failed. Please check your network and try again.',
+      });
+      return;
+    }
+
+    const backoffDelay = backoffIntervals[attempts];
+    reconnectStateRef.current.attempts++;
+
+    setConnectionStatus({
+      isConnected: false,
+      hasError: false,
+      errorMessage: `Reconnecting... (${attempts + 1}/${maxAttempts})`,
+    });
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      if (mounted.current) {
+        subscribeToChannel();
+      }
+    }, backoffDelay);
+  }, []);
+
   const subscribeToChannel = useCallback(() => {
-    if (!sessionId || !supabase) return;
+    if (!supabase || !mounted.current || !sessionId) return;
 
     // Clean up existing channel
     if (channelRef.current) {
@@ -107,6 +133,7 @@ export default function useMoments(sessionId: string | null) {
           filter: `session_id=eq.${sessionId}`,
         },
         (payload) => {
+          if (!mounted.current) return;
           mergeMoment(payload.new as Moment);
         }
       )
@@ -119,6 +146,7 @@ export default function useMoments(sessionId: string | null) {
           filter: `session_id=eq.${sessionId}`,
         },
         (payload) => {
+          if (!mounted.current) return;
           mergeMoment(payload.new as Moment);
         }
       )
@@ -131,78 +159,35 @@ export default function useMoments(sessionId: string | null) {
           filter: `session_id=eq.${sessionId}`,
         },
         (payload) => {
+          if (!mounted.current) return;
           removeMoment((payload.old as Partial<Moment>).id ?? '');
         }
       )
       .subscribe((status) => {
+        if (!mounted.current) return;
+        
         if (status === 'SUBSCRIBED') {
           setConnectionStatus({ isConnected: true, hasError: false });
           reconnectStateRef.current.attempts = 0;
-          isReconnectingInFlight.current = false;
-          reconnectPendingRef.current = false;
-          if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-            reconnectTimeoutRef.current = null;
-          }
           fetchMoments();
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           scheduleReconnect();
         }
       });
-  }, [sessionId, mergeMoment, removeMoment, fetchMoments]);
-
-  const scheduleReconnect = useCallback(() => {
-    if (!mounted.current || isReconnectingInFlight.current || reconnectPendingRef.current) return;
-    
-    // Clear any existing timeout
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    
-    const { attempts, maxAttempts } = reconnectStateRef.current;
-    const backoffSequence = reconnectStateRef.current.backoffMs;
-    
-    if (attempts >= maxAttempts) {
-      setConnectionStatus({
-        isConnected: false,
-        hasError: true,
-        errorMessage: 'Connection failed. Please check your network and try again.',
-      });
-      return;
-    }
-
-    const backoffDelay = backoffSequence[attempts];
-    reconnectStateRef.current.attempts++;
-    isReconnectingInFlight.current = true;
-    reconnectPendingRef.current = true;
-
-    setConnectionStatus({
-      isConnected: false,
-      hasError: false,
-      errorMessage: `Reconnecting... (${attempts + 1}/${maxAttempts})`,
-    });
-
-    reconnectTimeoutRef.current = setTimeout(() => {
-      if (!mounted.current) return;
-      isReconnectingInFlight.current = false;
-      reconnectPendingRef.current = false;
-      subscribeToChannel();
-    }, backoffDelay);
-  }, [subscribeToChannel]);
+  }, [sessionId, mergeMoment, removeMoment, fetchMoments, scheduleReconnect]);
 
   useEffect(() => {
     fetchMoments().catch(() => {});
   }, [fetchMoments]);
 
   useEffect(() => {
+    if (!sessionId) return;
+    
     mounted.current = true;
     subscribeToChannel();
 
     return () => {
       mounted.current = false;
-      isReconnectingInFlight.current = false;
-      reconnectPendingRef.current = false;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
@@ -211,7 +196,7 @@ export default function useMoments(sessionId: string | null) {
         supabase?.removeChannel(channelRef.current);
       }
     };
-  }, [subscribeToChannel]);
+  }, [sessionId, subscribeToChannel]);
 
   const createMoment = useCallback(
     async (name: string, beatPositionMs: number): Promise<Moment | null> => {

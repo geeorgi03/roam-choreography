@@ -729,4 +729,40 @@ app.put('/:id/moments/:momentId/quality', async (c) => {
   return c.json({ quality: data.quality as QualityData | null });
 });
 
+/** POST /sessions/:id/share-token — create or retrieve session share token */
+app.post('/:id/share-token', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, user_id')
+    .eq('id', sessionId)
+    .maybeSingle();
+
+  if (sessionError) {
+    if (isInvalidUuidCastError(sessionError)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: sessionError.message }, 500);
+  }
+  if (!sessionRow) return c.json({ error: 'Not found' }, 404);
+
+  if (sessionRow.user_id !== userId) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  // Use atomic RPC to create or get session share token
+  const { data: tokenData, error } = await supabase.rpc('create_or_get_session_share_token', { 
+    p_session_id: sessionId 
+  });
+
+  if (error) {
+    if (isInvalidUuidCastError(error)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: error.message }, 500);
+  }
+
+  const token = tokenData as string;
+  const share_url = `roam://session/${sessionId}?share_token=${token}`;
+  return c.json({ token, share_url }, 200);
+});
+
 export const sessionsRoutes = app;

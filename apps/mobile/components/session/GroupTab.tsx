@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Image, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Image, Animated, Share } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
 import { useGroupRealtime } from '../../lib/hooks/useGroupRealtime';
 import { supabase } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
+import { API_BASE } from '../../lib/api';
 
 const colors = theme.light;
 
@@ -113,14 +114,13 @@ export function GroupTab() {
     musicTrack,
     openSheet,
   } = useSessionContext();
-  const { participants, myParticipant, isChoreographer, broadcasts, sendBroadcast, updatePosition } = useGroupRealtime(
+  const { participants, myParticipant, isChoreographer, broadcasts, sendBroadcast, updatePosition, connectionStatus } = useGroupRealtime(
     sessionId,
     session?.access_token,
     inviteShareToken
   );
 
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
-  const submittedRef = useRef(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [broadcastText, setBroadcastText] = useState('');
   const [presenceMap, setPresenceMap] = useState<Record<string, PresenceEntry>>({});
@@ -130,6 +130,7 @@ export function GroupTab() {
   const [newClipCue, setNewClipCue] = useState(false);
   const [broadcastHint, setBroadcastHint] = useState<string | null>(null);
   const [selectedDancerId, setSelectedDancerId] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
   const [latestIncomingNote, setLatestIncomingNote] = useState<RealtimeNote | null>(null);
   const pulseValuesRef = useRef<Record<string, Animated.Value>>({});
   const newNoteOpacity = useRef(new Animated.Value(0)).current;
@@ -146,6 +147,7 @@ export function GroupTab() {
   const setActiveSectionRef = useRef(setActiveSection);
   const myPresenceRef = useRef<{ name: string; color: string }>({ name: 'User', color: colors.mine });
   const suppressFormationEmitRef = useRef(false);
+  const submittedRef = useRef(false);
   const myUserId = myParticipant?.user_id ?? session?.user?.id ?? null;
 
   const dancers = useMemo<Dancer[]>(() => {
@@ -243,12 +245,18 @@ export function GroupTab() {
 
   const handleMomentPress = (momentId: string) => setActiveMoment(momentId);
   const handleMomentLongPress = (momentId: string) => {
-    submittedRef.current = false;
     setRenamingMomentId(momentId);
+    submittedRef.current = false;
   };
+
   const handleRenameMoment = useCallback(
     (newLabel: string) => {
-      if (submittedRef.current || !renamingMomentId) return;
+      if (!renamingMomentId) return;
+      // Prevent duplicate PATCH requests for the same edit caused by blur after submit.
+      if (submittedRef.current) {
+        setRenamingMomentId(null);
+        return;
+      }
       submittedRef.current = true;
       void renameMoment(renamingMomentId, newLabel);
       setRenamingMomentId(null);
@@ -299,6 +307,35 @@ export function GroupTab() {
       params: { id: sessionId, sectionName: activeSection },
     });
   };
+
+  const handleShare = useCallback(async () => {
+    if (!session?.access_token || !sessionId) {
+      setShareError('Authentication required');
+      return;
+    }
+    
+    try {
+      setShareError(null);
+      const response = await fetch(`${API_BASE}/sessions/${sessionId}/share-token`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        setShareError('Could not generate invite link');
+        return;
+      }
+      
+      const { share_url } = await response.json();
+      await Share.share({ message: share_url });
+      setShareError(null);
+    } catch (error) {
+      setShareError('Network error');
+    }
+  }, [session, sessionId]);
 
   const handleFloorCanvasPress = useCallback(
     (event: { nativeEvent: { locationX: number; locationY: number } }) => {
@@ -628,11 +665,17 @@ export function GroupTab() {
       <View style={styles.container}>
         <View style={styles.choreographerHeader}>
           <View style={styles.choreographerHeaderActions}>
-            <TouchableOpacity style={styles.headerIconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.headerIconButton} onPress={handleShare} activeOpacity={0.8}>
               <Text style={styles.headerIcon}>↗</Text>
             </TouchableOpacity>
+            {shareError ? <Text style={styles.shareErrorText}>{shareError}</Text> : null}
           </View>
         </View>
+        {connectionStatus.hasError && (
+          <View style={styles.connectionErrorBanner}>
+            <Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</Text>
+          </View>
+        )}
         <View style={styles.leftPanel}>
           <ScrollView horizontal style={styles.sectionStrip} showsHorizontalScrollIndicator={false}>
             {sections.map((section) => (
@@ -765,6 +808,11 @@ export function GroupTab() {
 
   return (
     <View style={styles.dancerContainer}>
+      {connectionStatus.hasError && (
+        <View style={styles.connectionErrorBanner}>
+          <Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</Text>
+        </View>
+      )}
       <View
         style={styles.dancerFloorCanvas}
         onLayout={(e) => setCanvasSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
@@ -983,6 +1031,7 @@ const styles = StyleSheet.create({
   broadcastButton: { paddingHorizontal: 8, paddingVertical: 6 },
   broadcastButtonText: { color: colors.mine, fontWeight: '700', fontSize: 11 },
   broadcastHint: { fontSize: 10, color: colors.warm, marginBottom: 66 },
+  shareErrorText: { fontSize: 10, color: colors.warm, marginLeft: 8 },
   receivedNotesPanel: { maxHeight: 72, marginBottom: 72 },
   receivedNotesHeader: { fontSize: 9, color: colors.muted, marginBottom: 4, fontFamily: 'JetBrainsMono' },
   receivedNotesList: { borderWidth: 0.5, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.ground },
@@ -1028,4 +1077,17 @@ const styles = StyleSheet.create({
   dancerFabLabel: { fontSize: 9, color: colors.muted, marginBottom: 2 },
   dancerFabSublabel: { fontSize: 9, color: colors.inactive, marginBottom: 8 },
   activeMomentHint: { fontSize: 8, color: colors.inactive, marginTop: 4 },
+  connectionErrorBanner: {
+    backgroundColor: '#fee2e2',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#fca5a5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  connectionErrorText: {
+    fontSize: 12,
+    color: '#dc2626',
+    textAlign: 'center',
+    fontFamily: 'JetBrainsMono',
+  },
 });

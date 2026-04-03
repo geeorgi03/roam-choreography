@@ -76,6 +76,7 @@ export function SpatialTab() {
     soundRef,
     setPlayheadMs,
     setActiveTab,
+    momentsConnectionStatus,
   } = useSessionContext();
 
   const activeMomentRecord = useMemo(() => {
@@ -590,6 +591,12 @@ export function SpatialTab() {
             <Text style={styles.addMomentText}>+</Text>
           </TouchableOpacity>
         </ScrollView>
+
+        {momentsConnectionStatus.hasError && (
+          <View style={styles.connectionErrorBanner}>
+            <Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</Text>
+          </View>
+        )}
 
         {/* Floor canvas */}
         <TouchableOpacity 
@@ -1130,5 +1137,18 @@ const styles = StyleSheet.create({
   referenceText: {
     fontSize: 10,
     color: colors.muted,
+  },
+  connectionErrorBanner: {
+    backgroundColor: '#fee2e2',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#fca5a5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  connectionErrorText: {
+    fontSize: 12,
+    color: '#dc2626',
+    textAlign: 'center',
+    fontFamily: 'JetBrainsMono',
   },
 });

@@ -5,7 +5,7 @@ import { FormationData, Moment, QualityData, SectionClip } from '@roam/types';
 import { useClips } from '../hooks/useClips';
 import { useMusicTrackStatus } from '../hooks/useMusicTrackStatus';
 import { useNotePins } from '../hooks/useNotePins';
-import useMoments from '../hooks/useMoments';
+import useMoments, { type ConnectionStatus } from '../hooks/useMoments';
 import { useInbox } from '../hooks/useInbox';
 import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
@@ -71,6 +71,7 @@ export interface SessionContextValue {
 
   moments: Moment[];
   isLoadingMoments: boolean;
+  momentsConnectionStatus: ConnectionStatus;
   createMoment: (name: string, beatPositionMs: number) => Promise<Moment | null>;
   renameMoment: (momentId: string, name: string) => Promise<void>;
   mergeMoment: (row: Moment) => void;
@@ -111,6 +112,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const {
     moments,
     isLoading: isLoadingMoments,
+    connectionStatus: momentsConnectionStatus,
     createMoment,
     renameMoment,
     mergeMoment,
@@ -398,6 +400,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
 
     moments,
     isLoadingMoments,
+    momentsConnectionStatus,
     createMoment,
     renameMoment,
     mergeMoment,
