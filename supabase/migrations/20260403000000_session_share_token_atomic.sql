@@ -7,12 +7,14 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  existing_token uuid;
+  new_token uuid;
 BEGIN
   -- Lock on session row to serialize owners
   PERFORM pg_advisory_xact_lock(hashtext(p_session_id::text));
 
   -- Check for existing active session token
-  DECLARE existing_token uuid;
   SELECT token INTO existing_token
   FROM share_tokens
   WHERE session_id = p_session_id AND clip_id IS NULL AND revoked_at IS NULL
@@ -23,7 +25,6 @@ BEGIN
   END IF;
 
   -- Create new token
-  DECLARE new_token uuid;
   new_token := gen_random_uuid();
   
   INSERT INTO share_tokens (session_id, token, clip_id)
