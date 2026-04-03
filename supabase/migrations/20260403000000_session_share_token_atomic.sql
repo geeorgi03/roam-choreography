@@ -18,7 +18,7 @@ BEGIN
   SELECT token INTO existing_token
   FROM share_tokens
   WHERE session_id = p_session_id AND clip_id IS NULL AND revoked_at IS NULL
-  FOR UPDATE SKIP LOCKED LIMIT 1;
+  LIMIT 1 FOR UPDATE SKIP LOCKED;
 
   IF existing_token IS NOT NULL THEN
     RETURN existing_token;
