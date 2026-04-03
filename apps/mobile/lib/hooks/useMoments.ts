@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '../api';
 import { useSession } from '../hooks/useSession';
+import { supabase } from '../supabase';
 import type { FormationData, Moment, QualityData } from '@roam/types';
 
 export default function useMoments(sessionId: string | null) {
@@ -49,6 +50,69 @@ export default function useMoments(sessionId: string | null) {
   useEffect(() => {
     fetchMoments().catch(() => {});
   }, [fetchMoments]);
+
+  const mergeMoment = useCallback((row: Moment) => {
+    if (!row?.id || row.id.startsWith('temp-')) return;
+    setMoments((prev) => {
+      const existingIndex = prev.findIndex((m) => m.id === row.id);
+      if (existingIndex < 0) return [...prev, row];
+      const next = [...prev];
+      next[existingIndex] = row;
+      return next;
+    });
+  }, []);
+
+  const removeMoment = useCallback((momentId: string) => {
+    setMoments((prev) => prev.filter((m) => m.id !== momentId));
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId || !supabase) return;
+
+    const channel = supabase
+      .channel(`moments:session_id=eq.${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'moments',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        (payload) => {
+          mergeMoment(payload.new as Moment);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'moments',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        (payload) => {
+          mergeMoment(payload.new as Moment);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'moments',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        (payload) => {
+          removeMoment((payload.old as Partial<Moment>).id ?? '');
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase?.removeChannel(channel);
+    };
+  }, [sessionId, mergeMoment, removeMoment]);
 
   const createMoment = useCallback(
     async (name: string, beatPositionMs: number): Promise<Moment | null> => {
@@ -215,5 +279,7 @@ export default function useMoments(sessionId: string | null) {
     renameMoment,
     updateFormation,
     updateQuality,
+    mergeMoment,
+    removeMoment,
   };
 }
