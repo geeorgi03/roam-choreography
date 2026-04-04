@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import BottomSheet from '@gorhom/bottom-sheet';
-import { Video, AVPlaybackStatus } from 'expo-av';
+import BottomSheet, { BottomSheetBackdrop } from '@gorhom/bottom-sheet';
+import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
 import type { ClipRow } from '../../lib/database';
 import { theme } from '../../lib/theme';
 
@@ -27,10 +27,7 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
       setPlaying(false);
     }, [clip?.local_id]);
 
-    if (!clip) {
-      return null;
-    }
-
+    // Always render the BottomSheet, but show empty content when no clip
     const handleSkipBack = () => {
       if (videoRef.current) {
         videoRef.current.setPositionAsync(Math.max(0, positionMsRef.current - 5000));
@@ -62,7 +59,7 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
       }
     };
 
-    const videoSource = clip.mux_playback_id
+    const videoSource = clip?.mux_playback_id
       ? { uri: `https://stream.mux.com/${clip.mux_playback_id}.m3u8` }
       : null;
 
@@ -79,6 +76,15 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
       setPlaying(status.isPlaying);
     };
 
+    const renderBackdrop = (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        pressBehavior="close"
+      />
+    );
+
     return (
       <BottomSheet
         ref={ref}
@@ -86,56 +92,63 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
         snapPoints={['50%', '85%']}
         enablePanDownToClose
         onClose={onClose}
+        backdropComponent={renderBackdrop}
       >
-        {/* Dark zone */}
-        <View style={styles.darkZone}>
-          <View style={styles.header}>
-            <Text style={styles.clipLabel}>{clip.label || 'Untitled Clip'}</Text>
-            <View style={styles.libraryPill}>
-              <Text style={styles.libraryPillText}>library</Text>
-            </View>
-          </View>
-          <View style={styles.videoContainer}>
-            {videoSource ? (
-              <Video
-                ref={videoRef}
-                source={videoSource}
-                style={styles.video}
-                useNativeControls={false}
-                resizeMode="contain"
-                shouldPlay={false}
-                rate={clipSpeed}
-                onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-              />
-            ) : (
-              <View style={styles.processingPlaceholder}>
-                <Text style={styles.processingText}>processing...</Text>
+        {clip ? (
+          <>
+            {/* Dark zone */}
+            <View style={styles.darkZone}>
+              <View style={styles.header}>
+                <Text style={styles.clipLabel}>{clip.label || 'Untitled Clip'}</Text>
+                <View style={styles.libraryPill}>
+                  <Text style={styles.libraryPillText}>library</Text>
+                </View>
               </View>
-            )}
-          </View>
-          <View style={styles.progressBar}>
-            <View 
-              style={[styles.progressFill, { width: `${playheadFraction * 100}%` }]}
-            />
-          </View>
-          {/* Controls row: -5s | Play/Pause | speed | +5s */}
-          <View style={styles.controlsRow}>
-            <TouchableOpacity style={styles.skipButton} onPress={handleSkipBack}>
-              <Text style={styles.skipButtonText}>-5s</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.playButton} onPress={handlePlayPause}>
-              <Text style={styles.playButtonText}>{playing ? 'Pause' : 'Play'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.speedButton} onPress={handleSpeedToggle}>
-              <Text style={styles.speedButtonText}>{clipSpeed}×</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.skipButton} onPress={handleSkipForward}>
-              <Text style={styles.skipButtonText}>+5s</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        {/* Light zone — empty (no loop chips, no save, no moment button) */}
-        <View style={styles.lightZone} />
+              <View style={styles.videoContainer}>
+                {videoSource ? (
+                  <Video
+                    ref={videoRef}
+                    source={videoSource}
+                    style={styles.video}
+                    useNativeControls={false}
+                    resizeMode={ResizeMode.CONTAIN}
+                    shouldPlay={false}
+                    rate={clipSpeed}
+                    onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+                  />
+                ) : (
+                  <View style={styles.processingPlaceholder}>
+                    <Text style={styles.processingText}>processing...</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.progressBar}>
+                <View 
+                  style={[styles.progressFill, { width: `${playheadFraction * 100}%` }]}
+                />
+              </View>
+              {/* Controls row: -5s | Play/Pause | speed | +5s */}
+              <View style={styles.controlsRow}>
+                <TouchableOpacity style={styles.skipButton} onPress={handleSkipBack}>
+                  <Text style={styles.skipButtonText}>-5s</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.playButton} onPress={handlePlayPause}>
+                  <Text style={styles.playButtonText}>{playing ? 'Pause' : 'Play'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.speedButton} onPress={handleSpeedToggle}>
+                  <Text style={styles.speedButtonText}>{clipSpeed}×</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.skipButton} onPress={handleSkipForward}>
+                  <Text style={styles.skipButtonText}>+5s</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            {/* Light zone — empty (no loop chips, no save, no moment button) */}
+            <View style={styles.lightZone} />
+          </>
+        ) : (
+          <View style={styles.emptyContainer} />
+        )}
       </BottomSheet>
     );
   }
@@ -252,5 +265,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ground,
     padding: 16,
     paddingTop: 8,
+  },
+  emptyContainer: {
+    flex: 1,
   },
 });
