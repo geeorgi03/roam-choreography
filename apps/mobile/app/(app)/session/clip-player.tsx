@@ -16,10 +16,18 @@ let GestureDetector: React.ComponentType<{ gesture: unknown; children: React.Rea
   ({ children }) => <>{children}</>;
 
 // Create chainable gesture stub with proper typing
+interface GestureEvent {
+  scale?: number;
+  focalX?: number;
+  focalY?: number;
+  translationX: number;
+  translationY: number;
+}
+
 interface ChainableGesture {
-  onStart: (callback?: (event: any) => void) => ChainableGesture;
-  onUpdate: (callback?: (event: any) => void) => ChainableGesture;
-  onEnd: (callback?: (event: any) => void) => ChainableGesture;
+  onStart: (callback?: (event: GestureEvent) => void) => ChainableGesture;
+  onUpdate: (callback?: (event: GestureEvent) => void) => ChainableGesture;
+  onEnd: (callback?: (event: GestureEvent) => void) => ChainableGesture;
   minPointers: (value?: number) => ChainableGesture;
 }
 
@@ -135,6 +143,7 @@ export default function ClipPlayerScreen() {
   const [loupeZoom, setLoupeZoom] = useState(2.5);
   const loupeX = useSharedValue(0);
   const loupeY = useSharedValue(0);
+  const loupeZoomShared = useSharedValue(2.5);
   const loupeActiveShared = useSharedValue(0); // 0 = inactive, 1 = active
   const loupeLastX = useRef(0);
   const loupeLastY = useRef(0);
@@ -287,6 +296,9 @@ export default function ClipPlayerScreen() {
   useEffect(() => {
     setLoupeActive(false);
     loupeActiveShared.value = 0;
+    loupeLastZoom.current = 0;
+    loupeLastX.current = 0;
+    loupeLastY.current = 0;
   }, [currentIndex]);
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
@@ -386,20 +398,22 @@ export default function ClipPlayerScreen() {
 
   const pinchGesture = Gesture.Pinch()
     .onStart((e) => {
-      if (e.scale >= 2) {
-        loupeX.value = e.focalX;
-        loupeY.value = e.focalY;
-        loupeLastX.current = e.focalX;
-        loupeLastY.current = e.focalY;
-        const clamped = Math.min(3, Math.max(2, e.scale));
-        setLoupeZoom(clamped);
-        setLoupeActive(true);
-        loupeActiveShared.value = 1;
-      }
+      // Initialize position but don't activate yet
+      loupeX.value = e.focalX;
+      loupeY.value = e.focalY;
+      loupeLastX.current = e.focalX;
+      loupeLastY.current = e.focalY;
     })
     .onUpdate((e) => {
-      if (loupeActive) {
-        setLoupeZoom(Math.min(3, Math.max(2, e.scale)));
+      if (!loupeActive && e.scale >= 2) {
+        // Activate loupe when threshold is reached
+        const clamped = Math.min(3, Math.max(2, e.scale));
+        activateLoupe(clamped, e.focalX, e.focalY);
+        loupeActiveShared.value = 1;
+      } else if (loupeActive) {
+        // Update zoom if already active
+        const newZoom = Math.min(3, Math.max(2, e.scale));
+        updateLoupeZoom(newZoom);
       }
     });
 
@@ -850,6 +864,7 @@ export default function ClipPlayerScreen() {
             />
           )}
         </View>
+        </GestureDetector>
 
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Text style={styles.closeBtnText}>✕</Text>
