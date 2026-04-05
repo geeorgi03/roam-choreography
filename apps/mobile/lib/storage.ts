@@ -50,3 +50,33 @@ export function setTusUrls(urls: Record<string, string>): void {
   if (!storage) return;
   storage.set(TUS_URLS_KEY, JSON.stringify(urls));
 }
+
+// loupe:<mux_playback_id ?? clip_id> → { x: number, y: number, zoom: number }
+export function getLoupeState(key: string): { x: number; y: number; zoom: number } | null {
+  if (!storage) return null;
+  const raw = storage.getString(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      'x' in parsed &&
+      'y' in parsed &&
+      'zoom' in parsed &&
+      typeof parsed.x === 'number' &&
+      typeof parsed.y === 'number' &&
+      typeof parsed.zoom === 'number'
+    ) {
+      return { x: parsed.x, y: parsed.y, zoom: parsed.zoom };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function setLoupeState(key: string, state: { x: number; y: number; zoom: number }): void {
+  if (!storage) return;
+  storage.set(key, JSON.stringify(state));
+}

@@ -70,6 +70,7 @@ import { AnnotationOverlay } from '../../../components/AnnotationOverlay';
 import type { VideoContentRect } from '../../../components/AnnotationOverlay';
 
 import { API_BASE } from '../../../lib/api';
+import { getLoupeState, setLoupeState } from '../../../lib/storage';
 
 // Loupe constants
 const LOUPE_DIAMETER = 140;
@@ -168,6 +169,13 @@ export default function ClipPlayerScreen() {
   }));
 
   const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
+
+  // Single canonical loupe key derived from mux_playback_id -> clip_id fallback chain
+  const loupeKey = React.useMemo(() => {
+    const clipId = mux_playback_id ?? clip?.mux_playback_id ?? clip?.local_id;
+    return clipId ? `loupe:${clipId}` : null;
+  }, [mux_playback_id, clip?.mux_playback_id, clip?.local_id]);
+
 
   useEffect(() => {
     if (!hasSessionContext) return;
@@ -363,15 +371,33 @@ export default function ClipPlayerScreen() {
     await videoRef.current.setPositionAsync(value);
   };
 
-  // Initialize loupe position to center of video container
+  // Initialize loupe position to center of video container only if no saved state exists
   useEffect(() => {
     if (frameSize.width > 0 && frameSize.height > 0) {
-      loupeX.value = frameSize.width / 2;
-      loupeY.value = frameSize.height / 2;
-      loupeLastX.current = frameSize.width / 2;
-      loupeLastY.current = frameSize.height / 2;
+      // Only center-initialize if no saved state exists for the current loupeKey
+      if (loupeKey && !getLoupeState(loupeKey)) {
+        loupeX.value = frameSize.width / 2;
+        loupeY.value = frameSize.height / 2;
+        loupeLastX.current = frameSize.width / 2;
+        loupeLastY.current = frameSize.height / 2;
+      }
     }
-  }, [frameSize]);
+  }, [frameSize, loupeKey]);
+
+  // Restore saved loupe state on clip open - single restore effect
+  useEffect(() => {
+    if (!loupeKey) return;
+    
+    const savedState = getLoupeState(loupeKey);
+    if (savedState) {
+      loupeLastX.current = savedState.x;
+      loupeLastY.current = savedState.y;
+      loupeLastZoom.current = savedState.zoom;
+      loupeX.value = savedState.x;
+      loupeY.value = savedState.y;
+      loupeZoomShared.value = savedState.zoom;
+    }
+  }, [loupeKey]);
 
   // JS-thread helpers for gesture callbacks
   const activateLoupe = runOnJS((zoom: number, x: number, y: number) => {
@@ -386,6 +412,11 @@ export default function ClipPlayerScreen() {
     setLoupeZoom(zoom);
     loupeZoomShared.value = zoom;
     loupeLastZoom.current = zoom;
+  });
+  const saveLoupeState = runOnJS((x: number, y: number) => {
+    if (loupeKey) {
+      setLoupeState(loupeKey, { x, y, zoom: loupeLastZoom.current });
+    }
   });
 
   // Rename existing panGesture to singleFingerPan
@@ -422,6 +453,11 @@ export default function ClipPlayerScreen() {
         // When loupe is already active, update zoom
         updateLoupeZoom(clamped);
       }
+    })
+    .onEnd(() => {
+      if (loupeActiveShared.value === 1) {
+        saveLoupeState(loupeX.value, loupeY.value);
+      }
     });
 
   const twoFingerPan = Gesture.Pan().minPointers(2)
@@ -430,9 +466,11 @@ export default function ClipPlayerScreen() {
       loupeX.value = loupeLastX.current + e.translationX;
       loupeY.value = loupeLastY.current + e.translationY;
     })
-    .onEnd(() => {
+    .onEnd((e: GestureEvent) => {
+      if (loupeActiveShared.value !== 1) return;
       loupeLastX.current = loupeX.value;
       loupeLastY.current = loupeY.value;
+      saveLoupeState(loupeX.value, loupeY.value);
     });
 
   // Compose navigation gesture (single finger only)
@@ -666,12 +704,26 @@ export default function ClipPlayerScreen() {
               </Animated.View>
             )}
             {loupeActive && (
-              <TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { loupeLastX.current = loupeX.value; loupeLastY.current = loupeY.value; loupeLastZoom.current = loupeZoom; setLoupeActive(false); loupeActiveShared.value = 0; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { 
+                loupeLastX.current = loupeX.value; 
+                loupeLastY.current = loupeY.value; 
+                loupeLastZoom.current = loupeZoom; 
+                saveLoupeState(loupeX.value, loupeY.value); 
+                setLoupeActive(false); 
+                loupeActiveShared.value = 0; 
+              }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.loupeDismissBtnText}>✕</Text>
               </TouchableOpacity>
             )}
             {!loupeActive && loupeLastZoom.current > 0 && (
-              <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { loupeX.value = loupeLastX.current; loupeY.value = loupeLastY.current; setLoupeZoom(loupeLastZoom.current); setLoupeActive(true); loupeActiveShared.value = 1; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { 
+                loupeX.value = loupeLastX.current; 
+                loupeY.value = loupeLastY.current; 
+                setLoupeZoom(loupeLastZoom.current); 
+                loupeZoomShared.value = loupeLastZoom.current; 
+                setLoupeActive(true); 
+                loupeActiveShared.value = 1; 
+              }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.loupeRestoreBtnText}>⊕</Text>
               </TouchableOpacity>
             )}
@@ -818,12 +870,26 @@ export default function ClipPlayerScreen() {
             </Animated.View>
           )}
           {loupeActive && (
-            <TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { loupeLastX.current = loupeX.value; loupeLastY.current = loupeY.value; loupeLastZoom.current = loupeZoom; setLoupeActive(false); loupeActiveShared.value = 0; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { 
+              loupeLastX.current = loupeX.value; 
+              loupeLastY.current = loupeY.value; 
+              loupeLastZoom.current = loupeZoom; 
+              saveLoupeState(loupeX.value, loupeY.value); 
+              setLoupeActive(false); 
+              loupeActiveShared.value = 0; 
+            }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.loupeDismissBtnText}>✕</Text>
             </TouchableOpacity>
           )}
           {!loupeActive && loupeLastZoom.current > 0 && (
-            <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { loupeX.value = loupeLastX.current; loupeY.value = loupeLastY.current; setLoupeZoom(loupeLastZoom.current); loupeZoomShared.value = loupeLastZoom.current; setLoupeActive(true); loupeActiveShared.value = 1; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { 
+              loupeX.value = loupeLastX.current; 
+              loupeY.value = loupeLastY.current; 
+              setLoupeZoom(loupeLastZoom.current); 
+              loupeZoomShared.value = loupeLastZoom.current; 
+              setLoupeActive(true); 
+              loupeActiveShared.value = 1; 
+            }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.loupeRestoreBtnText}>⊕</Text>
             </TouchableOpacity>
           )}
