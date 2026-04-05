@@ -410,8 +410,16 @@ export default function ClipPlayerScreen() {
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e: GestureEvent) => {
       const clamped = Math.min(3, Math.max(2, e.scale ?? 1));
-      loupeZoomShared.value = clamped;
-      updateLoupeZoom(clamped);
+      if (loupeActiveShared.value !== 1) {
+        // When loupe is inactive and pinch scale reaches threshold, activate loupe
+        if (e.scale && e.scale >= 2) {
+          activateLoupe(clamped, e.focalX ?? 0, e.focalY ?? 0);
+          loupeActiveShared.value = 1;
+        }
+      } else {
+        // When loupe is already active, update zoom
+        updateLoupeZoom(clamped);
+      }
     });
 
   const twoFingerPan = Gesture.Pan().minPointers(2)
