@@ -413,6 +413,8 @@ export default function ClipPlayerScreen() {
       if (loupeActiveShared.value !== 1) {
         // When loupe is inactive and pinch scale reaches threshold, activate loupe
         if (e.scale && e.scale >= 2) {
+          loupeX.value = e.focalX ?? loupeX.value;
+          loupeY.value = e.focalY ?? loupeY.value;
           activateLoupe(clamped, e.focalX ?? 0, e.focalY ?? 0);
           loupeActiveShared.value = 1;
         }
