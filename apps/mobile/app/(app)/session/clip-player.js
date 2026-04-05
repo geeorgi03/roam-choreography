@@ -65,6 +65,9 @@ const TagSheet_1 = require("../../../components/TagSheet");
 const supabase_1 = require("../../../lib/supabase");
 const AnnotationOverlay_1 = require("../../../components/AnnotationOverlay");
 const api_1 = require("../../../lib/api");
+const react_native_mmkv_1 = require("react-native-mmkv");
+// Loupe persistence — key: loupe:${mux_playback_id ?? clip_id} -> { x, y, zoom }
+const loupeStorage = new react_native_mmkv_1.MMKV({ id: 'loupe-state' });
 // Loupe constants
 const LOUPE_DIAMETER = 140;
 function ClipPlayerScreen() {
@@ -98,7 +101,6 @@ function ClipPlayerScreen() {
     const loupeX = (0, react_native_reanimated_1.useSharedValue)(0);
     const loupeY = (0, react_native_reanimated_1.useSharedValue)(0);
     const loupeActiveShared = (0, react_native_reanimated_1.useSharedValue)(0); // 0 = inactive, 1 = active
-    const loupeActivatedThisGesture = (0, react_native_reanimated_1.useSharedValue)(0); // 0 = not activated, 1 = activated this gesture
     const loupeZoomShared = (0, react_native_reanimated_1.useSharedValue)(2.5);
     const loupeLastX = (0, react_1.useRef)(0);
     const loupeLastY = (0, react_1.useRef)(0);
@@ -120,6 +122,11 @@ function ClipPlayerScreen() {
         ],
     }));
     const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
+    const loupePersistKey = mux_playback_id
+        ? `loupe:${mux_playback_id}`
+        : clip?.server_id
+            ? `loupe:${clip.server_id}`
+            : null;
     (0, react_1.useEffect)(() => {
         if (!hasSessionContext)
             return;
@@ -316,15 +323,53 @@ function ClipPlayerScreen() {
             return;
         await videoRef.current.setPositionAsync(value);
     };
-    // Initialize loupe position to center of video container
+    // Initialize loupe position to center of video container only if no saved state exists
     (0, react_1.useEffect)(() => {
         if (frameSize.width > 0 && frameSize.height > 0) {
-            loupeX.value = frameSize.width / 2;
-            loupeY.value = frameSize.height / 2;
-            loupeLastX.current = frameSize.width / 2;
-            loupeLastY.current = frameSize.height / 2;
+            // Only center-initialize if no saved state exists for the current loupePersistKey
+            if (!loupePersistKey || !loupeStorage.getString(loupePersistKey)) {
+                loupeX.value = frameSize.width / 2;
+                loupeY.value = frameSize.height / 2;
+                loupeLastX.current = frameSize.width / 2;
+                loupeLastY.current = frameSize.height / 2;
+            }
         }
-    }, [frameSize]);
+    }, [frameSize, loupePersistKey]);
+    // Restore saved loupe state on clip open - single restore effect
+    (0, react_1.useEffect)(() => {
+        if (!loupePersistKey)
+            return;
+        try {
+            const savedStateString = loupeStorage.getString(loupePersistKey);
+            if (savedStateString) {
+                const savedState = JSON.parse(savedStateString);
+                // Validate shape and numeric finiteness before applying values
+                if (savedState &&
+                    typeof savedState.x === 'number' &&
+                    typeof savedState.y === 'number' &&
+                    typeof savedState.zoom === 'number' &&
+                    Number.isFinite(savedState.x) &&
+                    Number.isFinite(savedState.y) &&
+                    Number.isFinite(savedState.zoom) &&
+                    savedState.zoom >= 2 &&
+                    savedState.zoom <= 3) {
+                    loupeLastX.current = savedState.x;
+                    loupeLastY.current = savedState.y;
+                    loupeLastZoom.current = savedState.zoom;
+                    loupeX.value = savedState.x;
+                    loupeY.value = savedState.y;
+                    loupeZoomShared.value = savedState.zoom;
+                }
+                else {
+                    // Malformed data - clear the key so restore falls back to default centering
+                    loupeStorage.delete(loupePersistKey);
+                }
+            }
+        }
+        catch {
+            // Silently ignore malformed data
+        }
+    }, [loupePersistKey]);
     // JS-thread helpers for gesture callbacks
     const activateLoupe = (0, react_native_reanimated_1.runOnJS)((zoom, x, y) => {
         setLoupeZoom(zoom);
@@ -338,6 +383,11 @@ function ClipPlayerScreen() {
         setLoupeZoom(zoom);
         loupeZoomShared.value = zoom;
         loupeLastZoom.current = zoom;
+    });
+    const saveLoupeState = (0, react_native_reanimated_1.runOnJS)((x, y) => {
+        if (loupePersistKey) {
+            loupeStorage.set(loupePersistKey, JSON.stringify({ x, y, zoom: loupeLastZoom.current }));
+        }
     });
     // Rename existing panGesture to singleFingerPan
     const singleFingerPan = Gesture.Pan().onEnd((e) => {
@@ -360,22 +410,24 @@ function ClipPlayerScreen() {
         }
     });
     const pinchGesture = Gesture.Pinch()
-        .onStart((_e) => {
-        loupeActivatedThisGesture.value = 0;
-    })
         .onUpdate((e) => {
         const clamped = Math.min(3, Math.max(2, e.scale ?? 1));
-        if ((e.scale ?? 1) >= 2 && loupeActivatedThisGesture.value === 0) {
-            loupeActivatedThisGesture.value = 1;
-            loupeX.value = e.focalX ?? loupeX.value;
-            loupeY.value = e.focalY ?? loupeY.value;
-            loupeActiveShared.value = 1;
-            (0, react_native_reanimated_1.runOnJS)(activateLoupe)(clamped, e.focalX ?? loupeX.value, e.focalY ?? loupeY.value);
+        if (loupeActiveShared.value !== 1) {
+            // When loupe is inactive and pinch scale reaches threshold, activate loupe
+            if (e.scale && e.scale >= 2) {
+                loupeX.value = e.focalX ?? loupeX.value;
+                loupeY.value = e.focalY ?? loupeY.value;
+                activateLoupe(clamped, e.focalX ?? 0, e.focalY ?? 0);
+                loupeActiveShared.value = 1;
+            }
         }
-        else if (loupeActivatedThisGesture.value === 1) {
-            loupeZoomShared.value = clamped;
-            (0, react_native_reanimated_1.runOnJS)(updateLoupeZoom)(clamped);
+        else {
+            // When loupe is already active, update zoom
+            updateLoupeZoom(clamped);
         }
+    })
+        .onEnd(() => {
+        // No persistence on pinch end - only save on drag end and dismiss
     });
     const twoFingerPan = Gesture.Pan().minPointers(2)
         .onUpdate((e) => {
@@ -384,9 +436,12 @@ function ClipPlayerScreen() {
         loupeX.value = loupeLastX.current + e.translationX;
         loupeY.value = loupeLastY.current + e.translationY;
     })
-        .onEnd(() => {
+        .onEnd((e) => {
+        if (loupeActiveShared.value !== 1)
+            return;
         loupeLastX.current = loupeX.value;
         loupeLastY.current = loupeY.value;
+        saveLoupeState(loupeX.value, loupeY.value);
     });
     // Compose navigation gesture (single finger only)
     const composedGesture = Gesture.Simultaneous(singleFingerPan);
@@ -559,10 +614,24 @@ function ClipPlayerScreen() {
                   {/* Duplicate Video for magnification — no true pixel sampling with expo-av; upgrade to Skia in a future wave if @shopify/react-native-skia is added */}
                 </react_native_1.View>
               </react_native_reanimated_1.default.View>)}
-            {loupeActive && (<react_native_1.TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { loupeLastX.current = loupeX.value; loupeLastY.current = loupeY.value; loupeLastZoom.current = loupeZoom; setLoupeActive(false); loupeActiveShared.value = 0; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            {loupeActive && (<react_native_1.TouchableOpacity style={styles.loupeDismissBtn} onPress={() => {
+                    loupeLastX.current = loupeX.value;
+                    loupeLastY.current = loupeY.value;
+                    loupeLastZoom.current = loupeZoom;
+                    saveLoupeState(loupeX.value, loupeY.value);
+                    setLoupeActive(false);
+                    loupeActiveShared.value = 0;
+                }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <react_native_1.Text style={styles.loupeDismissBtnText}>✕</react_native_1.Text>
               </react_native_1.TouchableOpacity>)}
-            {!loupeActive && loupeLastZoom.current > 0 && (<react_native_1.TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { loupeX.value = loupeLastX.current; loupeY.value = loupeLastY.current; setLoupeZoom(loupeLastZoom.current); loupeZoomShared.value = loupeLastZoom.current; setLoupeActive(true); loupeActiveShared.value = 1; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            {!loupeActive && loupeLastZoom.current > 0 && (<react_native_1.TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => {
+                    loupeX.value = loupeLastX.current;
+                    loupeY.value = loupeLastY.current;
+                    setLoupeZoom(loupeLastZoom.current);
+                    loupeZoomShared.value = loupeLastZoom.current;
+                    setLoupeActive(true);
+                    loupeActiveShared.value = 1;
+                }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <react_native_1.Text style={styles.loupeRestoreBtnText}>⊕</react_native_1.Text>
               </react_native_1.TouchableOpacity>)}
           </react_native_1.View>
@@ -646,10 +715,24 @@ function ClipPlayerScreen() {
                 {/* Duplicate Video for magnification — no true pixel sampling with expo-av; upgrade to Skia in a future wave if @shopify/react-native-skia is added */}
               </react_native_1.View>
             </react_native_reanimated_1.default.View>)}
-          {loupeActive && (<react_native_1.TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { loupeLastX.current = loupeX.value; loupeLastY.current = loupeY.value; loupeLastZoom.current = loupeZoom; setLoupeActive(false); loupeActiveShared.value = 0; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          {loupeActive && (<react_native_1.TouchableOpacity style={styles.loupeDismissBtn} onPress={() => {
+                loupeLastX.current = loupeX.value;
+                loupeLastY.current = loupeY.value;
+                loupeLastZoom.current = loupeZoom;
+                saveLoupeState(loupeX.value, loupeY.value);
+                setLoupeActive(false);
+                loupeActiveShared.value = 0;
+            }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <react_native_1.Text style={styles.loupeDismissBtnText}>✕</react_native_1.Text>
             </react_native_1.TouchableOpacity>)}
-          {!loupeActive && loupeLastZoom.current > 0 && (<react_native_1.TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { loupeX.value = loupeLastX.current; loupeY.value = loupeLastY.current; setLoupeZoom(loupeLastZoom.current); loupeZoomShared.value = loupeLastZoom.current; setLoupeActive(true); loupeActiveShared.value = 1; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          {!loupeActive && loupeLastZoom.current > 0 && (<react_native_1.TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => {
+                loupeX.value = loupeLastX.current;
+                loupeY.value = loupeLastY.current;
+                setLoupeZoom(loupeLastZoom.current);
+                loupeZoomShared.value = loupeLastZoom.current;
+                setLoupeActive(true);
+                loupeActiveShared.value = 1;
+            }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <react_native_1.Text style={styles.loupeRestoreBtnText}>⊕</react_native_1.Text>
             </react_native_1.TouchableOpacity>)}
           {annotationMode && frameSize.width > 0 && frameSize.height > 0 && (<AnnotationOverlay_1.AnnotationOverlay annotations={frozenTimecode !== null

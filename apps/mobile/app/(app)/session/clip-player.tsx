@@ -70,7 +70,10 @@ import { AnnotationOverlay } from '../../../components/AnnotationOverlay';
 import type { VideoContentRect } from '../../../components/AnnotationOverlay';
 
 import { API_BASE } from '../../../lib/api';
-import { getLoupeState, setLoupeState } from '../../../lib/storage';
+import { MMKV } from 'react-native-mmkv';
+
+// Loupe persistence — key: loupe:${mux_playback_id ?? clip_id} -> { x, y, zoom }
+const loupeStorage = new MMKV({ id: 'loupe-state' });
 
 // Loupe constants
 const LOUPE_DIAMETER = 140;
@@ -170,12 +173,11 @@ export default function ClipPlayerScreen() {
 
   const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
 
-  // Single canonical loupe key derived from mux_playback_id -> clip_id fallback chain
-  const loupeKey = React.useMemo(() => {
-    const clipId = mux_playback_id ?? clip?.mux_playback_id ?? clip?.local_id;
-    return clipId ? `loupe:${clipId}` : null;
-  }, [mux_playback_id, clip?.mux_playback_id, clip?.local_id]);
-
+  const loupePersistKey = mux_playback_id
+    ? `loupe:${mux_playback_id}` 
+    : clip?.server_id
+    ? `loupe:${clip.server_id}` 
+    : null;
 
   useEffect(() => {
     if (!hasSessionContext) return;
@@ -374,30 +376,52 @@ export default function ClipPlayerScreen() {
   // Initialize loupe position to center of video container only if no saved state exists
   useEffect(() => {
     if (frameSize.width > 0 && frameSize.height > 0) {
-      // Only center-initialize if no saved state exists for the current loupeKey
-      if (loupeKey && !getLoupeState(loupeKey)) {
+      // Only center-initialize if no saved state exists for the current loupePersistKey
+      if (!loupePersistKey || !loupeStorage.getString(loupePersistKey)) {
         loupeX.value = frameSize.width / 2;
         loupeY.value = frameSize.height / 2;
         loupeLastX.current = frameSize.width / 2;
         loupeLastY.current = frameSize.height / 2;
       }
     }
-  }, [frameSize, loupeKey]);
+  }, [frameSize, loupePersistKey]);
 
   // Restore saved loupe state on clip open - single restore effect
   useEffect(() => {
-    if (!loupeKey) return;
+    if (!loupePersistKey) return;
     
-    const savedState = getLoupeState(loupeKey);
-    if (savedState) {
-      loupeLastX.current = savedState.x;
-      loupeLastY.current = savedState.y;
-      loupeLastZoom.current = savedState.zoom;
-      loupeX.value = savedState.x;
-      loupeY.value = savedState.y;
-      loupeZoomShared.value = savedState.zoom;
+    try {
+      const savedStateString = loupeStorage.getString(loupePersistKey);
+      if (savedStateString) {
+        const savedState = JSON.parse(savedStateString);
+        
+        // Validate shape and numeric finiteness before applying values
+        if (
+          savedState &&
+          typeof savedState.x === 'number' &&
+          typeof savedState.y === 'number' &&
+          typeof savedState.zoom === 'number' &&
+          Number.isFinite(savedState.x) &&
+          Number.isFinite(savedState.y) &&
+          Number.isFinite(savedState.zoom) &&
+          savedState.zoom >= 2 &&
+          savedState.zoom <= 3
+        ) {
+          loupeLastX.current = savedState.x;
+          loupeLastY.current = savedState.y;
+          loupeLastZoom.current = savedState.zoom;
+          loupeX.value = savedState.x;
+          loupeY.value = savedState.y;
+          loupeZoomShared.value = savedState.zoom;
+        } else {
+          // Malformed data - clear the key so restore falls back to default centering
+          loupeStorage.delete(loupePersistKey);
+        }
+      }
+    } catch {
+      // Silently ignore malformed data
     }
-  }, [loupeKey]);
+  }, [loupePersistKey]);
 
   // JS-thread helpers for gesture callbacks
   const activateLoupe = runOnJS((zoom: number, x: number, y: number) => {
@@ -414,8 +438,8 @@ export default function ClipPlayerScreen() {
     loupeLastZoom.current = zoom;
   });
   const saveLoupeState = runOnJS((x: number, y: number) => {
-    if (loupeKey) {
-      setLoupeState(loupeKey, { x, y, zoom: loupeLastZoom.current });
+    if (loupePersistKey) {
+      loupeStorage.set(loupePersistKey, JSON.stringify({ x, y, zoom: loupeLastZoom.current }));
     }
   });
 
@@ -455,9 +479,7 @@ export default function ClipPlayerScreen() {
       }
     })
     .onEnd(() => {
-      if (loupeActiveShared.value === 1) {
-        saveLoupeState(loupeX.value, loupeY.value);
-      }
+      // No persistence on pinch end - only save on drag end and dismiss
     });
 
   const twoFingerPan = Gesture.Pan().minPointers(2)
