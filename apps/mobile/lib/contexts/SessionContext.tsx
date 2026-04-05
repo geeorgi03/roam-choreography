@@ -76,7 +76,7 @@ export interface SessionContextValue {
   momentsConnectionStatus: ConnectionStatus;
   createMoment: (name: string, beatPositionMs: number) => Promise<Moment | null>;
   renameMoment: (momentId: string, name: string) => Promise<void>;
-  deleteMoment: (momentId: string) => Promise<void>;
+  deleteMoment: (momentId: string) => Promise<boolean>;
   mergeMoment: (row: Moment) => void;
   removeMoment: (momentId: string) => void;
   updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
@@ -370,7 +370,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
       setSessionName(meta.name.trim());
     }
     if (meta.phrase !== undefined) {
-      setSessionPhrase(meta.phrase?.trim() || null);
+      setSessionPhrase(meta.phrase.trim() || null);
     }
 
     try {
@@ -389,9 +389,9 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
         return;
       }
 
-      const data = await res.json();
-      const updatedName = (data as { name?: string }).name;
-      const updatedPhrase = (data as { phrase?: string }).phrase;
+      const data = await res.json() as { name?: string; phrase?: string } | { session: { name?: string; phrase?: string | null } };
+      const updatedName = 'name' in data ? (data as any).name : (data as any).session?.name;
+      const updatedPhrase = 'phrase' in data ? (data as any).phrase : (data as any).session?.phrase;
       
       if (updatedName !== undefined) setSessionName(updatedName);
       if (updatedPhrase !== undefined) setSessionPhrase(updatedPhrase ?? null);

@@ -22,6 +22,7 @@ export interface Session {
     id: UUID;
     user_id: UUID;
     name: string;
+    phrase: string | null;
     created_at: ISODateTime;
 }
 /** ---- Clip (Tech Plan) ---- */

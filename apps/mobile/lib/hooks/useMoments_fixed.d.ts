@@ -1,5 +1,5 @@
 import type { FormationData, Moment, QualityData } from '@roam/types';
-export interface ConnectionStatus {
+interface ConnectionStatus {
     isConnected: boolean;
     hasError: boolean;
     errorMessage?: string;
@@ -10,10 +10,10 @@ export default function useMoments(sessionId: string | null): {
     connectionStatus: ConnectionStatus;
     createMoment: (name: string, beatPositionMs: number) => Promise<Moment | null>;
     renameMoment: (momentId: string, name: string) => Promise<void>;
-    deleteMoment: (momentId: string) => Promise<boolean>;
     updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
     updateQuality: (momentId: string, quality: QualityData | null) => Promise<void>;
     mergeMoment: (row: Moment) => void;
     removeMoment: (momentId: string) => void;
 };
-//# sourceMappingURL=useMoments.d.ts.map
+export {};
+//# sourceMappingURL=useMoments_fixed.d.ts.map

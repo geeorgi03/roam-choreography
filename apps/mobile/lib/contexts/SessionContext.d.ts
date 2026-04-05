@@ -2,10 +2,16 @@ import React from 'react';
 import { Audio } from 'expo-av';
 import { ClipRow } from '../database';
 import { FormationData, Moment, QualityData, SectionClip } from '@roam/types';
+import { type ConnectionStatus } from '../hooks/useMoments';
 export interface SessionContextValue {
     sessionId: string;
     sessionName: string;
+    sessionPhrase: string | null;
     setSessionName: (name: string) => void;
+    updateSessionMeta: (meta: {
+        name?: string;
+        phrase?: string;
+    }) => Promise<void>;
     activeTab: 'workbench' | 'spatial' | 'song-map' | 'group';
     setActiveTab: (tab: SessionContextValue['activeTab']) => void;
     activeSection: string;
@@ -61,8 +67,10 @@ export interface SessionContextValue {
     openClipSheet: (clip: ClipRow) => void;
     moments: Moment[];
     isLoadingMoments: boolean;
+    momentsConnectionStatus: ConnectionStatus;
     createMoment: (name: string, beatPositionMs: number) => Promise<Moment | null>;
     renameMoment: (momentId: string, name: string) => Promise<void>;
+    deleteMoment: (momentId: string) => Promise<boolean>;
     mergeMoment: (row: Moment) => void;
     removeMoment: (momentId: string) => void;
     updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;

@@ -44,7 +44,7 @@ const DEFAULT_TOOL_STATE = {
     relationship: 'locked',
 };
 function SpatialTab() {
-    const { activeMoment, setActiveMoment, moments, createMoment, renameMoment, updateFormation, updateQuality, playheadMs, loopRegion, loopOpenAt, durationMs, handleLoopToggle, soundRef, setPlayheadMs, setActiveTab, } = (0, SessionContext_1.useSessionContext)();
+    const { activeMoment, setActiveMoment, moments, createMoment, renameMoment, deleteMoment, updateFormation, updateQuality, playheadMs, loopRegion, loopOpenAt, durationMs, handleLoopToggle, soundRef, setPlayheadMs, setActiveTab, momentsConnectionStatus, } = (0, SessionContext_1.useSessionContext)();
     const activeMomentRecord = (0, react_1.useMemo)(() => {
         if (!activeMoment)
             return null;
@@ -163,7 +163,21 @@ function SpatialTab() {
         setActiveMoment(momentId);
     };
     const handleMomentLongPress = (momentId) => {
-        setRenamingMomentId(momentId);
+        const moment = moments.find(m => m.id === momentId);
+        if (!moment)
+            return;
+        react_native_1.Alert.alert(moment.name, undefined, [
+            { text: 'Rename', onPress: () => setRenamingMomentId(momentId) },
+            { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
+            { text: 'Cancel', style: 'cancel' },
+        ]);
+    };
+    const handleDeleteMoment = async (momentId) => {
+        const success = await deleteMoment(momentId);
+        if (success && activeMoment === momentId) {
+            const remaining = moments.filter(m => m.id !== momentId);
+            setActiveMoment(remaining[0]?.id ?? null);
+        }
     };
     const handleRenameMoment = async (_newLabel) => {
         if (renamingMomentId) {
@@ -424,6 +438,10 @@ function SpatialTab() {
             <react_native_1.Text style={styles.addMomentText}>+</react_native_1.Text>
           </react_native_1.TouchableOpacity>
         </react_native_1.ScrollView>
+
+        {momentsConnectionStatus.hasError && (<react_native_1.View style={styles.connectionErrorBanner}>
+            <react_native_1.Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</react_native_1.Text>
+          </react_native_1.View>)}
 
         {/* Floor canvas */}
         <react_native_1.TouchableOpacity style={styles.floorCanvas} onPress={handleCanvasTap} activeOpacity={1} onLayout={(e) => setCanvasSize({
@@ -901,6 +919,19 @@ const styles = react_native_1.StyleSheet.create({
     referenceText: {
         fontSize: 10,
         color: colors.muted,
+    },
+    connectionErrorBanner: {
+        backgroundColor: '#fee2e2',
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#fca5a5',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+    },
+    connectionErrorText: {
+        fontSize: 12,
+        color: '#dc2626',
+        textAlign: 'center',
+        fontFamily: 'JetBrainsMono',
     },
 });
 //# sourceMappingURL=SpatialTab.js.map

@@ -32,6 +32,7 @@ const useSession_1 = require("../../lib/hooks/useSession");
 const useGroupRealtime_1 = require("../../lib/hooks/useGroupRealtime");
 const supabase_1 = require("../../lib/supabase");
 const theme_1 = require("../../lib/theme");
+const api_1 = require("../../lib/api");
 const colors = theme_1.theme.light;
 const DANCER_POSITION_FALLBACKS = [
     { top: 30, left: 20 },
@@ -79,9 +80,8 @@ function GroupTab() {
             ? token
             : null;
     const { session } = (0, useSession_1.useSession)();
-    const { sessionId, activeSection, setActiveSection, activeMoment, setActiveMoment, moments, createMoment, renameMoment, clips, loopRegion, openClipSheet, musicTrack, openSheet, } = (0, SessionContext_1.useSessionContext)();
-    const { participants, myParticipant, isChoreographer, broadcasts, sendBroadcast, updatePosition } = (0, useGroupRealtime_1.useGroupRealtime)(sessionId, session?.access_token, inviteShareToken);
-    void createMoment;
+    const { sessionId, activeSection, setActiveSection, activeMoment, setActiveMoment, moments, renameMoment, deleteMoment, clips, loopRegion, openClipSheet, musicTrack, openSheet, } = (0, SessionContext_1.useSessionContext)();
+    const { participants, myParticipant, isChoreographer, broadcasts, sendBroadcast, updatePosition, connectionStatus } = (0, useGroupRealtime_1.useGroupRealtime)(sessionId, session?.access_token, inviteShareToken);
     const [renamingMomentId, setRenamingMomentId] = (0, react_1.useState)(null);
     const [canvasSize, setCanvasSize] = (0, react_1.useState)({ width: 0, height: 0 });
     const [broadcastText, setBroadcastText] = (0, react_1.useState)('');
@@ -92,6 +92,7 @@ function GroupTab() {
     const [newClipCue, setNewClipCue] = (0, react_1.useState)(false);
     const [broadcastHint, setBroadcastHint] = (0, react_1.useState)(null);
     const [selectedDancerId, setSelectedDancerId] = (0, react_1.useState)(null);
+    const [shareError, setShareError] = (0, react_1.useState)(null);
     const [latestIncomingNote, setLatestIncomingNote] = (0, react_1.useState)(null);
     const pulseValuesRef = (0, react_1.useRef)({});
     const newNoteOpacity = (0, react_1.useRef)(new react_native_1.Animated.Value(0)).current;
@@ -108,6 +109,7 @@ function GroupTab() {
     const setActiveSectionRef = (0, react_1.useRef)(setActiveSection);
     const myPresenceRef = (0, react_1.useRef)({ name: 'User', color: colors.mine });
     const suppressFormationEmitRef = (0, react_1.useRef)(false);
+    const submittedRef = (0, react_1.useRef)(false);
     const myUserId = myParticipant?.user_id ?? session?.user?.id ?? null;
     const dancers = (0, react_1.useMemo)(() => {
         if (participants.length > 0) {
@@ -198,13 +200,35 @@ function GroupTab() {
         { label: 'OUTRO' },
     ];
     const handleMomentPress = (momentId) => setActiveMoment(momentId);
-    const handleMomentLongPress = (momentId) => setRenamingMomentId(momentId);
+    const handleMomentLongPress = (momentId) => {
+        const moment = moments.find(m => m.id === momentId);
+        if (!moment)
+            return;
+        react_native_1.Alert.alert(moment.name, undefined, [
+            { text: 'Rename', onPress: () => setRenamingMomentId(momentId) },
+            { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
+            { text: 'Cancel', style: 'cancel' },
+        ]);
+    };
     const handleRenameMoment = (0, react_1.useCallback)((newLabel) => {
         if (!renamingMomentId)
             return;
+        // Prevent duplicate PATCH requests for the same edit caused by blur after submit.
+        if (submittedRef.current) {
+            setRenamingMomentId(null);
+            return;
+        }
+        submittedRef.current = true;
         void renameMoment(renamingMomentId, newLabel);
         setRenamingMomentId(null);
     }, [renamingMomentId, renameMoment]);
+    const handleDeleteMoment = async (momentId) => {
+        const success = await deleteMoment(momentId);
+        if (success && activeMoment === momentId) {
+            const remaining = moments.filter(m => m.id !== momentId);
+            setActiveMoment(remaining[0]?.id ?? null);
+        }
+    };
     const handleBroadcast = async () => {
         if (!broadcastText.trim() || broadcastText.length > 60)
             return;
@@ -245,6 +269,32 @@ function GroupTab() {
             params: { id: sessionId, sectionName: activeSection },
         });
     };
+    const handleShare = (0, react_1.useCallback)(async () => {
+        if (!session?.access_token || !sessionId) {
+            setShareError('Authentication required');
+            return;
+        }
+        try {
+            setShareError(null);
+            const response = await fetch(`${api_1.API_BASE}/sessions/${sessionId}/share-token`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!response.ok) {
+                setShareError('Could not generate invite link');
+                return;
+            }
+            const { share_url } = await response.json();
+            await react_native_1.Share.share({ message: share_url });
+            setShareError(null);
+        }
+        catch (error) {
+            setShareError('Network error');
+        }
+    }, [session, sessionId]);
     const handleFloorCanvasPress = (0, react_1.useCallback)((event) => {
         if (!myParticipant)
             return;
@@ -555,11 +605,15 @@ function GroupTab() {
         return (<react_native_1.View style={styles.container}>
         <react_native_1.View style={styles.choreographerHeader}>
           <react_native_1.View style={styles.choreographerHeaderActions}>
-            <react_native_1.TouchableOpacity style={styles.headerIconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
+            <react_native_1.TouchableOpacity style={styles.headerIconButton} onPress={handleShare} activeOpacity={0.8}>
               <react_native_1.Text style={styles.headerIcon}>↗</react_native_1.Text>
             </react_native_1.TouchableOpacity>
+            {shareError ? <react_native_1.Text style={styles.shareErrorText}>{shareError}</react_native_1.Text> : null}
           </react_native_1.View>
         </react_native_1.View>
+        {connectionStatus.hasError && (<react_native_1.View style={styles.connectionErrorBanner}>
+            <react_native_1.Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</react_native_1.Text>
+          </react_native_1.View>)}
         <react_native_1.View style={styles.leftPanel}>
           <react_native_1.ScrollView horizontal style={styles.sectionStrip} showsHorizontalScrollIndicator={false}>
             {sections.map((section) => (<react_native_1.TouchableOpacity key={section.label} style={[styles.sectionChip, activeSection === section.label && styles.sectionChipActive]} onPress={() => setActiveSection(section.label)}>
@@ -642,6 +696,9 @@ function GroupTab() {
       </react_native_1.View>);
     }
     return (<react_native_1.View style={styles.dancerContainer}>
+      {connectionStatus.hasError && (<react_native_1.View style={styles.connectionErrorBanner}>
+          <react_native_1.Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</react_native_1.Text>
+        </react_native_1.View>)}
       <react_native_1.View style={styles.dancerFloorCanvas} onLayout={(e) => setCanvasSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })} onTouchEnd={handleFloorCanvasPress}>
         {renderGridLines()}
         {dancers.map((dancer, index) => {
@@ -829,6 +886,7 @@ const styles = react_native_1.StyleSheet.create({
     broadcastButton: { paddingHorizontal: 8, paddingVertical: 6 },
     broadcastButtonText: { color: colors.mine, fontWeight: '700', fontSize: 11 },
     broadcastHint: { fontSize: 10, color: colors.warm, marginBottom: 66 },
+    shareErrorText: { fontSize: 10, color: colors.warm, marginLeft: 8 },
     receivedNotesPanel: { maxHeight: 72, marginBottom: 72 },
     receivedNotesHeader: { fontSize: 9, color: colors.muted, marginBottom: 4, fontFamily: 'JetBrainsMono' },
     receivedNotesList: { borderWidth: 0.5, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.ground },
@@ -874,5 +932,18 @@ const styles = react_native_1.StyleSheet.create({
     dancerFabLabel: { fontSize: 9, color: colors.muted, marginBottom: 2 },
     dancerFabSublabel: { fontSize: 9, color: colors.inactive, marginBottom: 8 },
     activeMomentHint: { fontSize: 8, color: colors.inactive, marginTop: 4 },
+    connectionErrorBanner: {
+        backgroundColor: '#fee2e2',
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#fca5a5',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+    },
+    connectionErrorText: {
+        fontSize: 12,
+        color: '#dc2626',
+        textAlign: 'center',
+        fontFamily: 'JetBrainsMono',
+    },
 });
 //# sourceMappingURL=GroupTab.js.map

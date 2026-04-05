@@ -150,8 +150,26 @@ export default function LibraryScreen() {
   const openClipSheet = (clip: Clip) => {
     const clipRow = toClipRow(clip);
     setSelectedClip(clipRow);
-    clipSheetRef.current?.snapToIndex(0);
   };
+
+  // Trigger snapToIndex after selectedClip is set and sheet is mounted
+  useEffect(() => {
+    if (selectedClip && clipSheetRef.current) {
+      // Use a more reliable approach with requestAnimationFrame
+      const openSheet = () => {
+        if (clipSheetRef.current) {
+          clipSheetRef.current.snapToIndex(0);
+        }
+      };
+      
+      // Try immediately first, then fallback to requestAnimationFrame
+      try {
+        openSheet();
+      } catch {
+        requestAnimationFrame(openSheet);
+      }
+    }
+  }, [selectedClip]);
 
   const closeClipViewer = () => {
     setSelectedClip(null);

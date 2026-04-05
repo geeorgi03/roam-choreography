@@ -3,9 +3,11 @@
 ## Context
 Part of the ROAM React Native Expo rebuild. Build after workbench is approved on device.
 
+**IA:** Treat this as the **session media viewer** — **one** UI for **REF** and **MINE** clips. Same loop, speed, mirror, progress, and (where applicable) loupe behavior. Show **REF vs MINE** as a **source variant** (chip, header label, or actions), not a separate screen or Figma page. Secondary actions may differ by type (e.g. segment save for owned video vs URL rules below).
+
 ## Task: Reference Viewer screen
 
-This screen opens when a REF clip is tapped, or when a URL is shared into Roam.
+This screen opens when a **REF or MINE** clip is tapped, or when a URL is shared into Roam.
 
 ### Architecture decision (critical)
 Do NOT embed Bilibili or XHS video in a WebView inside the app. These platforms break, require login, and have geo-restrictions.

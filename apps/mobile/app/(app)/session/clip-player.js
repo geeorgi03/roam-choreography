@@ -32,10 +32,13 @@ const expo_router_1 = require("expo-router");
 const expo_av_1 = require("expo-av");
 const slider_1 = __importDefault(require("@react-native-community/slider"));
 const react_native_toast_message_1 = __importDefault(require("react-native-toast-message"));
+const react_native_reanimated_1 = __importStar(require("react-native-reanimated"));
 // Lazy require: a native-module init failure must not prevent route discovery
 let GestureDetector = ({ children }) => <>{children}</>;
 let Gesture = {
-    Pan: () => ({ onEnd: () => ({}) }),
+    Pan: () => ({ onEnd: () => ({}), onUpdate: () => ({}), minPointers: () => ({}) }),
+    Pinch: () => ({ onStart: () => ({}), onUpdate: () => ({}) }),
+    Simultaneous: (..._) => ({}),
 };
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -53,6 +56,8 @@ const TagSheet_1 = require("../../../components/TagSheet");
 const supabase_1 = require("../../../lib/supabase");
 const AnnotationOverlay_1 = require("../../../components/AnnotationOverlay");
 const api_1 = require("../../../lib/api");
+// Loupe constants
+const LOUPE_DIAMETER = 140;
 function ClipPlayerScreen() {
     const { sessionId, clipIndex, mux_playback_id, move_name, style, energy, difficulty, bpm, notes, section_label, } = (0, expo_router_1.useLocalSearchParams)();
     const router = (0, expo_router_1.useRouter)();
@@ -78,6 +83,23 @@ function ClipPlayerScreen() {
     const [videoNaturalSize, setVideoNaturalSize] = (0, react_1.useState)(null);
     const videoRef = (0, react_1.useRef)(null);
     const tagSheetRef = (0, react_1.useRef)(null);
+    // Loupe state
+    const [loupeActive, setLoupeActive] = (0, react_1.useState)(false);
+    const [loupeZoom, setLoupeZoom] = (0, react_1.useState)(2.5);
+    const loupeX = (0, react_native_reanimated_1.useSharedValue)(0);
+    const loupeY = (0, react_native_reanimated_1.useSharedValue)(0);
+    const loupeActiveShared = (0, react_native_reanimated_1.useSharedValue)(0); // 0 = inactive, 1 = active
+    const loupeLastX = (0, react_1.useRef)(0);
+    const loupeLastY = (0, react_1.useRef)(0);
+    const loupeLastZoom = (0, react_1.useRef)(0);
+    const loupeVideoRef = (0, react_1.useRef)(null);
+    // Animated style for loupe positioning
+    const loupeAnimatedStyle = (0, react_native_reanimated_1.useAnimatedStyle)(() => ({
+        transform: [
+            { translateX: loupeX.value - LOUPE_DIAMETER / 2 },
+            { translateY: loupeY.value - LOUPE_DIAMETER / 2 },
+        ],
+    }));
     const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
     (0, react_1.useEffect)(() => {
         if (!hasSessionContext)
@@ -212,6 +234,11 @@ function ClipPlayerScreen() {
             // ignore
         }
     }, [clipServerId, session?.access_token]);
+    // Reset loupe on clip change
+    (0, react_1.useEffect)(() => {
+        setLoupeActive(false);
+        loupeActiveShared.value = 0;
+    }, [currentIndex]);
     const onPlaybackStatusUpdate = (status) => {
         if (!status.isLoaded)
             return;
@@ -219,6 +246,10 @@ function ClipPlayerScreen() {
         if (status.durationMillis)
             setDurationMillis(status.durationMillis);
         setPlaying(status.isPlaying);
+        // Sync loupe video with main video
+        if (loupeVideoRef.current && status.isLoaded) {
+            loupeVideoRef.current.setPositionAsync(status.positionMillis).catch(() => { });
+        }
     };
     const videoRect = react_1.default.useMemo(() => {
         const cw = frameSize.width;
@@ -263,7 +294,29 @@ function ClipPlayerScreen() {
             return;
         await videoRef.current.setPositionAsync(value);
     };
-    const panGesture = Gesture.Pan().onEnd((e) => {
+    // Initialize loupe position to center of video container
+    (0, react_1.useEffect)(() => {
+        if (frameSize.width > 0 && frameSize.height > 0) {
+            loupeX.value = frameSize.width / 2;
+            loupeY.value = frameSize.height / 2;
+            loupeLastX.current = frameSize.width / 2;
+            loupeLastY.current = frameSize.height / 2;
+        }
+    }, [frameSize]);
+    // JS-thread helpers for gesture callbacks
+    const activateLoupe = (0, react_native_reanimated_1.runOnJS)((zoom, x, y) => {
+        setLoupeZoom(zoom);
+        setLoupeActive(true);
+        loupeLastZoom.current = zoom;
+        loupeLastX.current = x;
+        loupeLastY.current = y;
+    });
+    const updateLoupeZoom = (0, react_native_reanimated_1.runOnJS)((zoom) => {
+        setLoupeZoom(zoom);
+        loupeLastZoom.current = zoom;
+    });
+    // Rename existing panGesture to singleFingerPan
+    const singleFingerPan = Gesture.Pan().onEnd((e) => {
         const { translationX, translationY } = e;
         if (Math.abs(translationY) > 80 && translationY > 0) {
             router.back();
@@ -282,6 +335,35 @@ function ClipPlayerScreen() {
             }
         }
     });
+    const pinchGesture = Gesture.Pinch()
+        .onStart((e) => {
+        // Initialize position but don't activate yet
+        loupeX.value = e.focalX;
+        loupeY.value = e.focalY;
+    })
+        .onUpdate((e) => {
+        if (loupeActiveShared.value === 0 && e.scale >= 2) {
+            // First time reaching threshold - activate
+            const clamped = Math.min(3, Math.max(2, e.scale));
+            activateLoupe(clamped, e.focalX, e.focalY);
+            loupeActiveShared.value = 1;
+        }
+        else if (loupeActiveShared.value === 1) {
+            // Already active - update zoom
+            updateLoupeZoom(Math.min(3, Math.max(2, e.scale)));
+        }
+    });
+    const twoFingerPan = Gesture.Pan().minPointers(2)
+        .onUpdate((e) => {
+        loupeX.value = loupeLastX.current + e.translationX;
+        loupeY.value = loupeLastY.current + e.translationY;
+    })
+        .onEnd(() => {
+        loupeLastX.current = loupeX.value;
+        loupeLastY.current = loupeY.value;
+    });
+    // Compose all gestures
+    const composedGesture = Gesture.Simultaneous(singleFingerPan, Gesture.Simultaneous(pinchGesture, twoFingerPan));
     const handleTagSaved = (updatedClip) => {
         setDisplayClip(updatedClip);
     };
@@ -412,7 +494,7 @@ function ClipPlayerScreen() {
       </react_native_1.View>);
     }
     if (hasSessionContext && clip.upload_status !== 'ready') {
-        return (<GestureDetector gesture={panGesture}>
+        return (<GestureDetector gesture={composedGesture}>
         <react_native_1.View style={styles.container}>
           <react_native_1.View style={styles.placeholder}>
             <react_native_1.Text style={styles.placeholderText}>Processing…</react_native_1.Text>
@@ -438,9 +520,33 @@ function ClipPlayerScreen() {
             !!libraryDifficulty ||
             !!libraryBpm ||
             !!libraryNotes;
-        return (<GestureDetector gesture={panGesture}>
+        return (<GestureDetector gesture={composedGesture}>
         <react_native_1.View style={styles.container}>
-          <expo_av_1.Video key={mux_playback_id} ref={videoRef} source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }} style={react_native_1.StyleSheet.absoluteFill} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.CONTAIN} shouldPlay={playing} onPlaybackStatusUpdate={onPlaybackStatusUpdate}/>
+          <react_native_1.View style={react_native_1.StyleSheet.absoluteFill}>
+            <expo_av_1.Video key={mux_playback_id} ref={videoRef} source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }} style={react_native_1.StyleSheet.absoluteFill} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.CONTAIN} shouldPlay={playing} onPlaybackStatusUpdate={onPlaybackStatusUpdate}/>
+            {loupeActive && (<react_native_reanimated_1.default.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
+                <react_native_1.View style={styles.loupeMask}>
+                  <expo_av_1.Video source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }} style={[
+                    styles.loupeVideo,
+                    {
+                        transform: [
+                            {
+                                translateX: -(loupeX.value - videoRect.x - videoRect.width / 2) * loupeZoom + LOUPE_DIAMETER / 2
+                            },
+                            {
+                                translateY: -(loupeY.value - videoRect.y - videoRect.height / 2) * loupeZoom + LOUPE_DIAMETER / 2
+                            },
+                            { scale: loupeZoom }
+                        ]
+                    }
+                ]} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.COVER} shouldPlay={playing} isMuted ref={loupeVideoRef} onPlaybackStatusUpdate={undefined}/>
+                  {/* Duplicate Video for magnification — no true pixel sampling with expo-av; upgrade to Skia in a future wave if @shopify/react-native-skia is added */}
+                </react_native_1.View>
+              </react_native_reanimated_1.default.View>)}
+            {loupeActive && (<react_native_1.TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { loupeLastX.current = loupeX.value; loupeLastY.current = loupeY.value; loupeLastZoom.current = loupeZoom; setLoupeActive(false); loupeActiveShared.value = 0; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <react_native_1.Text style={styles.loupeDismissBtnText}>✕</react_native_1.Text>
+              </react_native_1.TouchableOpacity>)}
+          </react_native_1.View>
 
           <react_native_1.TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
             <react_native_1.Text style={styles.closeBtnText}>✕</react_native_1.Text>
@@ -501,7 +607,7 @@ function ClipPlayerScreen() {
             displayClip.bpm != null ||
             displayClip.notes);
     const sectionLabel = section_label ?? null;
-    return (<GestureDetector gesture={panGesture}>
+    return (<GestureDetector gesture={composedGesture}>
       <react_native_1.View style={styles.container}>
         <react_native_1.View style={react_native_1.StyleSheet.absoluteFill} onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
@@ -513,6 +619,28 @@ function ClipPlayerScreen() {
                 return;
             setVideoNaturalSize((prev) => prev?.width === ns.width && prev?.height === ns.height ? prev : { width: ns.width, height: ns.height });
         }}/>
+          {loupeActive && (<react_native_reanimated_1.default.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
+              <react_native_1.View style={styles.loupeMask}>
+                <expo_av_1.Video source={{ uri: `https://stream.mux.com/${clip.mux_playback_id}.m3u8` }} style={[
+                styles.loupeVideo,
+                {
+                    transform: [
+                        {
+                            translateX: -(loupeX.value - videoRect.x - videoRect.width / 2) * loupeZoom + LOUPE_DIAMETER / 2
+                        },
+                        {
+                            translateY: -(loupeY.value - videoRect.y - videoRect.height / 2) * loupeZoom + LOUPE_DIAMETER / 2
+                        },
+                        { scale: loupeZoom }
+                    ]
+                }
+            ]} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.COVER} shouldPlay={playing} isMuted ref={loupeVideoRef} onPlaybackStatusUpdate={undefined}/>
+                {/* Duplicate Video for magnification — no true pixel sampling with expo-av; upgrade to Skia in a future wave if @shopify/react-native-skia is added */}
+              </react_native_1.View>
+            </react_native_reanimated_1.default.View>)}
+          {loupeActive && (<react_native_1.TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { loupeLastX.current = loupeX.value; loupeLastY.current = loupeY.value; loupeLastZoom.current = loupeZoom; setLoupeActive(false); loupeActiveShared.value = 0; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <react_native_1.Text style={styles.loupeDismissBtnText}>✕</react_native_1.Text>
+            </react_native_1.TouchableOpacity>)}
           {annotationMode && frameSize.width > 0 && frameSize.height > 0 && (<AnnotationOverlay_1.AnnotationOverlay annotations={frozenTimecode !== null
                 ? [
                     ...annotations.filter((a) => a.timecode_ms === frozenTimecode),
@@ -743,7 +871,7 @@ const styles = react_native_1.StyleSheet.create({
         fontWeight: '600',
     },
     addTagsText: {
-        color: theme_1.theme.untaggedText,
+        color: theme_1.theme.textSecondary,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -881,6 +1009,42 @@ const styles = react_native_1.StyleSheet.create({
     commentOverlayText: {
         color: theme_1.theme.textSecondary,
         fontSize: 14,
+    },
+    loupeContainer: {
+        position: 'absolute',
+        width: 140,
+        height: 140,
+        top: 0,
+        left: 0,
+        zIndex: 10,
+    },
+    loupeMask: {
+        width: 140,
+        height: 140,
+        borderRadius: 70,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.4)',
+    },
+    loupeVideo: {
+        width: 140,
+        height: 140,
+    },
+    loupeDismissBtn: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        zIndex: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loupeDismissBtnText: {
+        color: '#fff',
+        fontSize: 16,
     },
 });
 //# sourceMappingURL=clip-player.js.map

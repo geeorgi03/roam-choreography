@@ -1,3 +1,8 @@
+export interface ConnectionStatus {
+    isConnected: boolean;
+    hasError: boolean;
+    errorMessage?: string;
+}
 interface GroupParticipant {
     id: string;
     session_id: string;
@@ -25,6 +30,7 @@ export declare function useGroupRealtime(sessionId: string, accessToken: string 
     broadcasts: BroadcastRow[];
     sendBroadcast: (message: string) => Promise<boolean>;
     updatePosition: (x: number, y: number, note?: string) => Promise<void>;
+    connectionStatus: ConnectionStatus;
 };
 export {};
 //# sourceMappingURL=useGroupRealtime.d.ts.map

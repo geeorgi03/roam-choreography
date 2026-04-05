@@ -2,10 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = require("react");
 const react_native_1 = require("react-native");
-const expo_router_1 = require("expo-router");
 const theme_1 = require("../../lib/theme");
 const ClipCard_1 = require("../../components/ClipCard");
 const useSession_1 = require("../../lib/hooks/useSession");
+const ClipViewerSheetStandalone_1 = require("../../components/session/ClipViewerSheetStandalone");
 const api_1 = require("../../lib/api");
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
@@ -19,6 +19,7 @@ function LibraryScreen() {
     const [nextCursor, setNextCursor] = (0, react_1.useState)(null);
     const [loading, setLoading] = (0, react_1.useState)(true);
     const [loadingMore, setLoadingMore] = (0, react_1.useState)(false);
+    const [selectedClip, setSelectedClip] = (0, react_1.useState)(null);
     const [q, setQ] = (0, react_1.useState)('');
     const [debouncedQ, setDebouncedQ] = (0, react_1.useState)('');
     const [filterStyle, setFilterStyle] = (0, react_1.useState)(null);
@@ -26,6 +27,7 @@ function LibraryScreen() {
     const [filterDifficulty, setFilterDifficulty] = (0, react_1.useState)(null);
     const [bpmMin, setBpmMin] = (0, react_1.useState)('');
     const [bpmMax, setBpmMax] = (0, react_1.useState)('');
+    const clipSheetRef = (0, react_1.useRef)(null);
     const debounceTimer = (0, react_1.useRef)(null);
     (0, react_1.useEffect)(() => {
         if (debounceTimer.current)
@@ -132,28 +134,31 @@ function LibraryScreen() {
             notes: clip.notes ?? null,
         };
     };
-    const openPlayer = (clip) => {
-        const id = clip.id;
-        const mux_playback_id = clip.mux_playback_id ?? '';
-        const move_name = clip.move_name ?? '';
-        const style = clip.style ?? '';
-        const energy = clip.energy ?? '';
-        const difficulty = clip.difficulty ?? '';
-        const bpm = clip.bpm;
-        const notes = clip.notes ?? '';
-        expo_router_1.router.push({
-            pathname: '/(app)/session/clip-player',
-            params: {
-                clipId: id,
-                mux_playback_id,
-                move_name,
-                style,
-                energy,
-                difficulty,
-                bpm: bpm != null ? String(bpm) : '',
-                notes,
-            },
-        });
+    const openClipSheet = (clip) => {
+        const clipRow = toClipRow(clip);
+        setSelectedClip(clipRow);
+    };
+    // Trigger snapToIndex after selectedClip is set and sheet is mounted
+    (0, react_1.useEffect)(() => {
+        if (selectedClip && clipSheetRef.current) {
+            // Use a more reliable approach with requestAnimationFrame
+            const openSheet = () => {
+                if (clipSheetRef.current) {
+                    clipSheetRef.current.snapToIndex(0);
+                }
+            };
+            // Try immediately first, then fallback to requestAnimationFrame
+            try {
+                openSheet();
+            }
+            catch {
+                requestAnimationFrame(openSheet);
+            }
+        }
+    }, [selectedClip]);
+    const closeClipViewer = () => {
+        setSelectedClip(null);
+        clipSheetRef.current?.close();
     };
     const anyFilter = !!debouncedQ.trim() ||
         !!filterStyle ||
@@ -217,12 +222,14 @@ function LibraryScreen() {
               <react_native_1.Text style={styles.subtitle}>Start tagging to build your library</react_native_1.Text>
             </react_native_1.View>)} renderItem={({ item }) => {
             const clipRow = toClipRow(item);
-            return (<ClipCard_1.ClipCard clip={clipRow} onPress={() => openPlayer(item)} onLongPress={() => { }}/>);
+            return (<ClipCard_1.ClipCard clip={clipRow} onPress={() => openClipSheet(item)} onLongPress={() => { }}/>);
         }} ListFooterComponent={nextCursor ? (<react_native_1.View style={styles.footer}>
               <react_native_1.TouchableOpacity style={[styles.loadMoreBtn, loadingMore && styles.loadMoreBtnDisabled]} onPress={loadMore} disabled={loadingMore} activeOpacity={0.8}>
                 {loadingMore ? (<react_native_1.ActivityIndicator color={colors.active} size="small"/>) : (<react_native_1.Text style={styles.loadMoreText}>Load more</react_native_1.Text>)}
               </react_native_1.TouchableOpacity>
             </react_native_1.View>) : (<react_native_1.View style={{ height: 24 }}/>)}/>
+      
+      <ClipViewerSheetStandalone_1.ClipViewerSheetStandalone ref={clipSheetRef} clip={selectedClip} onClose={closeClipViewer}/>
     </react_native_1.View>);
 }
 exports.default = LibraryScreen;

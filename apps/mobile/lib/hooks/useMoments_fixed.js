@@ -19,8 +19,6 @@ function useMoments(sessionId) {
         maxAttempts: 5,
         backoffMs: [1000, 2000, 4000, 8000, 16000],
     });
-    const isReconnectingInFlight = (0, react_1.useRef)(false);
-    const reconnectPendingRef = (0, react_1.useRef)(false);
     const channelRef = (0, react_1.useRef)(null);
     const mounted = (0, react_1.useRef)(true);
     const fetchMoments = (0, react_1.useCallback)(async () => {
@@ -73,8 +71,31 @@ function useMoments(sessionId) {
     const removeMoment = (0, react_1.useCallback)((momentId) => {
         setMoments((prev) => prev.filter((m) => m.id !== momentId));
     }, []);
+    const scheduleReconnect = (0, react_1.useCallback)(() => {
+        const { attempts, maxAttempts, backoffMs: backoffIntervals } = reconnectStateRef.current;
+        if (attempts >= maxAttempts) {
+            setConnectionStatus({
+                isConnected: false,
+                hasError: true,
+                errorMessage: 'Connection failed. Please check your network and try again.',
+            });
+            return;
+        }
+        const backoffDelay = backoffIntervals[attempts];
+        reconnectStateRef.current.attempts++;
+        setConnectionStatus({
+            isConnected: false,
+            hasError: false,
+            errorMessage: `Reconnecting... (${attempts + 1}/${maxAttempts})`,
+        });
+        reconnectTimeoutRef.current = setTimeout(() => {
+            if (mounted.current) {
+                subscribeToChannel();
+            }
+        }, backoffDelay);
+    }, []);
     const subscribeToChannel = (0, react_1.useCallback)(() => {
-        if (!sessionId || !supabase_1.supabase)
+        if (!supabase_1.supabase || !mounted.current || !sessionId)
             return;
         // Clean up existing channel
         if (channelRef.current) {
@@ -88,6 +109,8 @@ function useMoments(sessionId) {
             table: 'moments',
             filter: `session_id=eq.${sessionId}`,
         }, (payload) => {
+            if (!mounted.current)
+                return;
             mergeMoment(payload.new);
         })
             .on('postgres_changes', {
@@ -96,6 +119,8 @@ function useMoments(sessionId) {
             table: 'moments',
             filter: `session_id=eq.${sessionId}`,
         }, (payload) => {
+            if (!mounted.current)
+                return;
             mergeMoment(payload.new);
         })
             .on('postgres_changes', {
@@ -104,70 +129,33 @@ function useMoments(sessionId) {
             table: 'moments',
             filter: `session_id=eq.${sessionId}`,
         }, (payload) => {
+            if (!mounted.current)
+                return;
             removeMoment(payload.old.id ?? '');
         })
             .subscribe((status) => {
+            if (!mounted.current)
+                return;
             if (status === 'SUBSCRIBED') {
                 setConnectionStatus({ isConnected: true, hasError: false });
                 reconnectStateRef.current.attempts = 0;
-                isReconnectingInFlight.current = false;
-                reconnectPendingRef.current = false;
-                if (reconnectTimeoutRef.current) {
-                    clearTimeout(reconnectTimeoutRef.current);
-                    reconnectTimeoutRef.current = null;
-                }
                 fetchMoments();
             }
             else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                 scheduleReconnect();
             }
         });
-    }, [sessionId, mergeMoment, removeMoment, fetchMoments]);
-    const scheduleReconnect = (0, react_1.useCallback)(() => {
-        if (!mounted.current || isReconnectingInFlight.current || reconnectPendingRef.current)
-            return;
-        // Clear any existing timeout
-        if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-            reconnectTimeoutRef.current = null;
-        }
-        const { attempts, maxAttempts } = reconnectStateRef.current;
-        const backoffSequence = reconnectStateRef.current.backoffMs;
-        if (attempts >= maxAttempts) {
-            setConnectionStatus({
-                isConnected: false,
-                hasError: true,
-                errorMessage: 'Connection failed. Please check your network and try again.',
-            });
-            return;
-        }
-        const backoffDelay = backoffSequence[attempts];
-        reconnectStateRef.current.attempts++;
-        isReconnectingInFlight.current = true;
-        reconnectPendingRef.current = true;
-        setConnectionStatus({
-            isConnected: false,
-            hasError: false,
-            errorMessage: `Reconnecting... (${attempts + 1}/${maxAttempts})`,
-        });
-        reconnectTimeoutRef.current = setTimeout(() => {
-            if (!mounted.current)
-                return;
-            isReconnectingInFlight.current = false;
-            reconnectPendingRef.current = false;
-            subscribeToChannel();
-        }, backoffDelay);
-    }, [subscribeToChannel]);
+    }, [sessionId, mergeMoment, removeMoment, fetchMoments, scheduleReconnect]);
     (0, react_1.useEffect)(() => {
         fetchMoments().catch(() => { });
     }, [fetchMoments]);
     (0, react_1.useEffect)(() => {
+        if (!sessionId)
+            return;
         mounted.current = true;
         subscribeToChannel();
         return () => {
             mounted.current = false;
-            isReconnectingInFlight.current = false;
-            reconnectPendingRef.current = false;
             if (reconnectTimeoutRef.current) {
                 clearTimeout(reconnectTimeoutRef.current);
                 reconnectTimeoutRef.current = null;
@@ -176,7 +164,7 @@ function useMoments(sessionId) {
                 supabase_1.supabase?.removeChannel(channelRef.current);
             }
         };
-    }, [subscribeToChannel]);
+    }, [sessionId, subscribeToChannel]);
     const createMoment = (0, react_1.useCallback)(async (name, beatPositionMs) => {
         if (!sessionId)
             return null;
@@ -257,33 +245,6 @@ function useMoments(sessionId) {
             setMoments((p) => p.map((m) => (m.id === momentId ? { ...m, name: prevName ?? m.name } : m)));
         }
     }, [sessionId, moments, token]);
-    const deleteMoment = (0, react_1.useCallback)(async (momentId) => {
-        if (!sessionId)
-            return false;
-        const prevMoment = moments.find((m) => m.id === momentId);
-        removeMoment(momentId);
-        try {
-            if (!token)
-                throw new Error('Not signed in');
-            const headers = { Authorization: `Bearer ${token}` };
-            const res = await fetch(`${api_1.API_BASE}/sessions/${sessionId}/moments/${momentId}`, {
-                method: 'DELETE',
-                headers,
-            });
-            if (!res.ok)
-                throw new Error('Failed to delete moment');
-            return true;
-        }
-        catch {
-            if (prevMoment) {
-                setMoments((prev) => {
-                    const idx = prev.findIndex((m) => m.position > prevMoment.position);
-                    return idx === -1 ? [...prev, prevMoment] : [...prev.slice(0, idx), prevMoment, ...prev.slice(idx)];
-                });
-            }
-            return false;
-        }
-    }, [sessionId, moments, token, removeMoment]);
     const updateFormation = (0, react_1.useCallback)(async (momentId, formation) => {
         if (!sessionId)
             return;
@@ -342,7 +303,6 @@ function useMoments(sessionId) {
         connectionStatus,
         createMoment,
         renameMoment,
-        deleteMoment,
         updateFormation,
         updateQuality,
         mergeMoment,
@@ -350,4 +310,4 @@ function useMoments(sessionId) {
     };
 }
 exports.default = useMoments;
-//# sourceMappingURL=useMoments.js.map
+//# sourceMappingURL=useMoments_fixed.js.map

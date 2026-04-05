@@ -160,7 +160,7 @@ app.get('/', async (c) => {
   const userId = c.get('userId');
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, user_id, name, created_at')
+    .select('id, user_id, name, phrase, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -192,7 +192,7 @@ app.post('/', checkSessionLimit, async (c) => {
   const { data, error } = await supabase
     .from('sessions')
     .insert({ user_id: userId, name })
-    .select('id, user_id, name, created_at')
+    .select('id, user_id, name, phrase, created_at')
     .single();
 
   if (error) {
@@ -251,8 +251,8 @@ app.patch('/:id', async (c) => {
   }
 
   if (body.phrase !== undefined) {
-    if (typeof body.phrase !== 'string') {
-      return c.json({ error: 'phrase must be a string' }, 400);
+    if (typeof body.phrase !== 'string' && body.phrase !== null) {
+      return c.json({ error: 'phrase must be a string or null' }, 400);
     }
   }
 
@@ -275,7 +275,7 @@ app.patch('/:id', async (c) => {
 
   const updates: Record<string, unknown> = {};
   if (body.name !== undefined) updates.name = body.name.trim();
-  if (body.phrase !== undefined) updates.phrase = body.phrase.trim() || null;
+  if (body.phrase !== undefined) updates.phrase = body.phrase === null ? null : (body.phrase as string).trim() || null;
 
   const { data, error } = await supabase
     .from('sessions')

@@ -51,3 +51,4 @@ All entries below are explicitly tagged as: **Needs implementation in V3 app**.
 - Figma file contains 13 pages; `v3-locked` is only one page among them.
 - `Implemented` is intentionally strict and currently empty.
 - Some features are present via adjacent routes but not yet in frame-accurate page structures.
+- **Ref viewer = session media viewer (one surface):** Figma `ref-viewer` comps and the in-app viewer implement **one** playback/review pattern for both **REF** (tutorial / URL) and **MINE** (own clips). Differentiate with a **source variant** (badge, label, or secondary actions), not a second full layout. Platform-specific rules (e.g. embed vs deep-link) still apply per source type.

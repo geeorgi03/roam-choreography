@@ -30,7 +30,7 @@ const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const theme_1 = require("../../lib/theme");
 const colors = theme_1.theme.light;
 function SongMapTab() {
-    const { sessionName, setActiveTab, activeMoment, setActiveMoment, activeSection, setActiveSection, musicTrack, sectionClips, moments, createMoment, renameMoment, playheadMs, } = (0, SessionContext_1.useSessionContext)();
+    const { sessionName, setActiveTab, activeMoment, setActiveMoment, activeSection, setActiveSection, musicTrack, sectionClips, moments, createMoment, renameMoment, deleteMoment, playheadMs, momentsConnectionStatus, } = (0, SessionContext_1.useSessionContext)();
     const [renamingMomentId, setRenamingMomentId] = (0, react_1.useState)(null);
     const [canvasSize, setCanvasSize] = (0, react_1.useState)({ width: 0, height: 0 });
     // Get sections from musicTrack or use placeholders
@@ -50,7 +50,21 @@ function SongMapTab() {
         setActiveMoment(momentId);
     };
     const handleMomentLongPress = (momentId) => {
-        setRenamingMomentId(momentId);
+        const moment = moments.find(m => m.id === momentId);
+        if (!moment)
+            return;
+        react_native_1.Alert.alert(moment.name, undefined, [
+            { text: 'Rename', onPress: () => setRenamingMomentId(momentId) },
+            { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
+            { text: 'Cancel', style: 'cancel' },
+        ]);
+    };
+    const handleDeleteMoment = async (momentId) => {
+        const success = await deleteMoment(momentId);
+        if (success && activeMoment === momentId) {
+            const remaining = moments.filter(m => m.id !== momentId);
+            setActiveMoment(remaining[0]?.id ?? null);
+        }
     };
     const handleRenameMoment = async (newLabel) => {
         if (!renamingMomentId)
@@ -97,6 +111,10 @@ function SongMapTab() {
           </react_native_1.TouchableOpacity>
         </react_native_1.View>
       </react_native_1.View>
+
+      {momentsConnectionStatus.hasError && (<react_native_1.View style={styles.connectionErrorBanner}>
+          <react_native_1.Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</react_native_1.Text>
+        </react_native_1.View>)}
 
       <react_native_1.View style={styles.middleRow}>
         {/* Canvas zone */}
@@ -412,6 +430,19 @@ const styles = react_native_1.StyleSheet.create({
     },
     sectionCountActive: {
         color: colors.active,
+    },
+    connectionErrorBanner: {
+        backgroundColor: '#fee2e2',
+        borderBottomWidth: 0.5,
+        borderBottomColor: '#fca5a5',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+    },
+    connectionErrorText: {
+        fontSize: 12,
+        color: '#dc2626',
+        textAlign: 'center',
+        fontFamily: 'JetBrainsMono',
     },
 });
 //# sourceMappingURL=SongMapTab.js.map

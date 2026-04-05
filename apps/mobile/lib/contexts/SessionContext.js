@@ -41,6 +41,7 @@ const SessionContext = (0, react_1.createContext)(null);
 function SessionProvider({ sessionId, children }) {
     // State
     const [sessionName, setSessionName] = (0, react_1.useState)('Session');
+    const [sessionPhrase, setSessionPhrase] = (0, react_1.useState)(null);
     const [activeTab, setActiveTab] = (0, react_1.useState)('workbench');
     const [activeSection, setActiveSection] = (0, react_1.useState)('Section');
     const [activeMoment, setActiveMoment] = (0, react_1.useState)(null);
@@ -63,7 +64,7 @@ function SessionProvider({ sessionId, children }) {
     const { clips, retryClip } = (0, useClips_1.useClips)(sessionId);
     const { musicTrack, isAnalysing } = (0, useMusicTrackStatus_1.useMusicTrackStatus)(sessionId);
     const { notes, createNote, deleteNote } = (0, useNotePins_1.useNotePins)(sessionId);
-    const { moments, isLoading: isLoadingMoments, createMoment, renameMoment, mergeMoment, removeMoment, updateFormation, updateQuality, } = (0, useMoments_1.default)(sessionId);
+    const { moments, isLoading: isLoadingMoments, connectionStatus: momentsConnectionStatus, createMoment, renameMoment, deleteMoment, mergeMoment, removeMoment, updateFormation, updateQuality, } = (0, useMoments_1.default)(sessionId);
     const { count: inboxCount, refreshCount } = (0, useInbox_1.useInbox)();
     const { session } = (0, useSession_1.useSession)();
     // Effects from original session file
@@ -79,8 +80,11 @@ function SessionProvider({ sessionId, children }) {
                     return;
                 const data = await res.json();
                 const name = data.session?.name;
+                const phrase = data.session?.phrase;
                 if (name)
                     setSessionName(name);
+                if (phrase !== undefined)
+                    setSessionPhrase(phrase ?? null);
             }
             catch {
                 // ignore
@@ -273,10 +277,50 @@ function SessionProvider({ sessionId, children }) {
         closeSheet();
         setActiveTab('song-map');
     }, [activeMoment, moments, closeSheet, setActiveTab]);
+    const updateSessionMeta = (0, react_1.useCallback)(async (meta) => {
+        if (!sessionId || !session?.access_token)
+            return;
+        const snapshotName = sessionName;
+        const snapshotPhrase = sessionPhrase;
+        if (meta.name !== undefined) {
+            setSessionName(meta.name.trim());
+        }
+        if (meta.phrase !== undefined) {
+            setSessionPhrase(meta.phrase.trim() || null);
+        }
+        try {
+            const res = await fetch(`${api_1.API_BASE}/sessions/${sessionId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify(meta),
+            });
+            if (!res.ok) {
+                setSessionName(snapshotName);
+                setSessionPhrase(snapshotPhrase);
+                return;
+            }
+            const data = await res.json();
+            const updatedName = 'name' in data ? data.name : data.session?.name;
+            const updatedPhrase = 'phrase' in data ? data.phrase : data.session?.phrase;
+            if (updatedName !== undefined)
+                setSessionName(updatedName);
+            if (updatedPhrase !== undefined)
+                setSessionPhrase(updatedPhrase ?? null);
+        }
+        catch (error) {
+            setSessionName(snapshotName);
+            setSessionPhrase(snapshotPhrase);
+        }
+    }, [sessionId, session?.access_token, sessionName, sessionPhrase]);
     const value = {
         sessionId,
         sessionName,
+        sessionPhrase,
         setSessionName,
+        updateSessionMeta,
         activeTab,
         setActiveTab,
         activeSection,
@@ -318,8 +362,10 @@ function SessionProvider({ sessionId, children }) {
         refreshCount,
         moments,
         isLoadingMoments,
+        momentsConnectionStatus,
         createMoment,
         renameMoment,
+        deleteMoment,
         mergeMoment,
         removeMoment,
         updateFormation,

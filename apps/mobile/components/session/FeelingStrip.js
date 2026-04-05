@@ -30,16 +30,37 @@ const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const theme_1 = require("../../lib/theme");
 const colors = theme_1.theme.light;
 function FeelingStrip() {
-    const { sessionName, openSheet } = (0, SessionContext_1.useSessionContext)();
+    const { sessionName, sessionPhrase, updateSessionMeta, openSheet } = (0, SessionContext_1.useSessionContext)();
     const [phrase, setPhrase] = (0, react_1.useState)('');
     const [phraseEditing, setPhraseEditing] = (0, react_1.useState)(false);
+    const [nameEditing, setNameEditing] = (0, react_1.useState)(false);
+    const [name, setName] = (0, react_1.useState)('');
+    // Sync with context values
+    (0, react_1.useEffect)(() => {
+        setPhrase(sessionPhrase || '');
+    }, [sessionPhrase]);
+    (0, react_1.useEffect)(() => {
+        setName(sessionName);
+    }, [sessionName]);
+    const handlePhraseBlur = async () => {
+        setPhraseEditing(false);
+        await updateSessionMeta({ phrase: phrase.trim() || null });
+    };
+    const handleNameBlur = async () => {
+        setNameEditing(false);
+        await updateSessionMeta({ name: name.trim() || 'Session' });
+    };
     return (<react_native_1.View style={styles.container}>
       <react_native_1.View style={styles.textContent}>
-        <react_native_1.Text style={styles.sessionName} numberOfLines={1}>
-          {sessionName}
-        </react_native_1.Text>
         <react_native_1.View>
-          {phraseEditing ? (<react_native_1.TextInput style={styles.phrase} value={phrase} onChangeText={setPhrase} onBlur={() => setPhraseEditing(false)} autoFocus placeholder="add a feeling phrase..." placeholderTextColor={colors.muted}/>) : (<react_native_1.TouchableOpacity activeOpacity={0.8} onPress={() => setPhraseEditing(true)}>
+          {nameEditing ? (<react_native_1.TextInput style={styles.sessionName} value={name} onChangeText={setName} onBlur={handleNameBlur} autoFocus placeholder='Session name...' placeholderTextColor={colors.muted}/>) : (<react_native_1.TouchableOpacity activeOpacity={0.8} onPress={() => setNameEditing(true)}>
+              <react_native_1.Text style={styles.sessionName} numberOfLines={1}>
+                {name || 'Session'}
+              </react_native_1.Text>
+            </react_native_1.TouchableOpacity>)}
+        </react_native_1.View>
+        <react_native_1.View>
+          {phraseEditing ? (<react_native_1.TextInput style={styles.phrase} value={phrase} onChangeText={setPhrase} onBlur={handlePhraseBlur} autoFocus placeholder='add a feeling phrase...' placeholderTextColor={colors.muted}/>) : (<react_native_1.TouchableOpacity activeOpacity={0.8} onPress={() => setPhraseEditing(true)}>
               <react_native_1.Text style={styles.phrase} numberOfLines={1}>
                 {phrase || 'add a feeling phrase…'}
               </react_native_1.Text>
