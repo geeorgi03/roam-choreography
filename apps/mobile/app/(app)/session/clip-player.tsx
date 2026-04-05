@@ -144,7 +144,7 @@ export default function ClipPlayerScreen() {
   const loupeX = useSharedValue(0);
   const loupeY = useSharedValue(0);
   const loupeActiveShared = useSharedValue(0); // 0 = inactive, 1 = active
-  const loupeZoomShared = useSharedValue(loupeZoom); // Sync with React state
+  const loupeZoomShared = useSharedValue(2.5);
   const loupeLastX = useRef(0);
   const loupeLastY = useRef(0);
   const loupeLastZoom = useRef(0);
@@ -389,7 +389,7 @@ export default function ClipPlayerScreen() {
   });
 
   // Rename existing panGesture to singleFingerPan
-  const singleFingerPan = Gesture.Pan().onEnd((e) => {
+  const singleFingerPan = Gesture.Pan().onEnd((e: GestureEvent) => {
     const { translationX, translationY } = e;
     if (Math.abs(translationY) > 80 && translationY > 0) {
       router.back();
@@ -408,39 +408,15 @@ export default function ClipPlayerScreen() {
   });
 
   const pinchGesture = Gesture.Pinch()
-    .onStart((e) => {
-      // Initialize position but don't activate yet
-      loupeX.value = e.focalX ?? 0;
-      loupeY.value = e.focalY ?? 0;
-      loupeLastX.current = e.focalX ?? 0;
-      loupeLastY.current = e.focalY ?? 0;
-    })
-    .onUpdate((e) => {
-      const scale = e.scale ?? 1;
-      const focalX = e.focalX ?? 0;
-      const focalY = e.focalY ?? 0;
-      
-      // Activate first time scale >= 2
-      if (loupeActiveShared.value === 0 && scale >= 2) {
-        loupeX.value = focalX;
-        loupeY.value = focalY;
-        loupeLastX.current = focalX;
-        loupeLastY.current = focalY;
-        const clamped = Math.min(3, Math.max(2, scale));
-        activateLoupe(clamped, focalX, focalY);
-        loupeActiveShared.value = 1;
-        return;
-      }
-      
-      // Update zoom if already active
-      if (loupeActiveShared.value === 1) {
-        const clamped = Math.min(3, Math.max(2, scale));
-        updateLoupeZoom(clamped);
-      }
+    .onUpdate((e: GestureEvent) => {
+      const clamped = Math.min(3, Math.max(2, e.scale ?? 1));
+      loupeZoomShared.value = clamped;
+      updateLoupeZoom(clamped);
     });
 
   const twoFingerPan = Gesture.Pan().minPointers(2)
-    .onUpdate((e) => {
+    .onUpdate((e: GestureEvent) => {
+      if (loupeActiveShared.value !== 1) return;
       loupeX.value = loupeLastX.current + e.translationX;
       loupeY.value = loupeLastY.current + e.translationY;
     })
@@ -837,7 +813,7 @@ export default function ClipPlayerScreen() {
             </TouchableOpacity>
           )}
           {!loupeActive && loupeLastZoom.current > 0 && (
-            <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { loupeX.value = loupeLastX.current; loupeY.value = loupeLastY.current; setLoupeZoom(loupeLastZoom.current); setLoupeActive(true); loupeActiveShared.value = 1; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { loupeX.value = loupeLastX.current; loupeY.value = loupeLastY.current; setLoupeZoom(loupeLastZoom.current); loupeZoomShared.value = loupeLastZoom.current; setLoupeActive(true); loupeActiveShared.value = 1; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.loupeRestoreBtnText}>⊕</Text>
             </TouchableOpacity>
           )}
@@ -1337,7 +1313,7 @@ const styles = StyleSheet.create({
   loupeDismissBtn: {
     position: 'absolute',
     top: 8,
-    right: 72,
+    right: 8,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -1353,7 +1329,7 @@ const styles = StyleSheet.create({
   loupeRestoreBtn: {
     position: 'absolute',
     top: 8,
-    right: 72,
+    right: 8,
     width: 56,
     height: 56,
     borderRadius: 28,

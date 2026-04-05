@@ -35,10 +35,19 @@ const react_native_toast_message_1 = __importDefault(require("react-native-toast
 const react_native_reanimated_1 = __importStar(require("react-native-reanimated"));
 // Lazy require: a native-module init failure must not prevent route discovery
 let GestureDetector = ({ children }) => <>{children}</>;
+const createChainableGesture = () => {
+    const gesture = {
+        onStart: () => gesture,
+        onUpdate: () => gesture,
+        onEnd: () => gesture,
+        minPointers: () => gesture,
+    };
+    return gesture;
+};
 let Gesture = {
-    Pan: () => ({ onEnd: () => ({}), onUpdate: () => ({}), minPointers: () => ({}) }),
-    Pinch: () => ({ onStart: () => ({}), onUpdate: () => ({}) }),
-    Simultaneous: (..._) => ({}),
+    Pan: createChainableGesture,
+    Pinch: createChainableGesture,
+    Simultaneous: (..._) => createChainableGesture(),
 };
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -89,6 +98,8 @@ function ClipPlayerScreen() {
     const loupeX = (0, react_native_reanimated_1.useSharedValue)(0);
     const loupeY = (0, react_native_reanimated_1.useSharedValue)(0);
     const loupeActiveShared = (0, react_native_reanimated_1.useSharedValue)(0); // 0 = inactive, 1 = active
+    const loupeActivatedThisGesture = (0, react_native_reanimated_1.useSharedValue)(0); // 0 = not activated, 1 = activated this gesture
+    const loupeZoomShared = (0, react_native_reanimated_1.useSharedValue)(2.5);
     const loupeLastX = (0, react_1.useRef)(0);
     const loupeLastY = (0, react_1.useRef)(0);
     const loupeLastZoom = (0, react_1.useRef)(0);
@@ -98,6 +109,14 @@ function ClipPlayerScreen() {
         transform: [
             { translateX: loupeX.value - LOUPE_DIAMETER / 2 },
             { translateY: loupeY.value - LOUPE_DIAMETER / 2 },
+        ],
+    }));
+    // Animated style for loupe video transform
+    const loupeVideoAnimatedStyle = (0, react_native_reanimated_1.useAnimatedStyle)(() => ({
+        transform: [
+            { scale: loupeZoomShared.value },
+            { translateX: -(loupeX.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
+            { translateY: -(loupeY.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
         ],
     }));
     const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
@@ -238,6 +257,9 @@ function ClipPlayerScreen() {
     (0, react_1.useEffect)(() => {
         setLoupeActive(false);
         loupeActiveShared.value = 0;
+        loupeLastZoom.current = 0;
+        loupeLastX.current = 0;
+        loupeLastY.current = 0;
     }, [currentIndex]);
     const onPlaybackStatusUpdate = (status) => {
         if (!status.isLoaded)
@@ -306,6 +328,7 @@ function ClipPlayerScreen() {
     // JS-thread helpers for gesture callbacks
     const activateLoupe = (0, react_native_reanimated_1.runOnJS)((zoom, x, y) => {
         setLoupeZoom(zoom);
+        loupeZoomShared.value = zoom;
         setLoupeActive(true);
         loupeLastZoom.current = zoom;
         loupeLastX.current = x;
@@ -313,6 +336,7 @@ function ClipPlayerScreen() {
     });
     const updateLoupeZoom = (0, react_native_reanimated_1.runOnJS)((zoom) => {
         setLoupeZoom(zoom);
+        loupeZoomShared.value = zoom;
         loupeLastZoom.current = zoom;
     });
     // Rename existing panGesture to singleFingerPan
@@ -336,25 +360,27 @@ function ClipPlayerScreen() {
         }
     });
     const pinchGesture = Gesture.Pinch()
-        .onStart((e) => {
-        // Initialize position but don't activate yet
-        loupeX.value = e.focalX;
-        loupeY.value = e.focalY;
+        .onStart((_e) => {
+        loupeActivatedThisGesture.value = 0;
     })
         .onUpdate((e) => {
-        if (loupeActiveShared.value === 0 && e.scale >= 2) {
-            // First time reaching threshold - activate
-            const clamped = Math.min(3, Math.max(2, e.scale));
-            activateLoupe(clamped, e.focalX, e.focalY);
+        const clamped = Math.min(3, Math.max(2, e.scale ?? 1));
+        if ((e.scale ?? 1) >= 2 && loupeActivatedThisGesture.value === 0) {
+            loupeActivatedThisGesture.value = 1;
+            loupeX.value = e.focalX ?? loupeX.value;
+            loupeY.value = e.focalY ?? loupeY.value;
             loupeActiveShared.value = 1;
+            (0, react_native_reanimated_1.runOnJS)(activateLoupe)(clamped, e.focalX ?? loupeX.value, e.focalY ?? loupeY.value);
         }
-        else if (loupeActiveShared.value === 1) {
-            // Already active - update zoom
-            updateLoupeZoom(Math.min(3, Math.max(2, e.scale)));
+        else if (loupeActivatedThisGesture.value === 1) {
+            loupeZoomShared.value = clamped;
+            (0, react_native_reanimated_1.runOnJS)(updateLoupeZoom)(clamped);
         }
     });
     const twoFingerPan = Gesture.Pan().minPointers(2)
         .onUpdate((e) => {
+        if (loupeActiveShared.value !== 1)
+            return;
         loupeX.value = loupeLastX.current + e.translationX;
         loupeY.value = loupeLastY.current + e.translationY;
     })
@@ -362,8 +388,10 @@ function ClipPlayerScreen() {
         loupeLastX.current = loupeX.value;
         loupeLastY.current = loupeY.value;
     });
-    // Compose all gestures
-    const composedGesture = Gesture.Simultaneous(singleFingerPan, Gesture.Simultaneous(pinchGesture, twoFingerPan));
+    // Compose navigation gesture (single finger only)
+    const composedGesture = Gesture.Simultaneous(singleFingerPan);
+    // Compose loupe gestures (pinch and two-finger pan)
+    const loupeGesture = Gesture.Simultaneous(pinchGesture, twoFingerPan);
     const handleTagSaved = (updatedClip) => {
         setDisplayClip(updatedClip);
     };
@@ -522,31 +550,23 @@ function ClipPlayerScreen() {
             !!libraryNotes;
         return (<GestureDetector gesture={composedGesture}>
         <react_native_1.View style={styles.container}>
-          <react_native_1.View style={react_native_1.StyleSheet.absoluteFill}>
-            <expo_av_1.Video key={mux_playback_id} ref={videoRef} source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }} style={react_native_1.StyleSheet.absoluteFill} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.CONTAIN} shouldPlay={playing} onPlaybackStatusUpdate={onPlaybackStatusUpdate}/>
+          <GestureDetector gesture={loupeGesture}>
+            <react_native_1.View style={react_native_1.StyleSheet.absoluteFill}>
+              <expo_av_1.Video key={mux_playback_id} ref={videoRef} source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }} style={react_native_1.StyleSheet.absoluteFill} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.CONTAIN} shouldPlay={playing} onPlaybackStatusUpdate={onPlaybackStatusUpdate}/>
             {loupeActive && (<react_native_reanimated_1.default.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
                 <react_native_1.View style={styles.loupeMask}>
-                  <expo_av_1.Video source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }} style={[
-                    styles.loupeVideo,
-                    {
-                        transform: [
-                            {
-                                translateX: -(loupeX.value - videoRect.x - videoRect.width / 2) * loupeZoom + LOUPE_DIAMETER / 2
-                            },
-                            {
-                                translateY: -(loupeY.value - videoRect.y - videoRect.height / 2) * loupeZoom + LOUPE_DIAMETER / 2
-                            },
-                            { scale: loupeZoom }
-                        ]
-                    }
-                ]} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.COVER} shouldPlay={playing} isMuted ref={loupeVideoRef} onPlaybackStatusUpdate={undefined}/>
+                  <expo_av_1.Video source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }} style={[styles.loupeVideo, loupeVideoAnimatedStyle]} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.COVER} shouldPlay={playing} isMuted ref={loupeVideoRef} onPlaybackStatusUpdate={undefined}/>
                   {/* Duplicate Video for magnification — no true pixel sampling with expo-av; upgrade to Skia in a future wave if @shopify/react-native-skia is added */}
                 </react_native_1.View>
               </react_native_reanimated_1.default.View>)}
             {loupeActive && (<react_native_1.TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { loupeLastX.current = loupeX.value; loupeLastY.current = loupeY.value; loupeLastZoom.current = loupeZoom; setLoupeActive(false); loupeActiveShared.value = 0; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <react_native_1.Text style={styles.loupeDismissBtnText}>✕</react_native_1.Text>
               </react_native_1.TouchableOpacity>)}
+            {!loupeActive && loupeLastZoom.current > 0 && (<react_native_1.TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { loupeX.value = loupeLastX.current; loupeY.value = loupeLastY.current; setLoupeZoom(loupeLastZoom.current); loupeZoomShared.value = loupeLastZoom.current; setLoupeActive(true); loupeActiveShared.value = 1; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <react_native_1.Text style={styles.loupeRestoreBtnText}>⊕</react_native_1.Text>
+              </react_native_1.TouchableOpacity>)}
           </react_native_1.View>
+          </GestureDetector>
 
           <react_native_1.TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
             <react_native_1.Text style={styles.closeBtnText}>✕</react_native_1.Text>
@@ -609,7 +629,8 @@ function ClipPlayerScreen() {
     const sectionLabel = section_label ?? null;
     return (<GestureDetector gesture={composedGesture}>
       <react_native_1.View style={styles.container}>
-        <react_native_1.View style={react_native_1.StyleSheet.absoluteFill} onLayout={(e) => {
+        <GestureDetector gesture={loupeGesture}>
+          <react_native_1.View style={react_native_1.StyleSheet.absoluteFill} onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
             setFrameSize((prev) => (prev.width !== width || prev.height !== height ? { width, height } : prev));
         }}>
@@ -621,25 +642,15 @@ function ClipPlayerScreen() {
         }}/>
           {loupeActive && (<react_native_reanimated_1.default.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
               <react_native_1.View style={styles.loupeMask}>
-                <expo_av_1.Video source={{ uri: `https://stream.mux.com/${clip.mux_playback_id}.m3u8` }} style={[
-                styles.loupeVideo,
-                {
-                    transform: [
-                        {
-                            translateX: -(loupeX.value - videoRect.x - videoRect.width / 2) * loupeZoom + LOUPE_DIAMETER / 2
-                        },
-                        {
-                            translateY: -(loupeY.value - videoRect.y - videoRect.height / 2) * loupeZoom + LOUPE_DIAMETER / 2
-                        },
-                        { scale: loupeZoom }
-                    ]
-                }
-            ]} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.COVER} shouldPlay={playing} isMuted ref={loupeVideoRef} onPlaybackStatusUpdate={undefined}/>
+                <expo_av_1.Video source={{ uri: `https://stream.mux.com/${clip.mux_playback_id}.m3u8` }} style={[styles.loupeVideo, loupeVideoAnimatedStyle]} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.COVER} shouldPlay={playing} isMuted ref={loupeVideoRef} onPlaybackStatusUpdate={undefined}/>
                 {/* Duplicate Video for magnification — no true pixel sampling with expo-av; upgrade to Skia in a future wave if @shopify/react-native-skia is added */}
               </react_native_1.View>
             </react_native_reanimated_1.default.View>)}
           {loupeActive && (<react_native_1.TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { loupeLastX.current = loupeX.value; loupeLastY.current = loupeY.value; loupeLastZoom.current = loupeZoom; setLoupeActive(false); loupeActiveShared.value = 0; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <react_native_1.Text style={styles.loupeDismissBtnText}>✕</react_native_1.Text>
+            </react_native_1.TouchableOpacity>)}
+          {!loupeActive && loupeLastZoom.current > 0 && (<react_native_1.TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { loupeX.value = loupeLastX.current; loupeY.value = loupeLastY.current; setLoupeZoom(loupeLastZoom.current); loupeZoomShared.value = loupeLastZoom.current; setLoupeActive(true); loupeActiveShared.value = 1; }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <react_native_1.Text style={styles.loupeRestoreBtnText}>⊕</react_native_1.Text>
             </react_native_1.TouchableOpacity>)}
           {annotationMode && frameSize.width > 0 && frameSize.height > 0 && (<AnnotationOverlay_1.AnnotationOverlay annotations={frozenTimecode !== null
                 ? [
@@ -667,6 +678,7 @@ function ClipPlayerScreen() {
                     })),
                 ]} containerWidth={frameSize.width} containerHeight={frameSize.height} videoRect={videoRect} activeTool={activeTool} onPlaceText={handlePlaceText} onPlaceArrow={handlePlaceArrow} onPlaceCircle={handlePlaceCircle}/>)}
         </react_native_1.View>
+        </GestureDetector>
 
         <react_native_1.TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <react_native_1.Text style={styles.closeBtnText}>✕</react_native_1.Text>
@@ -1045,6 +1057,22 @@ const styles = react_native_1.StyleSheet.create({
     loupeDismissBtnText: {
         color: '#fff',
         fontSize: 16,
+    },
+    loupeRestoreBtn: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: 'rgba(125,185,168,0.3)',
+        zIndex: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loupeRestoreBtnText: {
+        color: '#fff',
+        fontSize: 20,
     },
 });
 //# sourceMappingURL=clip-player.js.map
