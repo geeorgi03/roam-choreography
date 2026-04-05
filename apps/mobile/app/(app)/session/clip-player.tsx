@@ -143,8 +143,8 @@ export default function ClipPlayerScreen() {
   const [loupeZoom, setLoupeZoom] = useState(2.5);
   const loupeX = useSharedValue(0);
   const loupeY = useSharedValue(0);
-  const loupeZoomShared = useSharedValue(2.5);
   const loupeActiveShared = useSharedValue(0); // 0 = inactive, 1 = active
+  const loupeZoomShared = useSharedValue(loupeZoom); // Sync with React state
   const loupeLastX = useRef(0);
   const loupeLastY = useRef(0);
   const loupeLastZoom = useRef(0);
@@ -155,6 +155,15 @@ export default function ClipPlayerScreen() {
     transform: [
       { translateX: loupeX.value - LOUPE_DIAMETER / 2 },
       { translateY: loupeY.value - LOUPE_DIAMETER / 2 },
+    ],
+  }));
+
+  // Animated style for loupe video transform
+  const loupeVideoAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: loupeZoomShared.value },
+      { translateX: -(loupeX.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
+      { translateY: -(loupeY.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
     ],
   }));
 
@@ -367,6 +376,7 @@ export default function ClipPlayerScreen() {
   // JS-thread helpers for gesture callbacks
   const activateLoupe = runOnJS((zoom: number, x: number, y: number) => {
     setLoupeZoom(zoom);
+    loupeZoomShared.value = zoom;
     setLoupeActive(true);
     loupeLastZoom.current = zoom;
     loupeLastX.current = x;
@@ -374,6 +384,7 @@ export default function ClipPlayerScreen() {
   });
   const updateLoupeZoom = runOnJS((zoom: number) => {
     setLoupeZoom(zoom);
+    loupeZoomShared.value = zoom;
     loupeLastZoom.current = zoom;
   });
 
@@ -399,21 +410,32 @@ export default function ClipPlayerScreen() {
   const pinchGesture = Gesture.Pinch()
     .onStart((e) => {
       // Initialize position but don't activate yet
-      loupeX.value = e.focalX;
-      loupeY.value = e.focalY;
-      loupeLastX.current = e.focalX;
-      loupeLastY.current = e.focalY;
+      loupeX.value = e.focalX ?? 0;
+      loupeY.value = e.focalY ?? 0;
+      loupeLastX.current = e.focalX ?? 0;
+      loupeLastY.current = e.focalY ?? 0;
     })
     .onUpdate((e) => {
-      if (!loupeActive && e.scale >= 2) {
-        // Activate loupe when threshold is reached
-        const clamped = Math.min(3, Math.max(2, e.scale));
-        activateLoupe(clamped, e.focalX, e.focalY);
+      const scale = e.scale ?? 1;
+      const focalX = e.focalX ?? 0;
+      const focalY = e.focalY ?? 0;
+      
+      // Activate first time scale >= 2
+      if (loupeActiveShared.value === 0 && scale >= 2) {
+        loupeX.value = focalX;
+        loupeY.value = focalY;
+        loupeLastX.current = focalX;
+        loupeLastY.current = focalY;
+        const clamped = Math.min(3, Math.max(2, scale));
+        activateLoupe(clamped, focalX, focalY);
         loupeActiveShared.value = 1;
-      } else if (loupeActive) {
-        // Update zoom if already active
-        const newZoom = Math.min(3, Math.max(2, e.scale));
-        updateLoupeZoom(newZoom);
+        return;
+      }
+      
+      // Update zoom if already active
+      if (loupeActiveShared.value === 1) {
+        const clamped = Math.min(3, Math.max(2, scale));
+        updateLoupeZoom(clamped);
       }
     });
 
@@ -645,10 +667,7 @@ export default function ClipPlayerScreen() {
                 <View style={styles.loupeMask}>
                   <Video
                     source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }}
-                    style={[
-                      styles.loupeVideo, 
-                      { transform: [{ scale: loupeZoom }] }
-                    ]}
+                    style={[styles.loupeVideo, loupeVideoAnimatedStyle]}
                     useNativeControls={false}
                     resizeMode={ResizeMode.COVER}
                     shouldPlay={playing}
@@ -800,10 +819,7 @@ export default function ClipPlayerScreen() {
               <View style={styles.loupeMask}>
                 <Video
                   source={{ uri: `https://stream.mux.com/${clip!.mux_playback_id}.m3u8` }}
-                  style={[
-                    styles.loupeVideo, 
-                    { transform: [{ scale: loupeZoom }] }
-                  ]}
+                  style={[styles.loupeVideo, loupeVideoAnimatedStyle]}
                   useNativeControls={false}
                   resizeMode={ResizeMode.COVER}
                   shouldPlay={playing}
