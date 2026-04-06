@@ -248,10 +248,10 @@ export default function ClipPlayerScreen() {
   
   const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
   
-  // YouTube detection - unified for library and session clips
-  const clipYouTubeId = hasSessionContext 
-    ? (clip?.source_url ? extractVideoId(clip.source_url) : null)
-    : (source_url ? extractVideoId(source_url) : null);
+  // YouTube detection - prioritize route source_url first, then session clip fallback
+  const clipYouTubeId = source_url 
+    ? extractVideoId(source_url) 
+    : (clip?.source_url ? extractVideoId(clip.source_url) : null);
   const isClipYouTube = !!clipYouTubeId;
   
   // Legacy compatibility flags (to be removed in future refactor)
@@ -296,7 +296,7 @@ export default function ClipPlayerScreen() {
     ],
   }));
 
-  const sourceUrl = hasSessionContext ? clip?.source_url : source_url;
+  const sourceUrl = source_url || clip?.source_url;
   const loupePersistKey = sourceUrl ? `loupe:${sourceUrl}` : null;
 
   useEffect(() => {
