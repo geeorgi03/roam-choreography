@@ -666,6 +666,12 @@ export default function YoutubePlayerScreen() {
           style={styles.speedSlider}
         />
         <Text style={styles.speedLabel}>{speed.toFixed(2)}×</Text>
+        <TouchableOpacity
+          onPress={() => setMirrorActive((v) => !v)}
+          style={[styles.videoControlBtn, mirrorActive && styles.mirrorBtnActive]}
+        >
+          <Text style={styles.videoControlBtnText}>↔</Text>
+        </TouchableOpacity>
       </View>
 
       {/* A/B Loop Progress Bar */}
@@ -739,13 +745,6 @@ export default function YoutubePlayerScreen() {
       </View>
 
       <View style={styles.videoControlsRow}>
-        <TouchableOpacity
-          onPress={() => setMirrorActive((v) => !v)}
-          style={[styles.videoControlBtn, mirrorActive && styles.mirrorBtnActive]}
-        >
-          <Text style={styles.videoControlBtnText}>↔</Text>
-        </TouchableOpacity>
-        
         {/* A/B Loop controls */}
         <TouchableOpacity 
           onPress={() => setLoopStartSec(playbackPositionSec)} 

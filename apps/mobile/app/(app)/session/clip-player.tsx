@@ -302,7 +302,6 @@ export default function ClipPlayerScreen() {
       { scale: loupeZoomShared.value },
       { translateX: -(loupeX.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
       { translateY: -(loupeY.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
-      { scaleX: mirrorActive ? -1 : 1 },
     ],
   }));
 
