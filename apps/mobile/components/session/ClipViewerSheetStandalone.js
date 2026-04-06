@@ -22,6 +22,9 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClipViewerSheetStandalone = void 0;
 const react_1 = __importStar(require("react"));
@@ -29,14 +32,17 @@ const react_native_1 = require("react-native");
 const bottom_sheet_1 = __importStar(require("@gorhom/bottom-sheet"));
 const expo_av_1 = require("expo-av");
 const theme_1 = require("../../lib/theme");
+const LoopChipRow_1 = __importDefault(require("./LoopChipRow"));
 const colors = theme_1.theme.light;
 const nightColors = theme_1.theme.night;
-exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipViewerSheetStandalone({ clip, onClose }, ref) {
+exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipViewerSheetStandalone({ clip, sessionId, onClose }, ref) {
     const videoRef = (0, react_1.useRef)(null);
     const positionMsRef = (0, react_1.useRef)(0);
     const [clipSpeed, setClipSpeed] = (0, react_1.useState)(1);
     const [playheadFraction, setPlayheadFraction] = (0, react_1.useState)(0);
     const [playing, setPlaying] = (0, react_1.useState)(false);
+    const [durationMs, setDurationMs] = (0, react_1.useState)(0);
+    const [activeLoop, setActiveLoop] = (0, react_1.useState)(null);
     (0, react_1.useEffect)(() => {
         positionMsRef.current = 0;
         setPlayheadFraction(0);
@@ -79,11 +85,18 @@ exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipView
             positionMsRef.current = 0;
             setPlayheadFraction(0);
             setPlaying(false);
+            setDurationMs(0);
             return;
         }
         positionMsRef.current = status.positionMillis;
+        setDurationMs(status.durationMillis || 0);
         setPlayheadFraction(status.durationMillis ? status.positionMillis / status.durationMillis : 0);
         setPlaying(status.isPlaying);
+    };
+    const handleLoopChipPress = (start) => {
+        if (videoRef.current) {
+            videoRef.current.setPositionAsync(start);
+        }
     };
     const renderBackdrop = (props) => (<bottom_sheet_1.BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} pressBehavior="close"/>);
     return (<bottom_sheet_1.default ref={ref} index={-1} snapPoints={['50%', '85%']} enablePanDownToClose onClose={onClose} backdropComponent={renderBackdrop}>
@@ -102,6 +115,19 @@ exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipView
                   </react_native_1.View>)}
               </react_native_1.View>
               <react_native_1.View style={styles.progressBar}>
+                {/* Loop region overlay */}
+                {activeLoop && durationMs > 0 && (<react_native_1.View style={[
+                    styles.loopRegion,
+                    {
+                        left: `${(activeLoop.start_ms / durationMs) * 100}%`,
+                        width: `${((activeLoop.end_ms - activeLoop.start_ms) / durationMs) * 100}%`,
+                        backgroundColor: activeLoop.color + '59', // 35% opacity
+                    },
+                ]}>
+                    {/* Edge lines */}
+                    <react_native_1.View style={[styles.loopEdgeLine, { backgroundColor: activeLoop.color, left: 0 }]}/>
+                    <react_native_1.View style={[styles.loopEdgeLine, { backgroundColor: activeLoop.color, right: 0 }]}/>
+                  </react_native_1.View>)}
                 <react_native_1.View style={[styles.progressFill, { width: `${playheadFraction * 100}%` }]}/>
               </react_native_1.View>
               {/* Controls row: -5s | Play/Pause | speed | +5s */}
@@ -120,8 +146,11 @@ exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipView
                 </react_native_1.TouchableOpacity>
               </react_native_1.View>
             </react_native_1.View>
-            {/* Light zone — empty (no loop chips, no save, no moment button) */}
-            <react_native_1.View style={styles.lightZone}/>
+            {/* Light zone */}
+            <react_native_1.View style={styles.lightZone}>
+              {/* Loop chips - only show if clip has source_url */}
+              {clip?.mux_playback_id && (<LoopChipRow_1.default sessionId={sessionId} sourceUrl={`https://stream.mux.com/${clip.mux_playback_id}`} currentPositionMs={positionMsRef.current} onSeek={handleLoopChipPress} onActiveLoopChange={setActiveLoop}/>)}
+            </react_native_1.View>
           </>) : (<react_native_1.View style={styles.emptyContainer}/>)}
       </bottom_sheet_1.default>);
 });
@@ -187,6 +216,19 @@ const styles = react_native_1.StyleSheet.create({
     progressFill: {
         height: '100%',
         backgroundColor: '#7DB9A8',
+        borderRadius: 1,
+    },
+    loopRegion: {
+        position: 'absolute',
+        top: 0,
+        height: '100%',
+        borderRadius: 1,
+    },
+    loopEdgeLine: {
+        position: 'absolute',
+        top: -3,
+        width: 3,
+        height: 8,
         borderRadius: 1,
     },
     controlsRow: {

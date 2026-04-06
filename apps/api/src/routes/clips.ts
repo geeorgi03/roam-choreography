@@ -60,6 +60,10 @@ app.post('/:sessionId/clips', async (c) => {
     difficulty?: string | null;
     bpm?: number | null;
     notes?: string | null;
+    url?: string | null;
+    thumbnail_url?: string | null;
+    clip_type?: Clip['clip_type'];
+    start_ms?: number | null;
   }>();
 
   if (!body?.local_id || typeof body.recorded_at !== 'string') {
@@ -83,6 +87,10 @@ app.post('/:sessionId/clips', async (c) => {
     difficulty: body.difficulty ?? null,
     bpm: body.bpm ?? null,
     notes: body.notes ?? null,
+    url: body.url ?? null,
+    thumbnail_url: body.thumbnail_url ?? null,
+    clip_type: body.clip_type ?? null,
+    start_ms: body.start_ms ?? null,
   };
 
   const { data, error } = await supabase
@@ -175,6 +183,115 @@ app.patch('/:sessionId/clips/:clipId', async (c) => {
     return c.json({ error: error.message }, 500);
   }
   return c.json(data as Clip);
+});
+
+/** POST /sessions/:sessionId/clips/:clipId/trim — trim a clip and create new REF clip */
+app.post('/:sessionId/clips/:clipId/trim', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('sessionId');
+  const clipId = c.req.param('clipId');
+  const session = await getSessionForUser(sessionId, userId);
+  if (!session) return c.json({ error: 'Not found' }, 404);
+
+  // Parse and validate request body
+  const body = await c.req.json<{ start_ms: number; end_ms: number }>();
+  if (!Number.isFinite(body.start_ms) || !Number.isFinite(body.end_ms) || body.end_ms <= body.start_ms) {
+    return c.json({ error: 'start_ms and end_ms must be finite numbers with end_ms > start_ms' }, 400);
+  }
+
+  // Fetch source clip and verify ownership and MINE type
+  const { data: sourceClip, error: sourceError } = await supabase
+    .from('clips')
+    .select('*')
+    .eq('id', clipId)
+    .eq('session_id', sessionId)
+    .single();
+
+  if (sourceError) {
+    if (sourceError.code === 'PGRST116') return c.json({ error: 'Clip not found' }, 404);
+    return c.json({ error: sourceError.message }, 500);
+  }
+
+  // Verify clip is MINE or NULL (owner clip)
+  if (sourceClip.clip_type === 'REF') {
+    return c.json({ error: 'Cannot trim REF clips' }, 403);
+  }
+
+  // Verify clip has mux_asset_id
+  if (!sourceClip.mux_asset_id) {
+    return c.json({ error: 'Clip not yet processed by Mux' }, 422);
+  }
+
+  // Call Mux trim API
+  const tokenId = process.env.MUX_TOKEN_ID;
+  const tokenSecret = process.env.MUX_TOKEN_SECRET;
+  if (!tokenId || !tokenSecret) {
+    return c.json({ error: 'Mux not configured' }, 502);
+  }
+
+  const authHeader = `Basic ${Buffer.from(`${tokenId}:${tokenSecret}`).toString('base64')}`;
+
+  const muxRes = await fetch('https://api.mux.com/video/v1/assets', {
+    method: 'POST',
+    headers: {
+      Authorization: authHeader,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      input: [{
+        url: `mux://assets/${sourceClip.mux_asset_id}`,
+        start_time: body.start_ms / 1000,
+        end_time: body.end_ms / 1000,
+      }],
+      playback_policy: ['public'],
+    }),
+  });
+
+  if (!muxRes.ok) {
+    return c.json(
+      { error: 'Mux trim failed', detail: await muxRes.text() },
+      502
+    );
+  }
+
+  let muxData: { id?: string; playback_ids?: Array<{ id: string }> };
+  try {
+    const muxJson = await muxRes.json();
+    muxData = muxJson?.data ?? muxJson;
+  } catch {
+    return c.json({ error: 'Invalid Mux response' }, 502);
+  }
+
+  const newMuxAssetId = muxData?.id;
+  const newMuxPlaybackId = muxData?.playback_ids?.[0]?.id ?? null;
+
+  if (!newMuxAssetId) {
+    return c.json({ error: 'Mux response missing asset ID' }, 502);
+  }
+
+  // Insert new REF clip
+  const { data: newClip, error: insertError } = await supabase
+    .from('clips')
+    .insert({
+      user_id: userId,
+      session_id: sessionId,
+      local_id: crypto.randomUUID(),
+      label: `${sourceClip.label || 'Clip'} (trim)`,
+      recorded_at: new Date().toISOString(),
+      mux_asset_id: newMuxAssetId,
+      mux_playback_id: newMuxPlaybackId,
+      upload_status: newMuxPlaybackId ? 'ready' : 'processing',
+      clip_type: 'REF',
+      trimmed_from_clip_id: clipId,
+    })
+    .select('*')
+    .single();
+
+  if (insertError) {
+    return c.json({ error: insertError.message }, 500);
+  }
+
+  return c.json(newClip as Clip, 201);
 });
 
 export const clipsRoutes = app;

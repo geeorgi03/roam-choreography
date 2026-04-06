@@ -15,9 +15,13 @@ import { useSession } from '../../lib/hooks/useSession';
 import { CreateSessionSheet } from '../../components/CreateSessionSheet';
 import { PaywallSheet } from '../../components/PaywallSheet';
 import BottomSheet from '@gorhom/bottom-sheet';
+import { MMKV } from 'react-native-mmkv';
 
 import { API_BASE } from '../../lib/api';
 import { supabase } from '../../lib/supabase';
+
+const homeStorage = new MMKV({ id: 'home-state' });
+const LAST_SESSION_KEY = 'last_session_id';
 
 const colors = theme.light;
 const spacing = theme.spacing;
@@ -27,6 +31,7 @@ export default function HomeScreen() {
   const { session } = useSession();
   const createSheetRef = useRef<BottomSheet | null>(null);
   const paywallSheetRef = useRef<BottomSheet | null>(null);
+  const redirected = useRef<boolean>(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [inboxCount, setInboxCount] = useState<number>(0);
@@ -36,6 +41,14 @@ export default function HomeScreen() {
   useEffect(() => {
     const t = setTimeout(() => setSheetsReady(true), 300);
     return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const cachedId = homeStorage.getString(LAST_SESSION_KEY);
+    if (cachedId && !redirected.current) {
+      redirected.current = true;
+      router.replace(`/session/${cachedId}`);
+    }
   }, []);
 
   const fetchSessions = async () => {
@@ -65,7 +78,18 @@ export default function HomeScreen() {
         data = null;
       }
       if (res.ok && data && typeof data === 'object' && 'sessions' in data) {
-        setSessions((data as { sessions: Session[] }).sessions ?? []);
+        const sessionsData = (data as { sessions: Session[] }).sessions ?? [];
+        setSessions(sessionsData);
+        
+        if (sessionsData.length > 0) {
+          homeStorage.set(LAST_SESSION_KEY, sessionsData[0].id);
+          if (!redirected.current) {
+            redirected.current = true;
+            router.replace(`/session/${sessionsData[0].id}`);
+          }
+        } else {
+          homeStorage.delete(LAST_SESSION_KEY);
+        }
       }
     } catch {
       // API unreachable, timeout, or network error

@@ -76,6 +76,9 @@ function extractVideoId(sourceUrl) {
     const m = sourceUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
     return m ? m[1] : null;
 }
+// Frame capture infrastructure for future WebView integration
+// Note: react-native-youtube-iframe doesn't expose injectJavaScript currently
+// This infrastructure will be useful when upgrading to a WebView-based approach
 function YoutubePlayerScreen() {
     const { sessionId, musicTrackId } = (0, expo_router_1.useLocalSearchParams)();
     const router = (0, expo_router_1.useRouter)();
@@ -92,6 +95,7 @@ function YoutubePlayerScreen() {
     // Loupe state
     const [loupeActive, setLoupeActive] = (0, react_1.useState)(false);
     const [loupeZoom, setLoupeZoom] = (0, react_1.useState)(2.5);
+    const [capturedFrame, setCapturedFrame] = (0, react_1.useState)(null);
     const loupeX = (0, react_native_reanimated_1.useSharedValue)(0);
     const loupeY = (0, react_native_reanimated_1.useSharedValue)(0);
     const loupeActiveShared = (0, react_native_reanimated_1.useSharedValue)(0); // 0 = inactive, 1 = active
@@ -99,6 +103,13 @@ function YoutubePlayerScreen() {
     const loupeLastX = (0, react_1.useRef)(0);
     const loupeLastY = (0, react_1.useRef)(0);
     const loupeLastZoom = (0, react_1.useRef)(0);
+    // Capture frame when loupe becomes active - simplified approach
+    const captureCurrentFrame = async () => {
+        // Since injectJavaScript is not available in react-native-youtube-iframe,
+        // we'll set a flag to attempt capture via other means in future iterations
+        // For now, this serves as a placeholder for the capture functionality
+        console.log('Frame capture requested for YouTube loupe');
+    };
     // Animated style for loupe positioning
     const loupeAnimatedStyle = (0, react_native_reanimated_1.useAnimatedStyle)(() => ({
         transform: [
@@ -163,13 +174,24 @@ function YoutubePlayerScreen() {
         setSections(musicTrack.sections ?? []);
     }, [musicTrack]);
     const videoId = musicTrack ? extractVideoId(musicTrack.source_url) : null;
-    const loupePersistKey = videoId ? `loupe:${videoId}` : null;
+    const loupePersistKey = musicTrack?.source_url ? `loupe:${musicTrack.source_url}` : null;
     // Restore saved loupe state on video load
     (0, react_1.useEffect)(() => {
         if (!loupePersistKey)
             return;
         try {
-            const savedStateString = loupeStorage.getString(loupePersistKey);
+            let savedStateString = loupeStorage.getString(loupePersistKey);
+            // One-time backward compatibility: check legacy videoId key if new key not found
+            if (!savedStateString && videoId) {
+                const legacyKey = `loupe:${videoId}`;
+                const legacyState = loupeStorage.getString(legacyKey);
+                if (legacyState) {
+                    // Migrate to new key and delete legacy
+                    savedStateString = legacyState;
+                    loupeStorage.set(loupePersistKey, legacyState);
+                    loupeStorage.delete(legacyKey);
+                }
+            }
             if (savedStateString) {
                 const savedState = JSON.parse(savedStateString);
                 // Validate shape and numeric finiteness before applying values
@@ -262,6 +284,8 @@ function YoutubePlayerScreen() {
         loupeLastZoom.current = zoom;
         loupeLastX.current = x;
         loupeLastY.current = y;
+        // Attempt frame capture when loupe activates
+        captureCurrentFrame();
     });
     const updateLoupeZoom = (0, react_native_reanimated_1.runOnJS)((zoom) => {
         setLoupeZoom(zoom);
@@ -331,9 +355,15 @@ function YoutubePlayerScreen() {
         }}/>
           {loupeActive && (<react_native_reanimated_1.default.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
               <react_native_1.View style={styles.loupeMask}>
-                <react_native_1.View style={[styles.loupeOverlay, loupeOverlayAnimatedStyle]}>
-                  {/* YouTube iframe renders via WebView — true pixel sampling via canvas.toDataURL is not reliably available across Android/iOS WebView versions. Static region overlay used as fallback. Upgrade to injectJavaScript frame capture if WebView exposes canvas in a future wave. */}
-                </react_native_1.View>
+                {capturedFrame ? (<react_native_1.View style={[styles.loupeOverlay, loupeOverlayAnimatedStyle]}>
+                    {/* Render captured frame when available */}
+                    <react_native_1.View style={styles.capturedFrameContainer}>
+                      <react_native_1.Text style={styles.capturedFramePlaceholder}>Frame captured</react_native_1.Text>
+                    </react_native_1.View>
+                  </react_native_1.View>) : (<react_native_1.View style={[styles.loupeOverlay, loupeOverlayAnimatedStyle]}>
+                    {/* Static region overlay fallback when capture unavailable */}
+                    <react_native_1.Text style={styles.loupeOverlayText}>Magnification</react_native_1.Text>
+                  </react_native_1.View>)}
               </react_native_1.View>
             </react_native_reanimated_1.default.View>)}
           {loupeActive && (<react_native_1.TouchableOpacity style={styles.loupeDismissBtn} onPress={() => {
@@ -481,6 +511,23 @@ const styles = react_native_1.StyleSheet.create({
         width: 140,
         height: 140,
         backgroundColor: 'rgba(125,185,168,0.15)',
+    },
+    loupeOverlayText: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 12,
+        textAlign: 'center',
+        marginTop: 60,
+    },
+    capturedFrameContainer: {
+        width: 140,
+        height: 140,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    capturedFramePlaceholder: {
+        color: 'rgba(255,255,255,0.8)',
+        fontSize: 10,
+        textAlign: 'center',
     },
     loupeDismissBtn: {
         position: 'absolute',

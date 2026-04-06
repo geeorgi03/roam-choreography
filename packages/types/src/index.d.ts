@@ -44,6 +44,8 @@ export interface Clip {
     notes: string | null;
     recorded_at: ISODateTime;
     local_id: string;
+    clip_type: 'MINE' | 'REF' | null;
+    trimmed_from_clip_id: string | null;
 }
 /** ---- MusicTrack (Tech Plan) ---- */
 export interface BeatGridEntry {

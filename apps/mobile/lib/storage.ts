@@ -110,3 +110,15 @@ export function setSessionMode(sessionId: string, value: boolean): void {
   sessionModeStorage.set(`session-mode:${sessionId}`, value ? '1' : '0');
 }
 
+const ACTIVE_SESSION_ID_KEY = 'active_session_id';
+
+export function setActiveSessionId(sessionId: string): void {
+  if (!storage) return;
+  storage.set(ACTIVE_SESSION_ID_KEY, sessionId);
+}
+
+export function getActiveSessionId(): string | null {
+  if (!storage) return null;
+  return storage.getString(ACTIVE_SESSION_ID_KEY) ?? null;
+}
+

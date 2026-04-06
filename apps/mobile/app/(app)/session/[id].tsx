@@ -16,6 +16,7 @@ import { ClipShareSheet } from '../../../components/ClipShareSheet';
 import { NotePinSheet } from '../../../components/NotePinSheet';
 import { ClipViewerSheet } from '../../../components/session/ClipViewerSheet';
 import { theme } from '../../../lib/theme';
+import { setActiveSessionId } from '../../../lib/storage';
 
 const colors = theme.light;
 
@@ -102,6 +103,13 @@ function SessionShellContent() {
       setActiveTab(targetTab);
     }
   }, [tab, setActiveTab]);
+
+  // ── Set active session ID on mount ─────────────────────────────────────────
+  useEffect(() => {
+    if (id) {
+      setActiveSessionId(id);
+    }
+  }, [id]);
 
   // ── Back handling ───────────────────────────────────────────────────────
   useEffect(() => {

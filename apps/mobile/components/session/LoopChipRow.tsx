@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ interface LoopChipRowProps {
 
 interface UndoQueueItem {
   loop: Loop;
+  originalIndex: number;
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
@@ -34,7 +35,7 @@ export default function LoopChipRow({
   onSeek,
   onActiveLoopChange,
 }: LoopChipRowProps) {
-  const { loops, isLoading, createLoop, deleteLoop } = useLoops(sessionId, sourceUrl);
+  const { loops, isLoading, createLoop, deleteLoop, setLoops } = useLoops(sessionId, sourceUrl);
   const [activeLoopId, setActiveLoopId] = useState<string | null>(null);
   const [undoQueue, setUndoQueue] = useState<UndoQueueItem[]>([]);
 
@@ -57,29 +58,66 @@ export default function LoopChipRow({
     createLoop(currentPositionMs, currentPositionMs + 10000, nextColor);
   }, [sourceUrl, loops.length, currentPositionMs, createLoop]);
 
+  const restoreLoop = useCallback(
+    (loopId: string, originalIndex: number) => {
+      // Find the loop in the undo queue
+      const queueItem = undoQueue.find((item) => item.loop.id === loopId);
+      if (!queueItem) return;
+
+      // Clear the timeout
+      clearTimeout(queueItem.timeoutId);
+
+      // Restore the loop at its original position
+      setLoops((prev: Loop[]) => {
+        if (originalIndex === -1) return [...prev, queueItem.loop];
+        return [...prev.slice(0, originalIndex), queueItem.loop, ...prev.slice(originalIndex)];
+      });
+
+      // Remove from undo queue
+      setUndoQueue((prev) => prev.filter((item) => item.loop.id !== loopId));
+    },
+    [undoQueue, setLoops]
+  );
+
   const handleSwipeDelete = useCallback(
     (loop: Loop) => {
-      // Optimistic delete
-      deleteLoop(loop.id);
+      // Find original index
+      const originalIndex = loops.findIndex((l) => l.id === loop.id);
 
-      // Show undo toast
+      // Optimistic delete from local state only
+      setLoops((prev: Loop[]) => prev.filter((l: Loop) => l.id !== loop.id));
+
+      // Show undo toast with onPress handler
       Toast.show({
         type: 'info',
         text1: 'Loop removed',
         text2: 'Undo',
         visibilityTime: 3000,
         position: 'bottom',
+        props: {
+          onPress: () => restoreLoop(loop.id, originalIndex),
+        },
       });
 
-      // Schedule actual delete after timeout
-      const timeoutId = setTimeout(() => {
+      // Schedule actual server delete after timeout
+      const timeoutId = setTimeout(async () => {
+        // Call the actual server delete
+        await deleteLoop(loop.id);
+        // Remove from undo queue
         setUndoQueue((prev) => prev.filter((item) => item.loop.id !== loop.id));
       }, 3000);
 
-      setUndoQueue((prev) => [...prev, { loop, timeoutId }]);
+      setUndoQueue((prev) => [...prev, { loop, originalIndex, timeoutId }]);
     },
-    [deleteLoop]
+    [loops, setLoops, deleteLoop, restoreLoop]
   );
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      undoQueue.forEach((item) => clearTimeout(item.timeoutId));
+    };
+  }, [undoQueue]);
 
   const renderChip = useCallback(
     (loop: Loop) => {

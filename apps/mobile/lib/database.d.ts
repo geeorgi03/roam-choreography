@@ -20,6 +20,7 @@ export interface ClipRow {
     difficulty: string | null;
     bpm: number | null;
     notes: string | null;
+    clip_type?: string | null;
 }
 export interface InsertClipRow {
     local_id: string;
@@ -38,6 +39,7 @@ export interface InsertClipRow {
     difficulty?: string | null;
     bpm?: number | null;
     notes?: string | null;
+    clip_type?: string | null;
 }
 export interface ClipTags {
     move_name?: string | null;
@@ -63,6 +65,7 @@ export interface ServerClipSnapshot {
     difficulty?: string | null;
     bpm?: number | null;
     notes?: string | null;
+    clip_type?: string | null;
 }
 /**
  * Upsert a server clip into local SQLite storage.

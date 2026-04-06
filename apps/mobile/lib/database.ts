@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS clips (
   energy TEXT,
   difficulty TEXT,
   bpm INTEGER,
-  notes TEXT
+  notes TEXT,
+  clip_type TEXT
 );
 `;
 
@@ -58,6 +59,8 @@ COMMIT;
 
 const MIGRATION_DUAL_PAIR_ID = 'ALTER TABLE clips ADD COLUMN dual_pair_id TEXT;';
 
+const MIGRATION_CLIP_TYPE = 'ALTER TABLE clips ADD COLUMN clip_type TEXT;';
+
 let _db: SQLiteDatabase | null = null;
 let _dbError: Error | null = null;
 let _dbInitialized = false;
@@ -94,6 +97,17 @@ function initDb(): SQLiteDatabase | null {
       // If PRAGMA/migration fails, keep DB usable for single clips.
     }
 
+    // One-time migration: add clip_type for MINE/REF distinction.
+    try {
+      const info = _db.getAllSync<{ name: string }>('PRAGMA table_info(clips)');
+      const clipTypeCol = info?.find?.((c) => c.name === 'clip_type');
+      if (!clipTypeCol) {
+        _db.execSync(MIGRATION_CLIP_TYPE);
+      }
+    } catch {
+      // If PRAGMA/migration fails, keep DB usable for existing clips.
+    }
+
     console.log('[database] SQLite initialised');
   } catch (e) {
     _dbError = e instanceof Error ? e : new Error(String(e));
@@ -117,6 +131,7 @@ export const db = new Proxy({} as SQLiteDatabase, {
         return () => {
           console.warn(`[database] db.${String(prop)} called but SQLite is unavailable`);
           if (prop === 'getAllSync') return [];
+          return undefined;
         };
       }
       return undefined;
@@ -143,6 +158,7 @@ export interface ClipRow {
   difficulty: string | null;
   bpm: number | null;
   notes: string | null;
+  clip_type?: string | null;
 }
 
 export interface InsertClipRow {
@@ -162,6 +178,7 @@ export interface InsertClipRow {
   difficulty?: string | null;
   bpm?: number | null;
   notes?: string | null;
+  clip_type?: string | null;
 }
 
 export interface ClipTags {
@@ -189,6 +206,7 @@ export interface ServerClipSnapshot {
   difficulty?: string | null;
   bpm?: number | null;
   notes?: string | null;
+  clip_type?: string | null;
 }
 
 function makeRemoteLocalId(session_id: string, server_id?: string | null): string {
@@ -222,8 +240,8 @@ export function upsertClipFromServer(row: ServerClipSnapshot): string {
     `INSERT INTO clips (
       local_id, server_id, session_id, label, recorded_at, file_uri,
       upload_status, upload_progress, mux_playback_id,
-      move_name, style, energy, difficulty, bpm, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      move_name, style, energy, difficulty, bpm, notes, clip_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(local_id) DO UPDATE SET
       server_id = COALESCE(excluded.server_id, clips.server_id),
       session_id = COALESCE(excluded.session_id, clips.session_id),
@@ -238,7 +256,8 @@ export function upsertClipFromServer(row: ServerClipSnapshot): string {
       energy = COALESCE(excluded.energy, clips.energy),
       difficulty = COALESCE(excluded.difficulty, clips.difficulty),
       bpm = COALESCE(excluded.bpm, clips.bpm),
-      notes = COALESCE(excluded.notes, clips.notes)`,
+      notes = COALESCE(excluded.notes, clips.notes),
+      clip_type = COALESCE(excluded.clip_type, clips.clip_type)`,
     [
       resolvedLocalId,
       serverId,
@@ -255,6 +274,7 @@ export function upsertClipFromServer(row: ServerClipSnapshot): string {
       row.difficulty ?? null,
       row.bpm ?? null,
       row.notes ?? null,
+      row.clip_type ?? null,
     ]
   );
 
@@ -266,8 +286,8 @@ export function insertClip(row: InsertClipRow): void {
     `INSERT INTO clips (
       local_id, session_id, dual_pair_id, label, recorded_at, file_uri,
       upload_status, upload_progress, server_id, mux_playback_id,
-      move_name, style, energy, difficulty, bpm, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      move_name, style, energy, difficulty, bpm, notes, clip_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       row.local_id,
       row.session_id,
@@ -285,6 +305,7 @@ export function insertClip(row: InsertClipRow): void {
       row.difficulty ?? null,
       row.bpm ?? null,
       row.notes ?? null,
+      row.clip_type ?? null,
     ]
   );
 }

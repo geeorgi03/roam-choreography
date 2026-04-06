@@ -61,6 +61,10 @@ export interface Clip {
   notes: string | null;
   recorded_at: ISODateTime;
   local_id: string;
+  url: string | null;
+  thumbnail_url: string | null;
+  clip_type: 'MINE' | 'REF' | null;
+  start_ms: number | null;
 }
 
 /** ---- MusicTrack (Tech Plan) ---- */

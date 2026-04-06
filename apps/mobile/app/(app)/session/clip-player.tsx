@@ -5,12 +5,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
 import Slider from '@react-native-community/slider';
 import Toast from 'react-native-toast-message';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import { WebView } from 'react-native-webview';
 // Lazy require: a native-module init failure must not prevent route discovery
 let GestureDetector: React.ComponentType<{ gesture: unknown; children: React.ReactNode }> =
   ({ children }) => <>{children}</>;
@@ -78,6 +80,96 @@ const loupeStorage = new MMKV({ id: 'loupe-state' });
 // Loupe constants
 const LOUPE_DIAMETER = 140;
 
+// YouTube video ID extraction
+function extractVideoId(sourceUrl: string | null): string | null {
+  if (!sourceUrl) return null;
+  const m = sourceUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+  return m ? m[1]! : null;
+}
+
+// Custom WebView HTML for YouTube with frame capture capability
+const CAPTURE_WEBVIEW_HTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 0; background: #000; }
+    #player { width: 100%; height: 100%; }
+    #canvas { display: none; }
+  </style>
+</head>
+<body>
+  <div id="player"></div>
+  <canvas id="canvas"></canvas>
+  <script>
+    let player;
+    let canvas = document.getElementById('canvas');
+    let ctx = canvas.getContext('2d');
+    
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        videoId: 'VIDEO_ID_PLACEHOLDER',
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          rel: 0,
+          showinfo: 0,
+          modestbranding: 1,
+          iv_load_policy: 3,
+          fs: 0
+        },
+        events: {
+          onReady: function(event) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({type: 'ready'}));
+          },
+          onStateChange: function(event) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'stateChange',
+              state: event.data
+            }));
+          }
+        }
+      });
+    }
+    
+    window.captureFrame = function() {
+      if (!player) return null;
+      
+      try {
+        const videoElement = player.getIframe().querySelector('video');
+        if (!videoElement) return null;
+        
+        canvas.width = videoElement.videoWidth || 640;
+        canvas.height = videoElement.videoHeight || 360;
+        
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        
+        // Crop to loupe region (140px diameter at current focal point)
+        const loupeSize = 140;
+        const videoRect = videoElement.getBoundingClientRect();
+        const scaleX = canvas.width / videoRect.width;
+        const scaleY = canvas.height / videoRect.height;
+        
+        // For now, return full frame - loupe cropping will be done in React Native
+        return canvas.toDataURL('image/jpeg', 0.8);
+      } catch (e) {
+        console.error('Frame capture error:', e);
+        return null;
+      }
+    };
+    
+    // Load YouTube API
+    var tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+  </script>
+</body>
+</html>
+`;
+
 type SessionParams = {
   sessionId?: string;
   clipIndex?: string;
@@ -86,6 +178,7 @@ type SessionParams = {
 type LibraryParams = {
   clipId?: string;
   mux_playback_id?: string;
+  source_url?: string;
   move_name?: string;
   style?: string;
   energy?: string;
@@ -102,6 +195,7 @@ export default function ClipPlayerScreen() {
     sessionId,
     clipIndex,
     mux_playback_id,
+    source_url,
     move_name,
     style,
     energy,
@@ -141,6 +235,17 @@ export default function ClipPlayerScreen() {
   const [videoNaturalSize, setVideoNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const videoRef = useRef<Video>(null);
   const tagSheetRef = useRef<BottomSheet | null>(null);
+  const webViewRef = useRef<WebView>(null);
+  
+  // YouTube detection and render path
+  const isYouTubeContent = source_url ? extractVideoId(source_url) !== null : false;
+  const youtubeVideoId = source_url ? extractVideoId(source_url) : null;
+  const hasLibraryClip = !hasSessionContext && (!!mux_playback_id || !!source_url);
+  const isYouTubeLibraryClip = !hasSessionContext && isYouTubeContent;
+  const [youtubePlayerState, setYoutubePlayerState] = useState<string>('unstarted');
+  const [youtubeCurrentTime, setYoutubeCurrentTime] = useState(0);
+  const [capturedFrameDataUrl, setCapturedFrameDataUrl] = useState<string | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Loupe state
   const [loupeActive, setLoupeActive] = useState(false);
@@ -318,7 +423,45 @@ export default function ClipPlayerScreen() {
     loupeLastZoom.current = 0;
     loupeLastX.current = 0;
     loupeLastY.current = 0;
+    setCapturedFrameDataUrl(null);
   }, [currentIndex]);
+
+  // Continuous frame capture for YouTube when loupe is active
+  useEffect(() => {
+    if (!loupeActive || !isYouTubeLibraryClip || !webViewRef.current) return;
+    
+    let animationFrameId: number;
+    
+    const captureFrame = () => {
+      if (webViewRef.current && loupeActive) {
+        webViewRef.current.injectJavaScript(`
+          if (window.player && window.captureFrame) {
+            const frameDataUrl = window.captureFrame();
+            if (frameDataUrl) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'frameCapture',
+                dataUrl: frameDataUrl
+              }));
+            }
+          }
+        `);
+      }
+      
+      // Continue capturing at ~60fps if loupe is still active
+      if (loupeActive) {
+        animationFrameId = requestAnimationFrame(captureFrame);
+      }
+    };
+    
+    // Start capture loop
+    animationFrameId = requestAnimationFrame(captureFrame);
+    
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [loupeActive, isYouTubeLibraryClip]);
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -350,27 +493,119 @@ export default function ClipPlayerScreen() {
   }, [frameSize.width, frameSize.height, videoNaturalSize?.width, videoNaturalSize?.height]);
 
   const handlePlayPause = async () => {
-    if (!videoRef.current) return;
-    if (playing) await videoRef.current.pauseAsync();
-    else await videoRef.current.playAsync();
+    if (isYouTubeLibraryClip && webViewRef.current) {
+      // YouTube WebView control
+      const command = playing ? 'pauseVideo()' : 'playVideo()';
+      webViewRef.current.injectJavaScript(`
+        if (window.player) {
+          window.player.${command};
+        }
+      `);
+    } else if (videoRef.current) {
+      // Regular Video control
+      if (playing) await videoRef.current.pauseAsync();
+      else await videoRef.current.playAsync();
+    }
   };
 
   const handleSeekBack = async () => {
-    if (!videoRef.current) return;
     const newPos = Math.max(0, positionMillis - 5000);
-    await videoRef.current.setPositionAsync(newPos);
+    
+    if (isYouTubeLibraryClip && webViewRef.current) {
+      // YouTube WebView seek
+      webViewRef.current.injectJavaScript(`
+        if (window.player) {
+          window.player.seekTo(${newPos / 1000});
+        }
+      `);
+      setPositionMillis(newPos);
+    } else if (videoRef.current) {
+      // Regular Video seek
+      await videoRef.current.setPositionAsync(newPos);
+    }
   };
 
   const handleSpeedToggle = async () => {
-    if (!videoRef.current) return;
-    const newRate = rate === 1 ? 0.5 : 1;
-    setRate(newRate);
-    await videoRef.current.setRateAsync(newRate, true);
+    if (isYouTubeLibraryClip && webViewRef.current) {
+      // YouTube WebView speed control
+      const newRate = rate === 1 ? 0.5 : 1;
+      setRate(newRate);
+      webViewRef.current.injectJavaScript(`
+        if (window.player) {
+          window.player.setPlaybackRate(${newRate});
+        }
+      `);
+    } else if (videoRef.current) {
+      // Regular Video speed control
+      const newRate = rate === 1 ? 0.5 : 1;
+      setRate(newRate);
+      await videoRef.current.setRateAsync(newRate, true);
+    }
   };
 
   const handleSliderComplete = async (value: number) => {
-    if (!videoRef.current) return;
-    await videoRef.current.setPositionAsync(value);
+    if (isYouTubeLibraryClip && webViewRef.current) {
+      // YouTube WebView seek
+      webViewRef.current.injectJavaScript(`
+        if (window.player) {
+          window.player.seekTo(${value / 1000});
+        }
+      `);
+      setPositionMillis(value);
+    } else if (videoRef.current) {
+      // Regular Video seek
+      await videoRef.current.setPositionAsync(value);
+    }
+  };
+
+  // Handle WebView messages for YouTube player
+  const handleYouTubeWebViewMessage = (event: any) => {
+    try {
+      const message = JSON.parse(event.nativeEvent.data);
+      
+      switch (message.type) {
+        case 'ready':
+          console.log('YouTube WebView player ready');
+          break;
+        case 'stateChange':
+          setYoutubePlayerState(message.state);
+          // Poll current time when playing
+          if (message.state === 'playing') {
+            const pollCurrentTime = async () => {
+              if (webViewRef.current) {
+                webViewRef.current.injectJavaScript(`
+                  if (window.player && window.player.getCurrentTime) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                      type: 'timeUpdate',
+                      currentTime: window.player.getCurrentTime()
+                    }));
+                  }
+                `);
+              }
+            };
+            // Start polling
+            const interval = setInterval(pollCurrentTime, 500);
+            pollIntervalRef.current = interval;
+          } else {
+            // Stop polling when not playing
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
+          }
+          break;
+        case 'timeUpdate':
+          setYoutubeCurrentTime(message.currentTime);
+          break;
+        case 'frameCapture':
+          if (message.dataUrl) {
+            setCapturedFrameDataUrl(message.dataUrl);
+          }
+          break;
+      }
+    } catch (error) {
+      console.warn('Failed to parse WebView message:', error);
+    }
   };
 
   // Initialize loupe position to center of video container only if no saved state exists
@@ -431,6 +666,30 @@ export default function ClipPlayerScreen() {
     loupeLastZoom.current = zoom;
     loupeLastX.current = x;
     loupeLastY.current = y;
+    
+    // Capture frame for YouTube content when loupe activates
+    if (isYouTubeLibraryClip && webViewRef.current) {
+      // Clear previous frame and request new capture
+      setCapturedFrameDataUrl(null);
+      webViewRef.current.injectJavaScript(`
+        if (window.player && window.captureFrame) {
+          const frameDataUrl = window.captureFrame();
+          if (frameDataUrl) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'frameCapture',
+              dataUrl: frameDataUrl
+            }));
+          }
+        }
+      `);
+      
+      // Set fallback after timeout if capture fails
+      setTimeout(() => {
+        if (!capturedFrameDataUrl) {
+          setCapturedFrameDataUrl(null);
+        }
+      }, 500);
+    }
   });
   const updateLoupeZoom = runOnJS((zoom: number) => {
     setLoupeZoom(zoom);
@@ -637,8 +896,6 @@ export default function ClipPlayerScreen() {
     []
   );
 
-  const hasLibraryClip = !hasSessionContext && !!mux_playback_id;
-
   if (!hasSessionContext && !hasLibraryClip) {
     return (
       <View style={styles.container}>
@@ -698,29 +955,58 @@ export default function ClipPlayerScreen() {
         <View style={styles.container}>
           <GestureDetector gesture={loupeGesture}>
             <View style={StyleSheet.absoluteFill}>
-              <Video
-                key={mux_playback_id}
-                ref={videoRef}
-                source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }}
-                style={StyleSheet.absoluteFill}
-                useNativeControls={false}
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay={playing}
-                onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-              />
+              {isYouTubeLibraryClip && youtubeVideoId ? (
+                <WebView
+                  ref={webViewRef}
+                  source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, youtubeVideoId) }}
+                  style={StyleSheet.absoluteFill}
+                  onMessage={handleYouTubeWebViewMessage}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  allowsInlineMediaPlayback={true}
+                  mediaPlaybackRequiresUserAction={false}
+                />
+              ) : (
+                <Video
+                  key={mux_playback_id}
+                  ref={videoRef}
+                  source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }}
+                  style={StyleSheet.absoluteFill}
+                  useNativeControls={false}
+                  resizeMode={ResizeMode.CONTAIN}
+                  shouldPlay={playing}
+                  onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+                />
+              )}
             {loupeActive && (
               <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
                 <View style={styles.loupeMask}>
-                  <Video
-                    source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }}
-                    style={[styles.loupeVideo, loupeVideoAnimatedStyle]}
-                    useNativeControls={false}
-                    resizeMode={ResizeMode.COVER}
-                    shouldPlay={playing}
-                    isMuted
-                    ref={loupeVideoRef}
-                    onPlaybackStatusUpdate={undefined}
-                  />
+                  {isYouTubeLibraryClip ? (
+                    <>
+                      {capturedFrameDataUrl ? (
+                        <Image 
+                          source={{ uri: capturedFrameDataUrl }} 
+                          style={[styles.loupeVideo, loupeVideoAnimatedStyle]} 
+                          resizeMode="cover" 
+                        />
+                      ) : (
+                        <View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
+                          <Text style={styles.loupeOverlayText}>Capturing frame...</Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <Video
+                      source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }}
+                      style={[styles.loupeVideo, loupeVideoAnimatedStyle]}
+                      useNativeControls={false}
+                      resizeMode={ResizeMode.COVER}
+                      shouldPlay={playing}
+                      isMuted
+                      ref={loupeVideoRef}
+                      onPlaybackStatusUpdate={undefined}
+                    />
+                  )}
                   {/* Duplicate Video for magnification — no true pixel sampling with expo-av; upgrade to Skia in a future wave if @shopify/react-native-skia is added */}
                 </View>
               </Animated.View>
@@ -845,6 +1131,10 @@ export default function ClipPlayerScreen() {
       displayClip.bpm != null ||
       displayClip.notes);
   const sectionLabel = section_label ?? null;
+  
+  // Check if session clip has YouTube content
+  const isSessionClipYouTube = displayClip?.source_url ? extractVideoId(displayClip.source_url) !== null : false;
+  const sessionClipYouTubeId = displayClip?.source_url ? extractVideoId(displayClip.source_url) : null;
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -1407,6 +1697,18 @@ const styles = StyleSheet.create({
   loupeVideo: {
     width: 140,
     height: 140,
+  },
+  loupeOverlay: {
+    width: 140,
+    height: 140,
+    backgroundColor: 'rgba(125,185,168,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loupeOverlayText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    textAlign: 'center',
   },
   loupeDismissBtn: {
     position: 'absolute',

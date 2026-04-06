@@ -189,6 +189,10 @@ function SessionProvider({ sessionId, children }) {
     (0, react_1.useEffect)(() => {
         wasPlayingBeforeSheetRef.current = wasPlayingBeforeSheet;
     }, [wasPlayingBeforeSheet]);
+    // Reload session mode when sessionId changes
+    (0, react_1.useEffect)(() => {
+        setSessionModeState((0, storage_1.getSessionMode)(sessionId));
+    }, [sessionId]);
     // Handlers
     const handlePlayPause = (0, react_1.useCallback)(() => {
         if (!soundRef.current)

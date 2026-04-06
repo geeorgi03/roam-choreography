@@ -345,6 +345,7 @@ export default function LibraryScreen() {
       <ClipViewerSheetStandalone
         ref={clipSheetRef}
         clip={selectedClip}
+        sessionId={selectedClip?.session_id ?? null}
         onClose={closeClipViewer}
       />
     </View>

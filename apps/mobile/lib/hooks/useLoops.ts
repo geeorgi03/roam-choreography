@@ -167,5 +167,6 @@ export default function useLoops(sessionId: string | null, sourceUrl: string | n
     createLoop,
     deleteLoop,
     fetchLoops,
+    setLoops,
   };
 }

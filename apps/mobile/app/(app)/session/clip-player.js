@@ -70,8 +70,15 @@ const react_native_mmkv_1 = require("react-native-mmkv");
 const loupeStorage = new react_native_mmkv_1.MMKV({ id: 'loupe-state' });
 // Loupe constants
 const LOUPE_DIAMETER = 140;
+// YouTube video ID extraction
+function extractVideoId(sourceUrl) {
+    if (!sourceUrl)
+        return null;
+    const m = sourceUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+    return m ? m[1] : null;
+}
 function ClipPlayerScreen() {
-    const { sessionId, clipIndex, mux_playback_id, move_name, style, energy, difficulty, bpm, notes, section_label, } = (0, expo_router_1.useLocalSearchParams)();
+    const { sessionId, clipIndex, mux_playback_id, source_url, move_name, style, energy, difficulty, bpm, notes, section_label, } = (0, expo_router_1.useLocalSearchParams)();
     const router = (0, expo_router_1.useRouter)();
     const hasSessionContext = !!sessionId && !!clipIndex;
     const { clips } = (0, useClips_1.useClips)(hasSessionContext ? sessionId : null);
@@ -95,6 +102,13 @@ function ClipPlayerScreen() {
     const [videoNaturalSize, setVideoNaturalSize] = (0, react_1.useState)(null);
     const videoRef = (0, react_1.useRef)(null);
     const tagSheetRef = (0, react_1.useRef)(null);
+    const youtubePlayerRef = (0, react_1.useRef)(null);
+    // YouTube detection and render path
+    const isYouTubeContent = source_url ? extractVideoId(source_url) !== null : false;
+    const youtubeVideoId = source_url ? extractVideoId(source_url) : null;
+    const [youtubePlayerState, setYoutubePlayerState] = (0, react_1.useState)('unstarted');
+    const [youtubeCurrentTime, setYoutubeCurrentTime] = (0, react_1.useState)(0);
+    const pollIntervalRef = (0, react_1.useRef)(null);
     // Loupe state
     const [loupeActive, setLoupeActive] = (0, react_1.useState)(false);
     const [loupeZoom, setLoupeZoom] = (0, react_1.useState)(2.5);
@@ -559,7 +573,8 @@ function ClipPlayerScreen() {
         setFrozenTimecode(tc);
         setAnnotationMode(true);
     }, []);
-    const hasLibraryClip = !hasSessionContext && !!mux_playback_id;
+    const hasLibraryClip = !hasSessionContext && (!!mux_playback_id || !!source_url);
+    const isYouTubeLibraryClip = !hasSessionContext && isYouTubeContent;
     if (!hasSessionContext && !hasLibraryClip) {
         return (<react_native_1.View style={styles.container}>
         <react_native_1.Text style={styles.placeholderText}>No clip</react_native_1.Text>

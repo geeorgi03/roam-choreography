@@ -366,16 +366,18 @@ function WorkbenchTab() {
                 </react_native_1.TouchableOpacity>
               </react_native_1.View>))}
           </react_native_1.View>)}
-      </react_native_1.View>
-            ,
-                <react_native_1.TouchableOpacity style={styles.recordFab} activeOpacity={0.85} onPress={() => router.push({
-                        pathname: './camera',
-                        params: { id: sessionId, sectionName: activeSection },
-                    })}>
+      </react_native_1.View>)}
+      <react_native_1.TouchableOpacity style={styles.recordFab} activeOpacity={0.85} onPress={() => router.push({
+            pathname: './camera',
+            params: { id: sessionId, sectionName: activeSection },
+        })}>
         <react_native_1.View style={styles.recordFabInner}/>
-      </react_native_1.TouchableOpacity>)}
-    </react_native_1.View>
-  </react_native_1.TouchableWithoutFeedback>);
+      </react_native_1.TouchableOpacity>
+      </react_native_1.TouchableOpacity>
+    </react_native_1.View>);
+    react_native_1.TouchableWithoutFeedback >
+    ;
+    ;
     const styles = react_native_1.StyleSheet.create({
         container: {
             flex: 1,
