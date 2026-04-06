@@ -248,14 +248,19 @@ export default function ClipPlayerScreen() {
   
   const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
   
-  // YouTube detection - route-param-only (no clip reference)
-  const isYouTubeContent = source_url ? extractVideoId(source_url) !== null : false;
-  const youtubeVideoId = source_url ? extractVideoId(source_url) : null;
+  // YouTube detection - unified for library and session clips
+  const clipYouTubeId = hasSessionContext 
+    ? (clip?.source_url ? extractVideoId(clip.source_url) : null)
+    : (source_url ? extractVideoId(source_url) : null);
+  const isClipYouTube = !!clipYouTubeId;
+  
+  // Legacy compatibility flags (to be removed in future refactor)
   const hasLibraryClip = !hasSessionContext && (!!mux_playback_id || !!source_url);
-  const isYouTubeLibraryClip = !hasSessionContext && isYouTubeContent;
-  // Session context YouTube detection uses route params only
-  const isSessionClipYouTube = hasSessionContext && isYouTubeContent;
-  const sessionClipYouTubeId = hasSessionContext && youtubeVideoId;
+  const isYouTubeLibraryClip = !hasSessionContext && isClipYouTube;
+  const isSessionClipYouTube = hasSessionContext && isClipYouTube;
+  const sessionClipYouTubeId = clipYouTubeId;
+  const youtubeVideoId = clipYouTubeId;
+  const isYouTubeContent = isClipYouTube;
   
   const [youtubePlayerState, setYoutubePlayerState] = useState<string>('unstarted');
   const [youtubeCurrentTime, setYoutubeCurrentTime] = useState(0);
@@ -291,13 +296,8 @@ export default function ClipPlayerScreen() {
     ],
   }));
 
-  const loupePersistKey = isYouTubeContent
-    ? (hasSessionContext ? (clip?.source_url ? `loupe:${clip.source_url}` : null) : (source_url ? `loupe:${source_url}` : null))
-    : (hasSessionContext
-        ? (clip?.server_id ? `loupe:${clip.server_id}` : null)
-        : (mux_playback_id ? `loupe:${mux_playback_id}` 
-           : source_url ? `loupe:${source_url}`
-           : null));
+  const sourceUrl = hasSessionContext ? clip?.source_url : source_url;
+  const loupePersistKey = sourceUrl ? `loupe:${sourceUrl}` : null;
 
   useEffect(() => {
     if (!hasSessionContext) return;
