@@ -9,7 +9,6 @@ const colors = theme.light;
 export function SongMapTab() {
   const { 
     sessionName,
-    setActiveTab,
     activeMoment, 
     setActiveMoment, 
     activeSection, 
@@ -124,9 +123,6 @@ export function SongMapTab() {
         <Text style={styles.topBarSessionName}>{sessionName}</Text>
         <View style={styles.topBarRight}>
           <Text style={styles.topBarSectionLabel}>{activeSection}</Text>
-          <TouchableOpacity style={styles.spatialChip} onPress={() => setActiveTab('spatial')}>
-            <Text style={styles.spatialChipText}>Spatial →</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -298,18 +294,6 @@ const styles = StyleSheet.create({
     fontFamily: 'JetBrainsMono',
     fontSize: 10,
     color: colors.muted,
-  },
-  spatialChip: {
-    borderWidth: 1,
-    borderColor: colors.mine,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  spatialChipText: {
-    fontFamily: 'JetBrainsMono',
-    fontSize: 10,
-    color: colors.mine,
   },
   middleRow: {
     flex: 1,
