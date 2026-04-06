@@ -30,7 +30,7 @@ const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const theme_1 = require("../../lib/theme");
 const colors = theme_1.theme.light;
 function SongMapTab() {
-    const { sessionName, setActiveTab, activeMoment, setActiveMoment, activeSection, setActiveSection, musicTrack, sectionClips, moments, createMoment, renameMoment, deleteMoment, playheadMs, momentsConnectionStatus, } = (0, SessionContext_1.useSessionContext)();
+    const { sessionName, activeMoment, setActiveMoment, activeSection, setActiveSection, musicTrack, sectionClips, moments, createMoment, renameMoment, deleteMoment, playheadMs, momentsConnectionStatus, } = (0, SessionContext_1.useSessionContext)();
     const [renamingMomentId, setRenamingMomentId] = (0, react_1.useState)(null);
     const [canvasSize, setCanvasSize] = (0, react_1.useState)({ width: 0, height: 0 });
     // Get sections from musicTrack or use placeholders
@@ -106,9 +106,6 @@ function SongMapTab() {
         <react_native_1.Text style={styles.topBarSessionName}>{sessionName}</react_native_1.Text>
         <react_native_1.View style={styles.topBarRight}>
           <react_native_1.Text style={styles.topBarSectionLabel}>{activeSection}</react_native_1.Text>
-          <react_native_1.TouchableOpacity style={styles.spatialChip} onPress={() => setActiveTab('spatial')}>
-            <react_native_1.Text style={styles.spatialChipText}>Spatial →</react_native_1.Text>
-          </react_native_1.TouchableOpacity>
         </react_native_1.View>
       </react_native_1.View>
 
@@ -238,18 +235,6 @@ const styles = react_native_1.StyleSheet.create({
         fontFamily: 'JetBrainsMono',
         fontSize: 10,
         color: colors.muted,
-    },
-    spatialChip: {
-        borderWidth: 1,
-        borderColor: colors.mine,
-        borderRadius: 999,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-    },
-    spatialChipText: {
-        fontFamily: 'JetBrainsMono',
-        fontSize: 10,
-        color: colors.mine,
     },
     middleRow: {
         flex: 1,

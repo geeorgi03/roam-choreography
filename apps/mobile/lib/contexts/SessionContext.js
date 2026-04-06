@@ -37,6 +37,7 @@ const useInbox_1 = require("../hooks/useInbox");
 const useSession_1 = require("../hooks/useSession");
 const supabase_1 = require("../supabase");
 const api_1 = require("../api");
+const storage_1 = require("../storage");
 const SessionContext = (0, react_1.createContext)(null);
 function SessionProvider({ sessionId, children }) {
     // State
@@ -56,6 +57,7 @@ function SessionProvider({ sessionId, children }) {
     const [wasPlayingBeforeSheet, setWasPlayingBeforeSheet] = (0, react_1.useState)(false);
     const [selectedClipForSheet, setSelectedClipForSheet] = (0, react_1.useState)(null);
     const [sectionClips, setSectionClips] = (0, react_1.useState)([]);
+    const [sessionMode, setSessionModeState] = (0, react_1.useState)(() => (0, storage_1.getSessionMode)(sessionId));
     // Refs
     const soundRef = (0, react_1.useRef)(null);
     const activeSheetIdRef = (0, react_1.useRef)(null);
@@ -277,6 +279,10 @@ function SessionProvider({ sessionId, children }) {
         closeSheet();
         setActiveTab('song-map');
     }, [activeMoment, moments, closeSheet, setActiveTab]);
+    const setSessionMode = (0, react_1.useCallback)((mode) => {
+        setSessionModeState(mode);
+        (0, storage_1.setSessionMode)(sessionId, mode);
+    }, [sessionId]);
     const updateSessionMeta = (0, react_1.useCallback)(async (meta) => {
         if (!sessionId || !session?.access_token)
             return;
@@ -350,6 +356,8 @@ function SessionProvider({ sessionId, children }) {
         sectionClips,
         setSectionClips,
         soundRef,
+        sessionMode,
+        setSessionMode,
         // Hooks data
         clips,
         retryClip,

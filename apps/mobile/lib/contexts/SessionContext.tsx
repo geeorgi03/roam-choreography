@@ -10,6 +10,7 @@ import { useInbox } from '../hooks/useInbox';
 import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
 import { API_BASE } from '../api';
+import { getSessionMode, setSessionMode as setSessionModeStorage } from '../storage';
 
 export interface SessionContextValue {
   sessionId: string;
@@ -81,6 +82,8 @@ export interface SessionContextValue {
   removeMoment: (momentId: string) => void;
   updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
   updateQuality: (momentId: string, quality: QualityData | null) => Promise<void>;
+  sessionMode: boolean;
+  setSessionMode: (mode: boolean) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -103,6 +106,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const [wasPlayingBeforeSheet, setWasPlayingBeforeSheet] = useState(false);
   const [selectedClipForSheet, setSelectedClipForSheet] = useState<ClipRow | null>(null);
   const [sectionClips, setSectionClips] = useState<SectionClip[]>([]);
+  const [sessionMode, setSessionModeState] = useState<boolean>(() => getSessionMode(sessionId));
   
   // Refs
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -261,6 +265,11 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     wasPlayingBeforeSheetRef.current = wasPlayingBeforeSheet;
   }, [wasPlayingBeforeSheet]);
 
+  // Reload session mode when sessionId changes
+  useEffect(() => {
+    setSessionModeState(getSessionMode(sessionId));
+  }, [sessionId]);
+
   // Handlers
   const handlePlayPause = useCallback(() => {
     if (!soundRef.current) return;
@@ -360,6 +369,11 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setActiveTab('song-map');
   }, [activeMoment, moments, closeSheet, setActiveTab]);
 
+  const setSessionMode = useCallback((mode: boolean) => {
+    setSessionModeState(mode);
+    setSessionModeStorage(sessionId, mode);
+  }, [sessionId]);
+
   const updateSessionMeta = useCallback(async (meta: { name?: string; phrase?: string }) => {
     if (!sessionId || !session?.access_token) return;
 
@@ -436,6 +450,8 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     sectionClips,
     setSectionClips,
     soundRef,
+    sessionMode,
+    setSessionMode,
     
     // Hooks data
     clips,

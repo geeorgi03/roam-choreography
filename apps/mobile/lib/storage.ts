@@ -20,6 +20,15 @@ try {
   console.error('[storage] Loupe MMKV init failed:', e);
 }
 
+let sessionModeStorage: MMKV | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { MMKV: MMKVClass } = require('react-native-mmkv') as typeof import('react-native-mmkv');
+  sessionModeStorage = new MMKVClass({ id: 'session-mode' });
+} catch (e) {
+  console.error('[storage] Session mode MMKV init failed:', e);
+}
+
 const UPLOAD_QUEUE_KEY = 'upload_queue';
 const TUS_URLS_KEY = 'tus_urls';
 
@@ -83,5 +92,21 @@ export function getLoupeState(key: string): LoupeState | null {
 export function setLoupeState(key: string, state: LoupeState): void {
   if (!loupeStorage) return;
   loupeStorage.set(key, JSON.stringify(state));
+}
+
+export function getSessionMode(sessionId: string): boolean {
+  if (!sessionModeStorage) return true;
+  const raw = sessionModeStorage.getString(`session-mode:${sessionId}`);
+  if (raw === undefined || raw === null) return true;
+  try {
+    return raw === '1' || raw === 'true';
+  } catch {
+    return true;
+  }
+}
+
+export function setSessionMode(sessionId: string, value: boolean): void {
+  if (!sessionModeStorage) return;
+  sessionModeStorage.set(`session-mode:${sessionId}`, value ? '1' : '0');
 }
 

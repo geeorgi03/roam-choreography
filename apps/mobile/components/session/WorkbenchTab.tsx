@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -80,6 +81,8 @@ export function WorkbenchTab() {
     setSelectedClipForSheet,
     openClipSheet,
     refreshCount,
+    sessionMode,
+    setSessionMode,
   } = useSessionContext();
 
   // ── Session metadata ─────────────────────────────────────────────────────
@@ -248,7 +251,10 @@ export function WorkbenchTab() {
   }, [sectionClips]);
 
   return (
-    <View style={styles.container}>
+    <TouchableWithoutFeedback 
+      onPress={() => { if (!sessionMode) setSessionMode(true); }}
+    >
+      <View style={styles.container}>
       <ScrollView
         horizontal={false}
         style={styles.waveformContainer}
@@ -344,10 +350,22 @@ export function WorkbenchTab() {
           </Text>
         </View>
       </View>
+      {sessionMode && (
+        <View style={styles.workspaceHeader}>
+          <TouchableOpacity 
+            onPress={() => setSessionMode(false)}
+            style={styles.workspaceSectionGesture}
+          >
+            <Text style={styles.sessionModeLabel}>
+              {activeSection} · {sectionClipCounts.get(activeSection) ?? 0} clips
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <Text style={styles.partitionHint}>read-only in V3</Text>
 
       {/* Section chips — shown when music analysis has produced sections */}
-      {musicTrack?.sections && musicTrack.sections.length > 0 ? (
+      {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (
         <>
           <View style={styles.sectionPillListWrap}>
             <ScrollView
@@ -395,7 +413,8 @@ export function WorkbenchTab() {
       ) : null}
 
       {/* Section workspace */}
-      <View style={styles.workspace}>
+      {!sessionMode && (
+        <View style={styles.workspace}>
         <View style={styles.workspaceHeader}>
           <View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
             <Text style={styles.workspaceTitle}>{activeSection}</Text>
@@ -557,7 +576,7 @@ export function WorkbenchTab() {
           </View>
         )}
       </View>
-
+      )}
       <TouchableOpacity
         style={styles.recordFab}
         activeOpacity={0.85}
@@ -570,9 +589,10 @@ export function WorkbenchTab() {
       >
         <View style={styles.recordFabInner} />
       </TouchableOpacity>
+      </TouchableOpacity>
     </View>
-  );
-}
+  </TouchableWithoutFeedback>
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -727,6 +747,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   workspaceTitle: {
+    color: colors.active,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  sessionModeLabel: {
     color: colors.active,
     fontSize: 16,
     fontWeight: '700',

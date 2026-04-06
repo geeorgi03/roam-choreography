@@ -3,23 +3,28 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
 import type { ClipRow } from '../../lib/database';
+import type { Loop } from '@roam/types';
 import { theme } from '../../lib/theme';
+import LoopChipRow from './LoopChipRow';
 
 const colors = theme.light;
 const nightColors = theme.night;
 
 interface ClipViewerSheetStandaloneProps {
   clip: ClipRow | null;
+  sessionId: string | null;
   onClose: () => void;
 }
 
 export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewerSheetStandaloneProps>(
-  function ClipViewerSheetStandalone({ clip, onClose }, ref) {
+  function ClipViewerSheetStandalone({ clip, sessionId, onClose }, ref) {
     const videoRef = useRef<Video>(null);
     const positionMsRef = useRef<number>(0);
     const [clipSpeed, setClipSpeed] = useState(1);
     const [playheadFraction, setPlayheadFraction] = useState(0);
     const [playing, setPlaying] = useState(false);
+    const [durationMs, setDurationMs] = useState(0);
+    const [activeLoop, setActiveLoop] = useState<Loop | null>(null);
 
     useEffect(() => {
       positionMsRef.current = 0;
@@ -68,12 +73,20 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
         positionMsRef.current = 0;
         setPlayheadFraction(0);
         setPlaying(false);
+        setDurationMs(0);
         return;
       }
 
       positionMsRef.current = status.positionMillis;
+      setDurationMs(status.durationMillis || 0);
       setPlayheadFraction(status.durationMillis ? status.positionMillis / status.durationMillis : 0);
       setPlaying(status.isPlaying);
+    };
+
+    const handleLoopChipPress = (start: number) => {
+      if (videoRef.current) {
+        videoRef.current.setPositionAsync(start);
+      }
     };
 
     const renderBackdrop = (props: any) => (
@@ -123,6 +136,23 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
                 )}
               </View>
               <View style={styles.progressBar}>
+                {/* Loop region overlay */}
+                {activeLoop && durationMs > 0 && (
+                  <View
+                    style={[
+                      styles.loopRegion,
+                      {
+                        left: `${(activeLoop.start_ms / durationMs) * 100}%`,
+                        width: `${((activeLoop.end_ms - activeLoop.start_ms) / durationMs) * 100}%`,
+                        backgroundColor: activeLoop.color + '59', // 35% opacity
+                      },
+                    ]}
+                  >
+                    {/* Edge lines */}
+                    <View style={[styles.loopEdgeLine, { backgroundColor: activeLoop.color, left: 0 }]} />
+                    <View style={[styles.loopEdgeLine, { backgroundColor: activeLoop.color, right: 0 }]} />
+                  </View>
+                )}
                 <View 
                   style={[styles.progressFill, { width: `${playheadFraction * 100}%` }]}
                 />
@@ -143,8 +173,19 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
                 </TouchableOpacity>
               </View>
             </View>
-            {/* Light zone — empty (no loop chips, no save, no moment button) */}
-            <View style={styles.lightZone} />
+            {/* Light zone */}
+            <View style={styles.lightZone}>
+              {/* Loop chips - only show if clip has source_url */}
+              {clip?.mux_playback_id && (
+                <LoopChipRow
+                  sessionId={sessionId}
+                  sourceUrl={`https://stream.mux.com/${clip.mux_playback_id}`}
+                  currentPositionMs={positionMsRef.current}
+                  onSeek={handleLoopChipPress}
+                  onActiveLoopChange={setActiveLoop}
+                />
+              )}
+            </View>
           </>
         ) : (
           <View style={styles.emptyContainer} />
@@ -216,6 +257,19 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: '#7DB9A8',
+    borderRadius: 1,
+  },
+  loopRegion: {
+    position: 'absolute',
+    top: 0,
+    height: '100%',
+    borderRadius: 1,
+  },
+  loopEdgeLine: {
+    position: 'absolute',
+    top: -3,
+    width: 3,
+    height: 8,
     borderRadius: 1,
   },
   controlsRow: {

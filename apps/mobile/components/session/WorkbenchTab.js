@@ -52,7 +52,7 @@ function isReferenceClip(clip) {
 }
 function WorkbenchTab() {
     const router = (0, expo_router_1.useRouter)();
-    const { sessionId, activeSection, activeMoment, jumpToSongMap, setActiveSection, playheadMs, durationMs, musicUrl, loopRegion, clips, musicTrack, isAnalysing, notes, createNote, deleteNote, inboxCount, sectionClips, retryClip, soundRef, handlePlayPause, handleSeekBack, handleSeekForward, handleLoopToggle, activeSheetId, openSheet, closeSheet, selectedClipForSheet, setSelectedClipForSheet, openClipSheet, refreshCount, } = (0, SessionContext_1.useSessionContext)();
+    const { sessionId, activeSection, activeMoment, jumpToSongMap, setActiveSection, playheadMs, durationMs, musicUrl, loopRegion, clips, musicTrack, isAnalysing, notes, createNote, deleteNote, inboxCount, sectionClips, retryClip, soundRef, handlePlayPause, handleSeekBack, handleSeekForward, handleLoopToggle, activeSheetId, openSheet, closeSheet, selectedClipForSheet, setSelectedClipForSheet, openClipSheet, refreshCount, sessionMode, setSessionMode, } = (0, SessionContext_1.useSessionContext)();
     // ── Session metadata ─────────────────────────────────────────────────────
     const [showSectionSwipeHint, setShowSectionSwipeHint] = (0, react_1.useState)(true);
     const [workspaceTab, setWorkspaceTab] = (0, react_1.useState)('ideas');
@@ -170,7 +170,9 @@ function WorkbenchTab() {
         }
         return counts;
     }, [sectionClips]);
-    return (<react_native_1.View style={styles.container}>
+    return (<react_native_1.TouchableWithoutFeedback onPress={() => { if (!sessionMode)
+        setSessionMode(true); }}>
+      <react_native_1.View style={styles.container}>
       <react_native_1.ScrollView horizontal={false} style={styles.waveformContainer} contentContainerStyle={styles.waveformContainerContent} showsVerticalScrollIndicator={false} scrollEnabled={false}>
         <react_native_1.View style={styles.waveformTrack} onLayout={(event) => {
             const measuredWidth = Math.max(0, event.nativeEvent.layout.width - WAVEFORM_HORIZONTAL_PADDING * 2);
@@ -230,10 +232,17 @@ function WorkbenchTab() {
           </react_native_1.Text>
         </react_native_1.View>
       </react_native_1.View>
+      {sessionMode && (<react_native_1.View style={styles.workspaceHeader}>
+          <react_native_1.TouchableOpacity onPress={() => setSessionMode(false)} style={styles.workspaceSectionGesture}>
+            <react_native_1.Text style={styles.sessionModeLabel}>
+              {activeSection} · {sectionClipCounts.get(activeSection) ?? 0} clips
+            </react_native_1.Text>
+          </react_native_1.TouchableOpacity>
+        </react_native_1.View>)}
       <react_native_1.Text style={styles.partitionHint}>read-only in V3</react_native_1.Text>
 
       {/* Section chips — shown when music analysis has produced sections */}
-      {musicTrack?.sections && musicTrack.sections.length > 0 ? (<>
+      {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (<>
           <react_native_1.View style={styles.sectionPillListWrap}>
             <react_native_1.ScrollView style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]} contentContainerStyle={styles.sectionPillListContent} showsVerticalScrollIndicator={false}>
               {musicTrack.sections.map((s) => {
@@ -261,7 +270,7 @@ function WorkbenchTab() {
         </>) : null}
 
       {/* Section workspace */}
-      <react_native_1.View style={styles.workspace}>
+      {!sessionMode && (<react_native_1.View style={styles.workspace}>
         <react_native_1.View style={styles.workspaceHeader}>
           <react_native_1.View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
             <react_native_1.Text style={styles.workspaceTitle}>{activeSection}</react_native_1.Text>
@@ -279,24 +288,24 @@ function WorkbenchTab() {
 
         <react_native_1.View style={styles.workspaceTabs}>
           <react_native_1.TouchableOpacity style={[
-            styles.workspaceTab,
-            workspaceTab === 'ideas' && styles.workspaceTabActive,
-        ]} onPress={() => setWorkspaceTab('ideas')}>
+                styles.workspaceTab,
+                workspaceTab === 'ideas' && styles.workspaceTabActive,
+            ]} onPress={() => setWorkspaceTab('ideas')}>
             <react_native_1.Text style={[
-            styles.workspaceTabText,
-            workspaceTab === 'ideas' && styles.workspaceTabTextActive,
-        ]}>
+                styles.workspaceTabText,
+                workspaceTab === 'ideas' && styles.workspaceTabTextActive,
+            ]}>
               Ideas
             </react_native_1.Text>
           </react_native_1.TouchableOpacity>
           <react_native_1.TouchableOpacity style={[
-            styles.workspaceTab,
-            workspaceTab === 'notes' && styles.workspaceTabActive,
-        ]} onPress={() => setWorkspaceTab('notes')}>
+                styles.workspaceTab,
+                workspaceTab === 'notes' && styles.workspaceTabActive,
+            ]} onPress={() => setWorkspaceTab('notes')}>
             <react_native_1.Text style={[
-            styles.workspaceTabText,
-            workspaceTab === 'notes' && styles.workspaceTabTextActive,
-        ]}>
+                styles.workspaceTabText,
+                workspaceTab === 'notes' && styles.workspaceTabTextActive,
+            ]}>
               Notes
             </react_native_1.Text>
           </react_native_1.TouchableOpacity>
@@ -309,22 +318,22 @@ function WorkbenchTab() {
 
         {workspaceTab === 'ideas' ? (<react_native_1.FlatList data={displayClips} keyExtractor={(c) => c.local_id} numColumns={2} columnWrapperStyle={{ gap: 10 }} contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 40 }} renderItem={({ item, index }) => (<react_native_1.View style={styles.clipCell}>
                 <react_native_1.TouchableOpacity style={[
-                    styles.clipThumb,
-                    isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
-                ]} onPress={() => openClipSheet(item)} activeOpacity={0.85}>
+                        styles.clipThumb,
+                        isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
+                    ]} onPress={() => openClipSheet(item)} activeOpacity={0.85}>
                   {item.mux_playback_id ? (<react_native_1.Image source={{
-                        uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
-                    }} style={styles.clipThumbImage}/>) : null}
+                            uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
+                        }} style={styles.clipThumbImage}/>) : null}
                   <react_native_1.View style={[
-                    styles.clipTypeBadge,
-                    isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine,
-                ]}>
+                        styles.clipTypeBadge,
+                        isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine,
+                    ]}>
                     <react_native_1.Text style={[
-                    styles.clipTypeBadgeText,
-                    isReferenceClip(item)
-                        ? styles.clipTypeBadgeTextRef
-                        : styles.clipTypeBadgeTextMine,
-                ]}>
+                        styles.clipTypeBadgeText,
+                        isReferenceClip(item)
+                            ? styles.clipTypeBadgeTextRef
+                            : styles.clipTypeBadgeTextMine,
+                    ]}>
                       {isReferenceClip(item) ? 'REF' : 'MINE'}
                     </react_native_1.Text>
                   </react_native_1.View>
@@ -333,19 +342,19 @@ function WorkbenchTab() {
                     </react_native_1.TouchableOpacity>) : null}
                 </react_native_1.TouchableOpacity>
                 <react_native_1.TouchableOpacity style={[
-                    styles.clipShareIcon,
-                    item.upload_status !== 'ready' && styles.clipShareIconDisabled,
-                ]} onPress={() => {
-                    if (item.upload_status !== 'ready' || !item.server_id) {
-                        react_native_toast_message_1.default.show({
-                            type: 'info',
-                            text1: 'Available once clip is ready.',
-                        });
-                        return;
-                    }
-                    setSelectedClipForSheet(item);
-                    openSheet('clip-share');
-                }}>
+                        styles.clipShareIcon,
+                        item.upload_status !== 'ready' && styles.clipShareIconDisabled,
+                    ]} onPress={() => {
+                        if (item.upload_status !== 'ready' || !item.server_id) {
+                            react_native_toast_message_1.default.show({
+                                type: 'info',
+                                text1: 'Available once clip is ready.',
+                            });
+                            return;
+                        }
+                        setSelectedClipForSheet(item);
+                        openSheet('clip-share');
+                    }}>
                   <react_native_1.Text style={styles.clipShareIconText}>⎘</react_native_1.Text>
                 </react_native_1.TouchableOpacity>
               </react_native_1.View>)}/>) : (<react_native_1.View style={styles.notesContent}>
@@ -358,366 +367,372 @@ function WorkbenchTab() {
               </react_native_1.View>))}
           </react_native_1.View>)}
       </react_native_1.View>
-
-      <react_native_1.TouchableOpacity style={styles.recordFab} activeOpacity={0.85} onPress={() => router.push({
-            pathname: './camera',
-            params: { id: sessionId, sectionName: activeSection },
-        })}>
+            ,
+                <react_native_1.TouchableOpacity style={styles.recordFab} activeOpacity={0.85} onPress={() => router.push({
+                        pathname: './camera',
+                        params: { id: sessionId, sectionName: activeSection },
+                    })}>
         <react_native_1.View style={styles.recordFabInner}/>
-      </react_native_1.TouchableOpacity>
-    </react_native_1.View>);
+      </react_native_1.TouchableOpacity>)}
+    </react_native_1.View>
+  </react_native_1.TouchableWithoutFeedback>);
+    const styles = react_native_1.StyleSheet.create({
+        container: {
+            flex: 1,
+            backgroundColor: colors.ground,
+            position: 'relative',
+        },
+        waveformContainer: {
+            height: 80,
+        },
+        waveformContainerContent: {
+            height: 80,
+        },
+        waveformTrack: {
+            height: 80,
+            position: 'relative',
+            justifyContent: 'center',
+        },
+        waveformTapArea: {
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: WAVEFORM_HORIZONTAL_PADDING,
+            right: WAVEFORM_HORIZONTAL_PADDING,
+            justifyContent: 'center',
+        },
+        waveformBarsRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: WAVEFORM_BAR_GAP,
+            height: '100%',
+        },
+        waveformBar: {
+            borderRadius: 2,
+            alignSelf: 'center',
+        },
+        waveformLoopEdge: {
+            position: 'absolute',
+            width: 2,
+            top: 0,
+            bottom: 0,
+            backgroundColor: '#7db9a8',
+        },
+        waveformPlayhead: {
+            position: 'absolute',
+            width: 1.5,
+            top: 0,
+            bottom: 0,
+            backgroundColor: '#3a342d',
+        },
+        waveformPlayheadDot: {
+            width: 7,
+            height: 7,
+            borderRadius: 3.5,
+            backgroundColor: '#3a342d',
+            position: 'absolute',
+            top: 0,
+            left: -2.75,
+        },
+        toggleRow: {
+            flexDirection: 'row',
+            gap: 4,
+            paddingHorizontal: 16,
+            paddingVertical: 6,
+        },
+        toggleChip: {
+            paddingHorizontal: 8,
+            paddingVertical: 3,
+            borderRadius: 4,
+            borderWidth: 0.5,
+            borderColor: colors.border,
+        },
+        toggleChipActive: {
+            backgroundColor: colors.active,
+            borderColor: colors.active,
+        },
+        toggleChipText: {
+            fontFamily: theme_1.theme.typography.monoFamily,
+            fontSize: 9,
+            color: colors.muted,
+        },
+        toggleChipTextActive: {
+            color: '#ffffff',
+        },
+        partitionHint: {
+            fontFamily: theme_1.theme.typography.monoFamily,
+            fontSize: 9,
+            color: colors.muted,
+            paddingHorizontal: 16,
+        },
+        sectionPillListWrap: {
+            maxHeight: '40%',
+        },
+        sectionPillList: {
+            maxHeight: 200,
+        },
+        sectionPillListContent: {
+            paddingHorizontal: 16,
+            paddingTop: 8,
+            paddingBottom: 8,
+        },
+        sectionPill: {
+            height: 36,
+            borderRadius: 6,
+            borderWidth: 0.5,
+            borderColor: colors.border,
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 10,
+            justifyContent: 'space-between',
+            marginBottom: 4,
+            position: 'relative',
+            overflow: 'hidden',
+        },
+        sectionPillActive: {
+            borderColor: '#7db9a8',
+            backgroundColor: 'rgba(125,185,168,0.12)',
+        },
+        sectionPillText: {
+            fontFamily: theme_1.theme.typography.monoFamily,
+            fontSize: 11,
+            color: '#b8b0a5',
+        },
+        sectionPillTextActive: {
+            color: '#3a342d',
+        },
+        sectionPillCount: {
+            fontFamily: theme_1.theme.typography.monoFamily,
+            fontSize: 10,
+            color: colors.muted,
+        },
+        sectionSwipeHint: {
+            color: colors.muted,
+            fontSize: 11,
+            textAlign: 'center',
+            paddingVertical: 4,
+        },
+        workspace: {
+            flex: 1,
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+        },
+        workspaceHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+        },
+        workspaceSectionGesture: {
+            flex: 1,
+        },
+        workspaceTitle: {
+            color: colors.active,
+            fontSize: 16,
+            fontWeight: '700',
+        },
+        sessionModeLabel: {
+            color: colors.active,
+            fontSize: 16,
+            fontWeight: '700',
+        },
+        workspaceMeta: {
+            color: colors.muted,
+            fontSize: 12,
+            fontWeight: '600',
+        },
+        workspaceBtn: {
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            backgroundColor: colors.active,
+            borderRadius: 4,
+        },
+        workspaceBtnText: {
+            color: '#ffffff',
+            fontSize: 11,
+            fontWeight: '600',
+        },
+        mapJumpBtn: {
+            paddingHorizontal: 10,
+            paddingVertical: 4,
+            borderRadius: spacing.pill,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.chrome,
+        },
+        mapJumpBtnText: {
+            fontFamily: theme_1.theme.typography.monoFamily,
+            fontSize: 11,
+            color: colors.muted,
+        },
+        workspaceTabs: {
+            flexDirection: 'row',
+            marginBottom: 12,
+            gap: 8,
+        },
+        pinNoteBtn: {
+            alignSelf: 'flex-start',
+            marginBottom: 12,
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            borderRadius: spacing.pill,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.chrome,
+        },
+        pinNoteBtnText: {
+            color: colors.active,
+            fontSize: 11,
+            fontWeight: '600',
+        },
+        workspaceTab: {
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: spacing.pill,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.chrome,
+        },
+        workspaceTabActive: {
+            backgroundColor: colors.active,
+            borderColor: colors.active,
+        },
+        workspaceTabText: {
+            color: colors.muted,
+            fontSize: 12,
+            fontWeight: '600',
+        },
+        workspaceTabTextActive: {
+            color: '#ffffff',
+        },
+        clipCell: {
+            flex: 1,
+            gap: 6,
+        },
+        clipThumb: {
+            height: 120,
+            borderRadius: 8,
+            overflow: 'hidden',
+            position: 'relative',
+        },
+        clipThumbRef: {
+            backgroundColor: colors.warm,
+        },
+        clipThumbMine: {
+            backgroundColor: colors.mine,
+        },
+        clipThumbImage: {
+            width: '100%',
+            height: '100%',
+        },
+        clipTypeBadge: {
+            position: 'absolute',
+            top: 6,
+            left: 6,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+            borderRadius: 4,
+        },
+        clipTypeBadgeRef: {
+            backgroundColor: 'rgba(255,255,255,0.9)',
+        },
+        clipTypeBadgeMine: {
+            backgroundColor: 'rgba(255,255,255,0.9)',
+        },
+        clipTypeBadgeText: {
+            fontSize: 9,
+            fontWeight: '700',
+        },
+        clipTypeBadgeTextRef: {
+            color: colors.warm,
+        },
+        clipTypeBadgeTextMine: {
+            color: colors.mine,
+        },
+        retryPill: {
+            position: 'absolute',
+            bottom: 6,
+            right: 6,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+            backgroundColor: 'rgba(255,255,255,0.9)',
+            borderRadius: 4,
+        },
+        retryPillText: {
+            fontSize: 9,
+            fontWeight: '700',
+            color: colors.active,
+        },
+        clipShareIcon: {
+            alignSelf: 'flex-end',
+            width: 24,
+            height: 24,
+            borderRadius: 12,
+            backgroundColor: colors.chrome,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        clipShareIconDisabled: {
+            opacity: 0.4,
+        },
+        clipShareIconText: {
+            color: colors.muted,
+            fontSize: 12,
+        },
+        notesContent: {
+            gap: 8,
+        },
+        noteItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            paddingVertical: 8,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+        },
+        noteTime: {
+            color: colors.muted,
+            fontSize: 11,
+            fontWeight: '600',
+            width: 40,
+        },
+        noteText: {
+            flex: 1,
+            color: colors.active,
+            fontSize: 13,
+        },
+        noteDelete: {
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            backgroundColor: colors.chrome,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        noteDeleteText: {
+            color: colors.muted,
+            fontSize: 10,
+        },
+        recordFab: {
+            position: 'absolute',
+            bottom: 10,
+            right: 10,
+            width: 64,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: colors.capture,
+            justifyContent: 'center',
+            alignItems: 'center',
+        },
+        recordFabInner: {
+            width: 22,
+            height: 22,
+            borderRadius: 11,
+            backgroundColor: '#ffffff',
+        },
+    });
 }
 exports.WorkbenchTab = WorkbenchTab;
-const styles = react_native_1.StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: colors.ground,
-        position: 'relative',
-    },
-    waveformContainer: {
-        height: 80,
-    },
-    waveformContainerContent: {
-        height: 80,
-    },
-    waveformTrack: {
-        height: 80,
-        position: 'relative',
-        justifyContent: 'center',
-    },
-    waveformTapArea: {
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        left: WAVEFORM_HORIZONTAL_PADDING,
-        right: WAVEFORM_HORIZONTAL_PADDING,
-        justifyContent: 'center',
-    },
-    waveformBarsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: WAVEFORM_BAR_GAP,
-        height: '100%',
-    },
-    waveformBar: {
-        borderRadius: 2,
-        alignSelf: 'center',
-    },
-    waveformLoopEdge: {
-        position: 'absolute',
-        width: 2,
-        top: 0,
-        bottom: 0,
-        backgroundColor: '#7db9a8',
-    },
-    waveformPlayhead: {
-        position: 'absolute',
-        width: 1.5,
-        top: 0,
-        bottom: 0,
-        backgroundColor: '#3a342d',
-    },
-    waveformPlayheadDot: {
-        width: 7,
-        height: 7,
-        borderRadius: 3.5,
-        backgroundColor: '#3a342d',
-        position: 'absolute',
-        top: 0,
-        left: -2.75,
-    },
-    toggleRow: {
-        flexDirection: 'row',
-        gap: 4,
-        paddingHorizontal: 16,
-        paddingVertical: 6,
-    },
-    toggleChip: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 4,
-        borderWidth: 0.5,
-        borderColor: colors.border,
-    },
-    toggleChipActive: {
-        backgroundColor: colors.active,
-        borderColor: colors.active,
-    },
-    toggleChipText: {
-        fontFamily: theme_1.theme.typography.monoFamily,
-        fontSize: 9,
-        color: colors.muted,
-    },
-    toggleChipTextActive: {
-        color: '#ffffff',
-    },
-    partitionHint: {
-        fontFamily: theme_1.theme.typography.monoFamily,
-        fontSize: 9,
-        color: colors.muted,
-        paddingHorizontal: 16,
-    },
-    sectionPillListWrap: {
-        maxHeight: '40%',
-    },
-    sectionPillList: {
-        maxHeight: 200,
-    },
-    sectionPillListContent: {
-        paddingHorizontal: 16,
-        paddingTop: 8,
-        paddingBottom: 8,
-    },
-    sectionPill: {
-        height: 36,
-        borderRadius: 6,
-        borderWidth: 0.5,
-        borderColor: colors.border,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        justifyContent: 'space-between',
-        marginBottom: 4,
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    sectionPillActive: {
-        borderColor: '#7db9a8',
-        backgroundColor: 'rgba(125,185,168,0.12)',
-    },
-    sectionPillText: {
-        fontFamily: theme_1.theme.typography.monoFamily,
-        fontSize: 11,
-        color: '#b8b0a5',
-    },
-    sectionPillTextActive: {
-        color: '#3a342d',
-    },
-    sectionPillCount: {
-        fontFamily: theme_1.theme.typography.monoFamily,
-        fontSize: 10,
-        color: colors.muted,
-    },
-    sectionSwipeHint: {
-        color: colors.muted,
-        fontSize: 11,
-        textAlign: 'center',
-        paddingVertical: 4,
-    },
-    workspace: {
-        flex: 1,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-    },
-    workspaceHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 12,
-    },
-    workspaceSectionGesture: {
-        flex: 1,
-    },
-    workspaceTitle: {
-        color: colors.active,
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    workspaceMeta: {
-        color: colors.muted,
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    workspaceBtn: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        backgroundColor: colors.active,
-        borderRadius: 4,
-    },
-    workspaceBtnText: {
-        color: '#ffffff',
-        fontSize: 11,
-        fontWeight: '600',
-    },
-    mapJumpBtn: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: spacing.pill,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.chrome,
-    },
-    mapJumpBtnText: {
-        fontFamily: theme_1.theme.typography.monoFamily,
-        fontSize: 11,
-        color: colors.muted,
-    },
-    workspaceTabs: {
-        flexDirection: 'row',
-        marginBottom: 12,
-        gap: 8,
-    },
-    pinNoteBtn: {
-        alignSelf: 'flex-start',
-        marginBottom: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        borderRadius: spacing.pill,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.chrome,
-    },
-    pinNoteBtnText: {
-        color: colors.active,
-        fontSize: 11,
-        fontWeight: '600',
-    },
-    workspaceTab: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: spacing.pill,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.chrome,
-    },
-    workspaceTabActive: {
-        backgroundColor: colors.active,
-        borderColor: colors.active,
-    },
-    workspaceTabText: {
-        color: colors.muted,
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    workspaceTabTextActive: {
-        color: '#ffffff',
-    },
-    clipCell: {
-        flex: 1,
-        gap: 6,
-    },
-    clipThumb: {
-        height: 120,
-        borderRadius: 8,
-        overflow: 'hidden',
-        position: 'relative',
-    },
-    clipThumbRef: {
-        backgroundColor: colors.warm,
-    },
-    clipThumbMine: {
-        backgroundColor: colors.mine,
-    },
-    clipThumbImage: {
-        width: '100%',
-        height: '100%',
-    },
-    clipTypeBadge: {
-        position: 'absolute',
-        top: 6,
-        left: 6,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    clipTypeBadgeRef: {
-        backgroundColor: 'rgba(255,255,255,0.9)',
-    },
-    clipTypeBadgeMine: {
-        backgroundColor: 'rgba(255,255,255,0.9)',
-    },
-    clipTypeBadgeText: {
-        fontSize: 9,
-        fontWeight: '700',
-    },
-    clipTypeBadgeTextRef: {
-        color: colors.warm,
-    },
-    clipTypeBadgeTextMine: {
-        color: colors.mine,
-    },
-    retryPill: {
-        position: 'absolute',
-        bottom: 6,
-        right: 6,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        borderRadius: 4,
-    },
-    retryPillText: {
-        fontSize: 9,
-        fontWeight: '700',
-        color: colors.active,
-    },
-    clipShareIcon: {
-        alignSelf: 'flex-end',
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: colors.chrome,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    clipShareIconDisabled: {
-        opacity: 0.4,
-    },
-    clipShareIconText: {
-        color: colors.muted,
-        fontSize: 12,
-    },
-    notesContent: {
-        gap: 8,
-    },
-    noteItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-    },
-    noteTime: {
-        color: colors.muted,
-        fontSize: 11,
-        fontWeight: '600',
-        width: 40,
-    },
-    noteText: {
-        flex: 1,
-        color: colors.active,
-        fontSize: 13,
-    },
-    noteDelete: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: colors.chrome,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    noteDeleteText: {
-        color: colors.muted,
-        fontSize: 10,
-    },
-    recordFab: {
-        position: 'absolute',
-        bottom: 10,
-        right: 10,
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: colors.capture,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    recordFabInner: {
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        backgroundColor: '#ffffff',
-    },
-});
 //# sourceMappingURL=WorkbenchTab.js.map

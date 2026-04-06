@@ -144,4 +144,15 @@ export interface Moment {
     position: number;
     created_at: ISODateTime;
 }
+export interface Loop {
+    id: UUID;
+    session_id: UUID;
+    source_url: string;
+    start_ms: number;
+    end_ms: number;
+    color: string;
+    name: string;
+    created_by: UUID;
+    created_at: ISODateTime;
+}
 //# sourceMappingURL=index.d.ts.map

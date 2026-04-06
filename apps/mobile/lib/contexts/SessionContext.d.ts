@@ -75,6 +75,8 @@ export interface SessionContextValue {
     removeMoment: (momentId: string) => void;
     updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
     updateQuality: (momentId: string, quality: QualityData | null) => Promise<void>;
+    sessionMode: boolean;
+    setSessionMode: (mode: boolean) => void;
 }
 export declare function SessionProvider({ sessionId, children }: {
     sessionId: string;

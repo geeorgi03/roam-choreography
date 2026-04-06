@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requireAuth } from '../middleware/auth.js';
 import { supabase } from '../lib/supabase.js';
 import { checkSessionLimit } from '../lib/planGate.js';
-import type { Session, MusicTrack, Clip, Moment, FormationData, QualityData } from '@roam/types';
+import type { Session, MusicTrack, Clip, Moment, FormationData, QualityData, Loop } from '@roam/types';
 
 const GROUP_COLOR_PALETTE = ['#e67c5c', '#4a90e2', '#8a6ee8', '#3ba287', '#f2b233', '#d35d9e'];
 
@@ -843,6 +843,117 @@ app.post('/:id/share-token', async (c) => {
   const token = tokenData as string;
   const share_url = `roam://session/${sessionId}?share_token=${token}`;
   return c.json({ token, share_url }, 200);
+});
+
+/** GET /sessions/:id/loops — list loops for a session */
+app.get('/:id/loops', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const sourceUrl = c.req.query('source_url');
+
+  if (!sourceUrl) {
+    return c.json({ error: 'source_url query parameter is required' }, 400);
+  }
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('loops')
+    .select('*')
+    .eq('session_id', sessionId)
+    .eq('source_url', sourceUrl)
+    .order('created_at', { ascending: true });
+
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ loops: data as Loop[] });
+});
+
+/** POST /sessions/:id/loops — create a loop in a session */
+app.post('/:id/loops', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+
+  const parsedBody = await safeReqJson<{
+    source_url?: unknown;
+    start_ms?: unknown;
+    end_ms?: unknown;
+    color?: unknown;
+    name?: unknown;
+  }>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const body = parsedBody.data;
+
+  // Validate required fields
+  if (!body.source_url || typeof body.source_url !== 'string') {
+    return c.json({ error: 'source_url is required and must be a string' }, 400);
+  }
+  if (typeof body.start_ms !== 'number' || !Number.isFinite(body.start_ms) || !Number.isInteger(body.start_ms)) {
+    return c.json({ error: 'start_ms must be a finite integer' }, 400);
+  }
+  if (typeof body.end_ms !== 'number' || !Number.isFinite(body.end_ms) || !Number.isInteger(body.end_ms)) {
+    return c.json({ error: 'end_ms must be a finite integer' }, 400);
+  }
+  if (body.end_ms <= body.start_ms) {
+    return c.json({ error: 'end_ms must be greater than start_ms' }, 400);
+  }
+  if (!body.color || typeof body.color !== 'string' || !body.color.trim()) {
+    return c.json({ error: 'color is required and must be a non-empty string' }, 400);
+  }
+  if (!body.name || typeof body.name !== 'string' || !body.name.trim()) {
+    return c.json({ error: 'name is required and must be a non-empty string' }, 400);
+  }
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('loops')
+    .insert({
+      session_id: sessionId,
+      source_url: body.source_url.trim(),
+      start_ms: body.start_ms,
+      end_ms: body.end_ms,
+      color: body.color.trim(),
+      name: body.name.trim(),
+      created_by: userId,
+    })
+    .select('*')
+    .single();
+
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json(data as Loop, 201);
+});
+
+/** DELETE /sessions/:id/loops/:loopId — delete a loop */
+app.delete('/:id/loops/:loopId', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const loopId = c.req.param('loopId');
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const { data, error } = await supabase
+    .from('loops')
+    .delete()
+    .eq('id', loopId)
+    .eq('session_id', sessionId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    if (isInvalidUuidCastError(error)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: error.message }, 500);
+  }
+  if (!data) return c.json({ error: 'Not found' }, 404);
+  return c.body(null, 204);
 });
 
 export const sessionsRoutes = app;

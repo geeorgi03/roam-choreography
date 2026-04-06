@@ -2,12 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Video, AVPlaybackStatus } from 'expo-av';
-import { SectionClip } from '@roam/types';
+import { SectionClip, Loop } from '@roam/types';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
 import { theme } from '../../lib/theme';
 import { supabase } from '../../lib/supabase';
 import { API_BASE } from '../../lib/api';
+import LoopChipRow from './LoopChipRow';
 
 const colors = theme.light;
 const nightColors = theme.night;
@@ -23,6 +24,8 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
   const positionMsRef = useRef<number>(0);
   const [clipSpeed, setClipSpeed] = useState(1);
   const [playheadFraction, setPlayheadFraction] = useState(0);
+  const [durationMs, setDurationMs] = useState(0);
+  const [activeLoop, setActiveLoop] = useState<Loop | null>(null);
 
   // Coordinator useEffect
   useEffect(() => {
@@ -99,10 +102,12 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     if (!status.isLoaded) {
       positionMsRef.current = 0;
       setPlayheadFraction(0);
+      setDurationMs(0);
       return;
     }
 
     positionMsRef.current = status.positionMillis;
+    setDurationMs(status.durationMillis || 0);
     setPlayheadFraction(status.durationMillis ? status.positionMillis / status.durationMillis : 0);
   };
 
@@ -146,6 +151,23 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
 
         {/* Progress bar */}
         <View style={styles.progressBar}>
+          {/* Loop region overlay */}
+          {activeLoop && durationMs > 0 && (
+            <View
+              style={[
+                styles.loopRegion,
+                {
+                  left: `${(activeLoop.start_ms / durationMs) * 100}%`,
+                  width: `${((activeLoop.end_ms - activeLoop.start_ms) / durationMs) * 100}%`,
+                  backgroundColor: activeLoop.color + '59', // 35% opacity
+                },
+              ]}
+            >
+              {/* Edge lines */}
+              <View style={[styles.loopEdgeLine, { backgroundColor: activeLoop.color, left: 0 }]} />
+              <View style={[styles.loopEdgeLine, { backgroundColor: activeLoop.color, right: 0 }]} />
+            </View>
+          )}
           <View 
             style={[styles.progressFill, { width: `${playheadFraction * 100}%` }]}
           />
@@ -168,20 +190,13 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       {/* Light zone */}
       <View style={styles.lightZone}>
         {/* Loop chips */}
-        {loopRegion && (
-          <ScrollView 
-            horizontal 
-            style={styles.loopChipsContainer}
-            showsHorizontalScrollIndicator={false}
-          >
-            <TouchableOpacity
-              style={styles.loopChip}
-              onPress={() => handleLoopChipPress(loopRegion.start)}
-            >
-              <Text style={styles.loopChipText}>Loop</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        )}
+        <LoopChipRow
+          sessionId={sessionId}
+          sourceUrl={selectedClipForSheet?.mux_playback_id ? `https://stream.mux.com/${selectedClipForSheet.mux_playback_id}` : null}
+          currentPositionMs={positionMsRef.current}
+          onSeek={handleLoopChipPress}
+          onActiveLoopChange={setActiveLoop}
+        />
 
         {/* Save row */}
         <View style={styles.saveRow}>
@@ -272,6 +287,19 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: '#7DB9A8',
+    borderRadius: 1,
+  },
+  loopRegion: {
+    position: 'absolute',
+    top: 0,
+    height: '100%',
+    borderRadius: 1,
+  },
+  loopEdgeLine: {
+    position: 'absolute',
+    top: -3,
+    width: 3,
+    height: 8,
     borderRadius: 1,
   },
   skipRow: {

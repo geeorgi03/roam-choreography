@@ -9,12 +9,67 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import YoutubeIframe, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+// Lazy require: a native-module init failure must not prevent route discovery
+let GestureDetector: React.ComponentType<{ gesture: unknown; children: React.ReactNode }> =
+  ({ children }) => <>{children}</>;
+
+// Create chainable gesture stub with proper typing
+interface GestureEvent {
+  scale?: number;
+  focalX?: number;
+  focalY?: number;
+  translationX: number;
+  translationY: number;
+}
+
+interface ChainableGesture {
+  onStart: (callback?: (event: GestureEvent) => void) => ChainableGesture;
+  onUpdate: (callback?: (event: GestureEvent) => void) => ChainableGesture;
+  onEnd: (callback?: (event: GestureEvent) => void) => ChainableGesture;
+  minPointers: (value?: number) => ChainableGesture;
+}
+
+const createChainableGesture = (): ChainableGesture => {
+  const gesture: ChainableGesture = {
+    onStart: () => gesture,
+    onUpdate: () => gesture,
+    onEnd: () => gesture,
+    minPointers: () => gesture,
+  };
+  return gesture;
+};
+
+let Gesture: { 
+  Pan: () => ChainableGesture;
+  Pinch: () => ChainableGesture;
+  Simultaneous: (..._: unknown[]) => ChainableGesture;
+} = {
+  Pan: createChainableGesture,
+  Pinch: createChainableGesture,
+  Simultaneous: (..._: unknown[]) => createChainableGesture(),
+};
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const gh = require('react-native-gesture-handler') as typeof import('react-native-gesture-handler');
+  GestureDetector = gh.GestureDetector as unknown as typeof GestureDetector;
+  Gesture = gh.Gesture as unknown as typeof Gesture;
+} catch (_) {
+  // gesture handler unavailable in this environment — swipe gestures disabled
+}
 import { theme } from '../../../lib/theme';
 import { useSession } from '../../../lib/hooks/useSession';
 import { supabase } from '../../../lib/supabase';
 import type { MusicTrack, SectionEntry } from '@roam/types';
+import { MMKV } from 'react-native-mmkv';
 
 import { API_BASE } from '../../../lib/api';
+
+// Loupe persistence — key: loupe:${videoId} -> { x, y, zoom }
+const loupeStorage = new MMKV({ id: 'loupe-state' });
+
+// Loupe constants
+const LOUPE_DIAMETER = 140;
 
 function formatMs(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -27,6 +82,10 @@ function extractVideoId(sourceUrl: string | null): string | null {
   const m = sourceUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
   return m ? m[1]! : null;
 }
+
+// Frame capture infrastructure for future WebView integration
+// Note: react-native-youtube-iframe doesn't expose injectJavaScript currently
+// This infrastructure will be useful when upgrading to a WebView-based approach
 
 export default function YoutubePlayerScreen() {
   const { sessionId, musicTrackId } = useLocalSearchParams<{
@@ -43,6 +102,44 @@ export default function YoutubePlayerScreen() {
   const [playerState, setPlayerState] = useState<string>('unstarted');
   const playerRef = useRef<YoutubeIframeRef | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
+
+  // Loupe state
+  const [loupeActive, setLoupeActive] = useState(false);
+  const [loupeZoom, setLoupeZoom] = useState(2.5);
+  const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
+  const loupeX = useSharedValue(0);
+  const loupeY = useSharedValue(0);
+  const loupeActiveShared = useSharedValue(0); // 0 = inactive, 1 = active
+  const loupeZoomShared = useSharedValue(2.5);
+  const loupeLastX = useRef(0);
+  const loupeLastY = useRef(0);
+  const loupeLastZoom = useRef(0);
+
+  // Capture frame when loupe becomes active - simplified approach
+  const captureCurrentFrame = async () => {
+    // Since injectJavaScript is not available in react-native-youtube-iframe,
+    // we'll set a flag to attempt capture via other means in future iterations
+    // For now, this serves as a placeholder for the capture functionality
+    console.log('Frame capture requested for YouTube loupe');
+  };
+
+  // Animated style for loupe positioning
+  const loupeAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: loupeX.value - LOUPE_DIAMETER / 2 },
+      { translateY: loupeY.value - LOUPE_DIAMETER / 2 },
+    ],
+  }));
+
+  // Animated style for loupe overlay transform
+  const loupeOverlayAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: loupeZoomShared.value },
+      { translateX: -(loupeX.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
+      { translateY: -(loupeY.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
+    ],
+  }));
 
   // Poll current time while playing; stop when paused/stopped/unmounted
   useEffect(() => {
@@ -91,6 +188,79 @@ export default function YoutubePlayerScreen() {
   }, [musicTrack]);
 
   const videoId = musicTrack ? extractVideoId(musicTrack.source_url) : null;
+  const loupePersistKey = musicTrack?.source_url ? `loupe:${musicTrack.source_url}` : null;
+
+  // Restore saved loupe state on video load
+  useEffect(() => {
+    if (!loupePersistKey) return;
+    
+    try {
+      let savedStateString = loupeStorage.getString(loupePersistKey);
+      
+      // One-time backward compatibility: check legacy videoId key if new key not found
+      if (!savedStateString && videoId) {
+        const legacyKey = `loupe:${videoId}`;
+        const legacyState = loupeStorage.getString(legacyKey);
+        if (legacyState) {
+          // Migrate to new key and delete legacy
+          savedStateString = legacyState;
+          loupeStorage.set(loupePersistKey, legacyState);
+          loupeStorage.delete(legacyKey);
+        }
+      }
+      
+      if (savedStateString) {
+        const savedState = JSON.parse(savedStateString);
+        
+        // Validate shape and numeric finiteness before applying values
+        if (
+          savedState &&
+          typeof savedState.x === 'number' &&
+          typeof savedState.y === 'number' &&
+          typeof savedState.zoom === 'number' &&
+          Number.isFinite(savedState.x) &&
+          Number.isFinite(savedState.y) &&
+          Number.isFinite(savedState.zoom) &&
+          savedState.zoom >= 2 &&
+          savedState.zoom <= 3
+        ) {
+          loupeLastX.current = savedState.x;
+          loupeLastY.current = savedState.y;
+          loupeLastZoom.current = savedState.zoom;
+          loupeX.value = savedState.x;
+          loupeY.value = savedState.y;
+          loupeZoomShared.value = savedState.zoom;
+        } else {
+          // Malformed data - clear the key so restore falls back to default centering
+          loupeStorage.delete(loupePersistKey);
+        }
+      }
+    } catch {
+      // Silently ignore malformed data
+    }
+  }, [loupePersistKey]);
+
+  // Reset loupe on videoId change
+  useEffect(() => {
+    setLoupeActive(false);
+    loupeActiveShared.value = 0;
+    loupeLastZoom.current = 0;
+    loupeLastX.current = 0;
+    loupeLastY.current = 0;
+  }, [videoId]);
+
+  // Initialize loupe position to center of video container only if no saved state exists
+  useEffect(() => {
+    if (frameSize.width > 0 && frameSize.height > 0) {
+      // Only center-initialize if no saved state exists for the current loupePersistKey
+      if (!loupePersistKey || !loupeStorage.getString(loupePersistKey)) {
+        loupeX.value = frameSize.width / 2;
+        loupeY.value = frameSize.height / 2;
+        loupeLastX.current = frameSize.width / 2;
+        loupeLastY.current = frameSize.height / 2;
+      }
+    }
+  }, [frameSize, loupePersistKey]);
 
   const addSectionAtPlayhead = () => {
     const start_ms = playbackPositionSec * 1000;
@@ -129,6 +299,64 @@ export default function YoutubePlayerScreen() {
     }
   };
 
+  // JS-thread helpers for gesture callbacks
+  const activateLoupe = runOnJS((zoom: number, x: number, y: number) => {
+    setLoupeZoom(zoom);
+    loupeZoomShared.value = zoom;
+    setLoupeActive(true);
+    loupeLastZoom.current = zoom;
+    loupeLastX.current = x;
+    loupeLastY.current = y;
+    // Attempt frame capture when loupe activates
+    captureCurrentFrame();
+  });
+  const updateLoupeZoom = runOnJS((zoom: number) => {
+    setLoupeZoom(zoom);
+    loupeZoomShared.value = zoom;
+    loupeLastZoom.current = zoom;
+  });
+  const saveLoupeState = runOnJS((x: number, y: number) => {
+    if (loupePersistKey) {
+      loupeStorage.set(loupePersistKey, JSON.stringify({ x, y, zoom: loupeLastZoom.current }));
+    }
+  });
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e: GestureEvent) => {
+      const clamped = Math.min(3, Math.max(2, e.scale ?? 1));
+      if (loupeActiveShared.value !== 1) {
+        // When loupe is inactive and pinch scale reaches threshold, activate loupe
+        if (e.scale && e.scale >= 2) {
+          loupeX.value = e.focalX ?? loupeX.value;
+          loupeY.value = e.focalY ?? loupeY.value;
+          activateLoupe(clamped, e.focalX ?? 0, e.focalY ?? 0);
+          loupeActiveShared.value = 1;
+        }
+      } else {
+        // When loupe is already active, update zoom
+        updateLoupeZoom(clamped);
+      }
+    })
+    .onEnd(() => {
+      // No persistence on pinch end - only save on drag end and dismiss
+    });
+
+  const twoFingerPan = Gesture.Pan().minPointers(2)
+    .onUpdate((e: GestureEvent) => {
+      if (loupeActiveShared.value !== 1) return;
+      loupeX.value = loupeLastX.current + e.translationX;
+      loupeY.value = loupeLastY.current + e.translationY;
+    })
+    .onEnd((e: GestureEvent) => {
+      if (loupeActiveShared.value !== 1) return;
+      loupeLastX.current = loupeX.value;
+      loupeLastY.current = loupeY.value;
+      saveLoupeState(loupeX.value, loupeY.value);
+    });
+
+  // Compose loupe gestures (pinch and two-finger pan)
+  const loupeGesture = Gesture.Simultaneous(pinchGesture, twoFingerPan);
+
   if (!musicTrack) {
     return (
       <View style={styles.container}>
@@ -148,14 +376,67 @@ export default function YoutubePlayerScreen() {
 
   return (
     <View style={styles.container}>
-      <YoutubeIframe
-        ref={playerRef}
-        height={220}
-        videoId={videoId}
-        onChangeState={(state) => {
-          setPlayerState(state);
-        }}
-      />
+      <GestureDetector gesture={loupeGesture}>
+        <View
+          style={styles.videoContainer}
+          onLayout={(e) => {
+            const { width, height } = e.nativeEvent.layout;
+            setFrameSize((prev) => (prev.width !== width || prev.height !== height ? { width, height } : prev));
+          }}
+        >
+          <YoutubeIframe
+            ref={playerRef}
+            height={220}
+            videoId={videoId}
+            onChangeState={(state) => {
+              setPlayerState(state);
+            }}
+          />
+          {loupeActive && (
+            <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
+              <View style={styles.loupeMask}>
+                {capturedFrame ? (
+                  <View style={[styles.loupeOverlay, loupeOverlayAnimatedStyle]}>
+                    {/* Render captured frame when available */}
+                    <View style={styles.capturedFrameContainer}>
+                      <Text style={styles.capturedFramePlaceholder}>Frame captured</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={[styles.loupeOverlay, loupeOverlayAnimatedStyle]}>
+                    {/* Static region overlay fallback when capture unavailable */}
+                    <Text style={styles.loupeOverlayText}>Magnification</Text>
+                  </View>
+                )}
+              </View>
+            </Animated.View>
+          )}
+          {loupeActive && (
+            <TouchableOpacity style={styles.loupeDismissBtn} onPress={() => { 
+              loupeLastX.current = loupeX.value; 
+              loupeLastY.current = loupeY.value; 
+              loupeLastZoom.current = loupeZoom; 
+              saveLoupeState(loupeX.value, loupeY.value); 
+              setLoupeActive(false); 
+              loupeActiveShared.value = 0; 
+            }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.loupeDismissBtnText}>✕</Text>
+            </TouchableOpacity>
+          )}
+          {!loupeActive && loupeLastZoom.current > 0 && (
+            <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { 
+              loupeX.value = loupeLastX.current; 
+              loupeY.value = loupeLastY.current; 
+              setLoupeZoom(loupeLastZoom.current); 
+              loupeZoomShared.value = loupeLastZoom.current; 
+              setLoupeActive(true); 
+              loupeActiveShared.value = 1; 
+            }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.loupeRestoreBtnText}>⊕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </GestureDetector>
 
       <View style={styles.sectionsBlock}>
         <Text style={styles.sectionsTitle}>SECTIONS</Text>
@@ -277,5 +558,78 @@ const styles = StyleSheet.create({
   saveBtnText: {
     color: theme.textPrimary,
     fontWeight: '600',
+  },
+  videoContainer: {
+    position: 'relative',
+  },
+  loupeContainer: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    top: 0,
+    left: 0,
+    zIndex: 10,
+  },
+  loupeMask: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  loupeOverlay: {
+    width: 140,
+    height: 140,
+    backgroundColor: 'rgba(125,185,168,0.15)',
+  },
+  loupeOverlayText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 60,
+  },
+  capturedFrameContainer: {
+    width: 140,
+    height: 140,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  capturedFramePlaceholder: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 10,
+    textAlign: 'center',
+  },
+  loupeDismissBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loupeDismissBtnText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  loupeRestoreBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(125,185,168,0.3)',
+    zIndex: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loupeRestoreBtnText: {
+    color: '#fff',
+    fontSize: 20,
   },
 });
