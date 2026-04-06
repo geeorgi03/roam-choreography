@@ -122,6 +122,8 @@ const CAPTURE_WEBVIEW_HTML = `
         },
         events: {
           onReady: function(event) {
+            // Make player globally accessible for injected commands
+            window.player = player;
             window.ReactNativeWebView.postMessage(JSON.stringify({type: 'ready'}));
             // Poll duration once when ready
             if (window.player && window.player.getDuration) {
@@ -246,15 +248,14 @@ export default function ClipPlayerScreen() {
   
   const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
   
-  // YouTube detection - unified for library and session clips
-  const clipYouTubeId = hasSessionContext 
-    ? (clip?.source_url ? extractVideoId(clip.source_url) : null)
-    : (source_url ? extractVideoId(source_url) : null);
-  const isClipYouTube = !!clipYouTubeId;
+  // YouTube detection - route-param-only (no clip reference)
+  const isYouTubeContent = source_url ? extractVideoId(source_url) !== null : false;
+  const youtubeVideoId = source_url ? extractVideoId(source_url) : null;
   const hasLibraryClip = !hasSessionContext && (!!mux_playback_id || !!source_url);
-  const isYouTubeLibraryClip = !hasSessionContext && isClipYouTube;
-  const isSessionClipYouTube = hasSessionContext && source_url ? extractVideoId(source_url) !== null : false;
-  const sessionClipYouTubeId = hasSessionContext && source_url ? extractVideoId(source_url) : null;
+  const isYouTubeLibraryClip = !hasSessionContext && isYouTubeContent;
+  // Session context YouTube detection uses route params only
+  const isSessionClipYouTube = hasSessionContext && isYouTubeContent;
+  const sessionClipYouTubeId = hasSessionContext && youtubeVideoId;
   
   const [youtubePlayerState, setYoutubePlayerState] = useState<string>('unstarted');
   const [youtubeCurrentTime, setYoutubeCurrentTime] = useState(0);
@@ -290,8 +291,13 @@ export default function ClipPlayerScreen() {
     ],
   }));
 
-  const sourceUrl = hasSessionContext ? clip?.source_url : source_url;
-  const loupePersistKey = sourceUrl ? `loupe:${sourceUrl}` : null;
+  const loupePersistKey = isYouTubeContent
+    ? (hasSessionContext ? (clip?.source_url ? `loupe:${clip.source_url}` : null) : (source_url ? `loupe:${source_url}` : null))
+    : (hasSessionContext
+        ? (clip?.server_id ? `loupe:${clip.server_id}` : null)
+        : (mux_playback_id ? `loupe:${mux_playback_id}` 
+           : source_url ? `loupe:${source_url}`
+           : null));
 
   useEffect(() => {
     if (!hasSessionContext) return;
@@ -437,7 +443,7 @@ export default function ClipPlayerScreen() {
 
   // Continuous frame capture for YouTube when loupe is active
   useEffect(() => {
-    if (!loupeActive || !isClipYouTube || !webViewRef.current) return;
+    if (!loupeActive || !isYouTubeContent || !webViewRef.current) return;
     
     const captureFrame = () => {
       if (webViewRef.current && loupeActive) {
@@ -461,7 +467,7 @@ export default function ClipPlayerScreen() {
     return () => {
       clearInterval(intervalId);
     };
-  }, [loupeActive, isClipYouTube]);
+  }, [loupeActive, isYouTubeContent]);
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -493,7 +499,7 @@ export default function ClipPlayerScreen() {
   }, [frameSize.width, frameSize.height, videoNaturalSize?.width, videoNaturalSize?.height]);
 
   const handlePlayPause = async () => {
-    if (isClipYouTube && webViewRef.current) {
+    if (isYouTubeContent && webViewRef.current) {
       // YouTube WebView control
       const command = playing ? 'pauseVideo()' : 'playVideo()';
       webViewRef.current.injectJavaScript(`
@@ -511,7 +517,7 @@ export default function ClipPlayerScreen() {
   const handleSeekBack = async () => {
     const newPos = Math.max(0, positionMillis - 5000);
     
-    if (isClipYouTube && webViewRef.current) {
+    if (isYouTubeContent && webViewRef.current) {
       // YouTube WebView seek
       webViewRef.current.injectJavaScript(`
         if (window.player) {
@@ -526,7 +532,7 @@ export default function ClipPlayerScreen() {
   };
 
   const handleSpeedToggle = async () => {
-    if (isClipYouTube && webViewRef.current) {
+    if (isYouTubeContent && webViewRef.current) {
       // YouTube WebView speed control
       const newRate = rate === 1 ? 0.5 : 1;
       setRate(newRate);
@@ -544,7 +550,7 @@ export default function ClipPlayerScreen() {
   };
 
   const handleSliderComplete = async (value: number) => {
-    if (isClipYouTube && webViewRef.current) {
+    if (isYouTubeContent && webViewRef.current) {
       // YouTube WebView seek
       webViewRef.current.injectJavaScript(`
         if (window.player) {
@@ -569,8 +575,21 @@ export default function ClipPlayerScreen() {
           break;
         case 'stateChange':
           setYoutubePlayerState(message.state);
+          // Map numeric YouTube state codes to string states
+          const stateCode = parseInt(message.state, 10);
+          let stateString: string;
+          switch (stateCode) {
+            case -1: stateString = 'unstarted'; break;
+            case 0: stateString = 'ended'; break;
+            case 1: stateString = 'playing'; break;
+            case 2: stateString = 'paused'; break;
+            case 3: stateString = 'buffering'; break;
+            case 5: stateString = 'video cued'; break;
+            default: stateString = 'unknown'; break;
+          }
+          
           // Map YouTube state to shared playing state
-          if (message.state === 'playing') {
+          if (stateString === 'playing') {
             setPlaying(true);
             // Poll current time when playing
             const pollCurrentTime = async () => {
@@ -588,7 +607,7 @@ export default function ClipPlayerScreen() {
             // Start polling
             const interval = setInterval(pollCurrentTime, 500);
             pollIntervalRef.current = interval;
-          } else if (message.state === 'paused') {
+          } else if (stateString === 'paused' || stateString === 'ended') {
             setPlaying(false);
             // Stop polling when not playing
             if (pollIntervalRef.current) {
@@ -679,7 +698,7 @@ export default function ClipPlayerScreen() {
     loupeLastY.current = y;
     
     // Capture frame for YouTube content when loupe activates
-    if (isClipYouTube && webViewRef.current) {
+    if (isYouTubeContent && webViewRef.current) {
       // Clear previous frame and request new capture
       setCapturedFrameDataUrl(null);
       webViewRef.current.injectJavaScript(`
@@ -972,10 +991,10 @@ export default function ClipPlayerScreen() {
                   prev.width !== width || prev.height !== height ? { width, height } : prev
                 );
               }}>
-              {isClipYouTube && clipYouTubeId ? (
+              {isYouTubeContent && youtubeVideoId ? (
                 <WebView
                   ref={webViewRef}
-                  source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, clipYouTubeId) }}
+                  source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, youtubeVideoId) }}
                   style={StyleSheet.absoluteFill}
                   onMessage={handleYouTubeWebViewMessage}
                   javaScriptEnabled={true}
@@ -998,7 +1017,7 @@ export default function ClipPlayerScreen() {
             {loupeActive && (
               <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
                 <View style={styles.loupeMask}>
-                  {isClipYouTube ? (
+                  {isYouTubeContent ? (
                     <>
                       {capturedFrameDataUrl ? (
                         <Animated.Image 
@@ -1161,10 +1180,10 @@ export default function ClipPlayerScreen() {
               setFrameSize((prev) => (prev.width !== width || prev.height !== height ? { width, height } : prev));
             }}
           >
-            {isClipYouTube && clipYouTubeId ? (
+            {isYouTubeContent && youtubeVideoId ? (
               <WebView
                 ref={webViewRef}
-                source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, clipYouTubeId) }}
+                source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, youtubeVideoId) }}
                 style={StyleSheet.absoluteFill}
                 onMessage={handleYouTubeWebViewMessage}
                 javaScriptEnabled={true}
@@ -1194,7 +1213,7 @@ export default function ClipPlayerScreen() {
           {loupeActive && (
             <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
               <View style={styles.loupeMask}>
-                {isClipYouTube ? (
+                {isYouTubeContent ? (
                   <>
                     {capturedFrameDataUrl ? (
                       <Animated.Image 
