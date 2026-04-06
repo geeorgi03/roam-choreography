@@ -10,11 +10,11 @@ import {
   GestureResponderEvent,
   Image,
   PanResponder,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -251,7 +251,10 @@ export function WorkbenchTab() {
   }, [sectionClips]);
 
   return (
-    <View style={styles.container}>
+    <Pressable
+      style={styles.container}
+      onPress={!sessionMode ? () => setSessionMode(true) : undefined}
+    >
       <ScrollView
         horizontal={false}
         style={styles.waveformContainer}
@@ -361,16 +364,11 @@ export function WorkbenchTab() {
       )}
       <Text style={styles.partitionHint}>read-only in V3</Text>
       
-      {!sessionMode && (
-        <TouchableWithoutFeedback onPress={() => setSessionMode(true)}>
-          <View style={styles.collapseZone} />
-        </TouchableWithoutFeedback>
-      )}
 
       {/* Section chips — shown when music analysis has produced sections */}
       {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (
         <>
-          <View style={styles.sectionPillListWrap}>
+          <View style={styles.sectionPillListWrap} onStartShouldSetResponder={() => true}>
             <ScrollView
               style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]}
               contentContainerStyle={styles.sectionPillListContent}
@@ -417,7 +415,7 @@ export function WorkbenchTab() {
 
       {/* Section workspace */}
       {!sessionMode && (
-        <View style={styles.workspace}>
+        <View style={styles.workspace} onStartShouldSetResponder={() => true}>
         <View style={styles.workspaceHeader}>
           <View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
             <Text style={styles.workspaceTitle}>{activeSection}</Text>
@@ -593,17 +591,7 @@ export function WorkbenchTab() {
         <View style={styles.recordFabInner} />
       </TouchableOpacity>
       
-      {/* Background tap area for collapse when in review mode */}
-      {!sessionMode && (
-        <TouchableWithoutFeedback 
-          onPress={() => setSessionMode(true)}
-          style={StyleSheet.absoluteFill}
-        >
-          <View style={StyleSheet.absoluteFill} />
-        </TouchableWithoutFeedback>
-      )}
-      
-    </View>
+    </Pressable>
   );
 }
 
@@ -962,10 +950,5 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     backgroundColor: '#ffffff',
-  },
-  collapseZone: {
-    height: 20,
-    width: '100%',
-    backgroundColor: 'transparent',
   },
 });
