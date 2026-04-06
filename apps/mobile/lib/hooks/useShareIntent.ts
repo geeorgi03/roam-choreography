@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSession } from './useSession';
-import { getActiveSessionId } from '../storage';
+import { getActiveSessionId, getActiveSection } from '../storage';
 import { API_BASE } from '../api';
 import Toast from 'react-native-toast-message';
 
@@ -57,7 +57,7 @@ export function useShareIntent() {
     }
   };
 
-  const createRefClip = async (sessionId: string, url: string, meta: OEmbedMetadata) => {
+  const createRefClip = async (sessionId: string, url: string, meta: OEmbedMetadata, activeSection?: string) => {
     if (!session?.access_token) {
       throw new Error('No auth session');
     }
@@ -87,16 +87,43 @@ export function useShareIntent() {
       throw new Error(`Failed to create clip: ${response.status} ${errorText}`);
     }
 
-    return response.json();
+    const clip = await response.json();
+
+    // If active section provided, assign clip to that section
+    if (activeSection) {
+      try {
+        const assignResponse = await fetch(`${API_BASE}/sessions/${sessionId}/assembly/section-clip`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            clip_id: clip.id,
+            section_label: activeSection,
+          }),
+        });
+
+        if (!assignResponse.ok) {
+          console.warn('Failed to assign clip to section:', assignResponse.status, await assignResponse.text());
+        }
+      } catch (error) {
+        console.warn('Error assigning clip to section:', error);
+      }
+    }
+
+    return clip;
   };
 
-  const handleShareUrl = async (url: string) => {
+  const handleShareUrl = async (url: string, activeSection?: string) => {
     try {
       const meta = await fetchOEmbedMetadata(url);
       const activeSessionId = getActiveSessionId();
 
       if (activeSessionId) {
-        await createRefClip(activeSessionId, url, meta);
+        // Get active section from storage if not provided
+        const currentActiveSection = activeSection || getActiveSection(activeSessionId) || undefined;
+        await createRefClip(activeSessionId, url, meta, currentActiveSection);
         Toast.show({
           type: 'success',
           text1: 'Clip added to session',
@@ -213,5 +240,6 @@ export function useShareIntent() {
     clearPendingShare,
     getPendingShare,
     createRefClip,
+    handleShareUrl,
   };
 }

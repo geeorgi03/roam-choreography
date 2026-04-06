@@ -111,6 +111,7 @@ export function setSessionMode(sessionId: string, value: boolean): void {
 }
 
 const ACTIVE_SESSION_ID_KEY = 'active_session_id';
+const ACTIVE_SECTION_PREFIX = 'active_section:';
 
 export function setActiveSessionId(sessionId: string): void {
   if (!storage) return;
@@ -120,5 +121,15 @@ export function setActiveSessionId(sessionId: string): void {
 export function getActiveSessionId(): string | null {
   if (!storage) return null;
   return storage.getString(ACTIVE_SESSION_ID_KEY) ?? null;
+}
+
+export function setActiveSection(sessionId: string, section: string): void {
+  if (!storage) return;
+  storage.set(`${ACTIVE_SECTION_PREFIX}${sessionId}`, section);
+}
+
+export function getActiveSection(sessionId: string): string | null {
+  if (!storage) return null;
+  return storage.getString(`${ACTIVE_SECTION_PREFIX}${sessionId}`) ?? null;
 }
 

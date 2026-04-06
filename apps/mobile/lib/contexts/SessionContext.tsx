@@ -10,7 +10,7 @@ import { useInbox } from '../hooks/useInbox';
 import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
 import { API_BASE } from '../api';
-import { getSessionMode, setSessionMode as setSessionModeStorage } from '../storage';
+import { getSessionMode, setSessionMode as setSessionModeStorage, getActiveSection, setActiveSection as persistActiveSection } from '../storage';
 
 export interface SessionContextValue {
   sessionId: string;
@@ -93,7 +93,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const [sessionName, setSessionName] = useState('Session');
   const [sessionPhrase, setSessionPhrase] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<SessionContextValue['activeTab']>('workbench');
-  const [activeSection, setActiveSection] = useState('Section');
+  const [activeSection, setActiveSectionState] = useState('Section');
   const [activeMoment, setActiveMoment] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playheadMs, setPlayheadMs] = useState(0);
@@ -268,6 +268,20 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   // Reload session mode when sessionId changes
   useEffect(() => {
     setSessionModeState(getSessionMode(sessionId));
+  }, [sessionId]);
+
+  // Initialize active section from storage
+  useEffect(() => {
+    const storedSection = getActiveSection(sessionId);
+    if (storedSection) {
+      setActiveSectionState(storedSection);
+    }
+  }, [sessionId]);
+
+  // Wrapper function to persist active section changes
+  const setActiveSection = useCallback((section: string) => {
+    setActiveSectionState(section);
+    persistActiveSection(sessionId, section);
   }, [sessionId]);
 
   // Handlers

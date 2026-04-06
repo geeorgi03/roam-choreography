@@ -20,6 +20,7 @@ import { useSession } from '../lib/hooks/useSession';
 import { useShareIntent } from '../lib/hooks/useShareIntent';
 import { theme } from '../lib/theme';
 import { getDevBypassAuth } from '../lib/devBypassAuth';
+import { API_BASE } from '../lib/api';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -243,7 +244,7 @@ function RootNavigator() {
     if (!session?.access_token || !pendingShareUrl || !pendingShareMeta) return;
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sessions`, {
+      const response = await fetch(`${API_BASE}/sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

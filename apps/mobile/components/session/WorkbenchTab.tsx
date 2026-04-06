@@ -370,13 +370,11 @@ export function WorkbenchTab() {
       )}
       
 
-      <View 
-        style={styles.sectionStripWrapper}
-      >
-        {/* Section chips — shown when music analysis has produced sections */}
+      <View style={styles.sectionStripWrapper}>
+        {/* Section pill zone — absorbs touches to prevent bubbling */}
         {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (
-          <View style={styles.sectionPillListWrap}>
-            <View onStartShouldSetResponder={() => true}>
+          <View style={styles.sectionPillZone} onStartShouldSetResponder={() => true}>
+            <View style={styles.sectionPillListWrap}>
               <ScrollView
                 style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]}
                 contentContainerStyle={styles.sectionPillListContent}
@@ -421,9 +419,9 @@ export function WorkbenchTab() {
           </View>
         ) : null}
 
-        {/* Section workspace */}
+        {/* Workspace zone — allows touches to bubble to outer Pressable */}
         {!sessionMode && (
-          <View style={styles.workspace}>
+          <View style={styles.workspaceZone}>
         <View style={styles.workspaceHeader}>
           <View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
             <Text style={styles.workspaceTitle}>{activeSection}</Text>
@@ -584,8 +582,8 @@ export function WorkbenchTab() {
             ))}
           </View>
         )}
-      </View>
         )}
+      </View>
       </View>
       <TouchableOpacity
         style={styles.recordFab}
@@ -981,6 +979,12 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   sectionStripWrapper: {
+    flex: 1,
+  },
+  sectionPillZone: {
+    // No special layout needed - semantic wrapper only
+  },
+  workspaceZone: {
     flex: 1,
   },
 });
