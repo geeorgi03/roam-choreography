@@ -114,6 +114,23 @@ export function useShareIntent() {
     }
   };
 
+  const extractSharedUrl = (urlString: string): string | null => {
+    try {
+      const url = new URL(urlString);
+      
+      // If the protocol is http/https, the entire URL is the shared content
+      if (url.protocol === 'http:' || url.protocol === 'https:') {
+        return urlString;
+      }
+      
+      // For deep links, extract url/text query parameters
+      return url.searchParams.get('url') || url.searchParams.get('text');
+    } catch (error) {
+      // Return null for malformed URLs instead of throwing
+      return null;
+    }
+  };
+
   const clearPendingShare = () => {
     pendingShareRef.current = null;
     setPendingShareUrl(null);
@@ -128,8 +145,7 @@ export function useShareIntent() {
     const handleInitialUrl = async () => {
       const initialUrl = await Linking.getInitialURL();
       if (initialUrl) {
-        const url = new URL(initialUrl);
-        const sharedUrl = url.searchParams.get('url') || url.searchParams.get('text');
+        const sharedUrl = extractSharedUrl(initialUrl);
         if (sharedUrl) {
           await handleShareUrl(sharedUrl);
         }
@@ -137,8 +153,7 @@ export function useShareIntent() {
     };
 
     const subscription = Linking.addEventListener('url', async (event: any) => {
-      const url = new URL(event.url);
-      const sharedUrl = url.searchParams.get('url') || url.searchParams.get('text');
+      const sharedUrl = extractSharedUrl(event.url);
       if (sharedUrl) {
         await handleShareUrl(sharedUrl);
       }

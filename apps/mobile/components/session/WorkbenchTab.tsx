@@ -251,10 +251,7 @@ export function WorkbenchTab() {
   }, [sectionClips]);
 
   return (
-    <TouchableWithoutFeedback 
-      onPress={() => { if (!sessionMode) setSessionMode(true); }}
-    >
-      <View style={styles.container}>
+    <View style={styles.container}>
       <ScrollView
         horizontal={false}
         style={styles.waveformContainer}
@@ -363,6 +360,12 @@ export function WorkbenchTab() {
         </View>
       )}
       <Text style={styles.partitionHint}>read-only in V3</Text>
+      
+      {!sessionMode && (
+        <TouchableWithoutFeedback onPress={() => setSessionMode(true)}>
+          <View style={styles.collapseZone} />
+        </TouchableWithoutFeedback>
+      )}
 
       {/* Section chips — shown when music analysis has produced sections */}
       {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (
@@ -589,10 +592,10 @@ export function WorkbenchTab() {
       >
         <View style={styles.recordFabInner} />
       </TouchableOpacity>
-      </TouchableOpacity>
+      
     </View>
-  </TouchableWithoutFeedback>
-);
+  );
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -949,5 +952,10 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     backgroundColor: '#ffffff',
+  },
+  collapseZone: {
+    height: 20,
+    width: '100%',
+    backgroundColor: 'transparent',
   },
 });
