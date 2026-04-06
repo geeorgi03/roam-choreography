@@ -31,6 +31,8 @@ app.post('/upload-url', async (c) => {
     local_id?: string;
     label?: string;
     recorded_at?: string;
+    clip_type?: 'MINE' | 'REF' | 'voice_memo' | null;
+    type?: 'MINE' | 'REF' | 'voice_memo' | null; // Alias for clip_type for documented contract
   };
   try {
     body = await c.req.json();
@@ -97,18 +99,22 @@ app.post('/upload-url', async (c) => {
   if (existingClip?.id) {
     clipId = existingClip.id;
   } else {
-    const { data: insertedClip, error: insertError } = await supabase
-      .from('clips')
-      .insert({
-        user_id: userId,
-        session_id: hasSession ? body.session_id : null,
-        local_id: body.local_id,
-        label: body.label ?? 'Clip',
-        recorded_at: body.recorded_at,
-        upload_status: 'queued',
-      })
-      .select('*')
-      .single();
+  // Normalize type to clip_type for documented contract compatibility
+  const normalizedClipType = body.type || body.clip_type;
+
+  const { data: insertedClip, error: insertError } = await supabase
+    .from('clips')
+    .insert({
+      user_id: userId,
+      session_id: hasSession ? body.session_id : null,
+      local_id: body.local_id,
+      label: body.label ?? 'Clip',
+      recorded_at: body.recorded_at,
+      upload_status: 'queued',
+      clip_type: normalizedClipType ?? null,
+    })
+    .select('*')
+    .single();
 
     if (insertError) {
       return c.json({ error: insertError.message }, 500);

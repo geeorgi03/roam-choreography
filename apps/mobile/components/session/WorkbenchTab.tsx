@@ -43,7 +43,13 @@ function isReferenceClip(clip: {
   label?: string | null;
   move_name?: string | null;
   notes?: string | null;
+  clip_type?: 'MINE' | 'REF' | 'voice_memo' | null;
 }): boolean {
+  // First check explicit clip_type
+  if (clip.clip_type === 'REF') return true;
+  if (clip.clip_type === 'voice_memo') return false;
+  
+  // Fall back to text heuristics for legacy data
   const haystack = `${clip.label ?? ''} ${clip.move_name ?? ''} ${clip.notes ?? ''}`.toLowerCase();
   return haystack.includes('ref') || haystack.includes('reference');
 }
@@ -505,12 +511,18 @@ export function WorkbenchTab() {
                 <TouchableOpacity
                   style={[
                     styles.clipThumb,
+                    item.clip_type === 'voice_memo' ? styles.clipThumbVoiceMemo :
                     isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
                   ]}
                   onPress={() => openClipSheet(item)}
                   activeOpacity={0.85}
                 >
-                  {item.mux_playback_id ? (
+                  {item.clip_type === 'voice_memo' ? (
+                    <View style={styles.voiceMemoIndicator}>
+                      <Text style={styles.voiceMemoIcon}>🎤</Text>
+                      <Text style={styles.voiceMemoLabel}>Voice Memo</Text>
+                    </View>
+                  ) : item.mux_playback_id ? (
                     <Image
                       source={{
                         uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
@@ -521,18 +533,21 @@ export function WorkbenchTab() {
                   <View
                     style={[
                       styles.clipTypeBadge,
+                      item.clip_type === 'voice_memo' ? styles.clipTypeBadgeVoiceMemo :
                       isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine,
                     ]}
                   >
                     <Text
                       style={[
                         styles.clipTypeBadgeText,
+                        item.clip_type === 'voice_memo' ? styles.clipTypeBadgeTextVoiceMemo :
                         isReferenceClip(item)
                           ? styles.clipTypeBadgeTextRef
                           : styles.clipTypeBadgeTextMine,
                       ]}
                     >
-                      {isReferenceClip(item) ? 'REF' : 'MINE'}
+                      {item.clip_type === 'voice_memo' ? 'VOICE' :
+                       isReferenceClip(item) ? 'REF' : 'MINE'}
                     </Text>
                   </View>
                   {item.upload_status === 'failed' ? (
@@ -848,6 +863,9 @@ const styles = StyleSheet.create({
   clipThumbMine: {
     backgroundColor: colors.mine,
   },
+  clipThumbVoiceMemo: {
+    backgroundColor: colors.capture,
+  },
   clipThumbImage: {
     width: '100%',
     height: '100%',
@@ -866,6 +884,9 @@ const styles = StyleSheet.create({
   clipTypeBadgeMine: {
     backgroundColor: 'rgba(255,255,255,0.9)',
   },
+  clipTypeBadgeVoiceMemo: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
   clipTypeBadgeText: {
     fontSize: 9,
     fontWeight: '700',
@@ -875,6 +896,9 @@ const styles = StyleSheet.create({
   },
   clipTypeBadgeTextMine: {
     color: colors.mine,
+  },
+  clipTypeBadgeTextVoiceMemo: {
+    color: colors.capture,
   },
   retryPill: {
     position: 'absolute',
@@ -905,6 +929,21 @@ const styles = StyleSheet.create({
   clipShareIconText: {
     color: colors.muted,
     fontSize: 12,
+  },
+  voiceMemoIndicator: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  voiceMemoIcon: {
+    fontSize: 32,
+  },
+  voiceMemoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+    textAlign: 'center',
   },
   notesContent: {
     gap: 8,

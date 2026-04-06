@@ -9,7 +9,6 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { Video, ResizeMode, Audio } from 'expo-av';
-import { useAudioPermissions } from 'expo-av';
 import { LongPressGestureHandler, State, type HandlerStateChangeEvent, type LongPressGestureHandlerEventPayload } from 'react-native-gesture-handler';
 import { theme } from '../../../lib/theme';
 import BottomSheet from '@gorhom/bottom-sheet';
@@ -27,10 +26,11 @@ export default function CameraScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
-  const [audioPermission, requestAudioPermission] = useAudioPermissions();
+  const [audioPermission, requestAudioPermission] = useState<boolean | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isVoiceMemoRecording, setIsVoiceMemoRecording] = useState(false);
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
+  const [frontRecordedUri, setFrontRecordedUri] = useState<string | null>(null);
   const [dualPairId, setDualPairId] = useState<string | undefined>(undefined);
   const [dualEnabled, setDualEnabled] = useState(false);
   const [showFallbackNotice, setShowFallbackNotice] = useState(false);
@@ -47,6 +47,7 @@ export default function CameraScreen() {
   const rafRef = useRef<number | null>(null);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceMemoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoOpenQuickSaveRef = useRef(false);
   const dualRequestedAtStartRef = useRef(false);
   const didAutoFallbackRef = useRef(false);
@@ -54,8 +55,13 @@ export default function CameraScreen() {
   useEffect(() => {
     if (!cameraPermission?.granted) requestCameraPermission();
     if (!micPermission?.granted) requestMicPermission();
-    if (!audioPermission?.granted) requestAudioPermission();
-  }, [cameraPermission?.granted, micPermission?.granted, audioPermission?.granted, requestCameraPermission, requestMicPermission, requestAudioPermission]);
+    // Request audio permissions for voice memos using expo-av Audio API
+    if (audioPermission === null) {
+      Audio.getPermissionsAsync().then(({ status }) => {
+        requestAudioPermission(status === 'granted');
+      });
+    }
+  }, [cameraPermission?.granted, micPermission?.granted, audioPermission, requestCameraPermission, requestMicPermission]);
 
   const stopFpsMonitor = useCallback(() => {
     if (rafRef.current != null) {
