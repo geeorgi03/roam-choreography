@@ -246,11 +246,13 @@ export default function ClipPlayerScreen() {
   
   const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
   
-  // YouTube detection - route-param-only (no clip reference)
-  const isYouTubeContent = source_url ? extractVideoId(source_url) !== null : false;
-  const youtubeVideoId = source_url ? extractVideoId(source_url) : null;
+  // YouTube detection - unified for library and session clips
+  const clipYouTubeId = hasSessionContext 
+    ? (clip?.source_url ? extractVideoId(clip.source_url) : null)
+    : (source_url ? extractVideoId(source_url) : null);
+  const isClipYouTube = !!clipYouTubeId;
   const hasLibraryClip = !hasSessionContext && (!!mux_playback_id || !!source_url);
-  const isYouTubeLibraryClip = !hasSessionContext && isYouTubeContent;
+  const isYouTubeLibraryClip = !hasSessionContext && isClipYouTube;
   const isSessionClipYouTube = hasSessionContext && source_url ? extractVideoId(source_url) !== null : false;
   const sessionClipYouTubeId = hasSessionContext && source_url ? extractVideoId(source_url) : null;
   
@@ -288,13 +290,8 @@ export default function ClipPlayerScreen() {
     ],
   }));
 
-  const loupePersistKey = isClipYouTube
-    ? (hasSessionContext ? (clip?.source_url ? `loupe:${clip.source_url}` : null) : (source_url ? `loupe:${source_url}` : null))
-    : (hasSessionContext
-        ? (clip?.server_id ? `loupe:${clip.server_id}` : null)
-        : (mux_playback_id ? `loupe:${mux_playback_id}` 
-           : source_url ? `loupe:${source_url}`
-           : null));
+  const sourceUrl = hasSessionContext ? clip?.source_url : source_url;
+  const loupePersistKey = sourceUrl ? `loupe:${sourceUrl}` : null;
 
   useEffect(() => {
     if (!hasSessionContext) return;
