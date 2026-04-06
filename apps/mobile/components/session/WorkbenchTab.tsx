@@ -328,6 +328,21 @@ export function WorkbenchTab() {
         </View>
       </ScrollView>
 
+      {sessionMode && (
+        <TouchableOpacity
+          style={styles.sessionModeRow}
+          onPress={() => setSessionMode(false)}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.sessionModeRowLabel}>{activeSection}</Text>
+          <Text style={styles.sessionModeRowCount}>
+            {sectionClipCounts.get(activeSection) ?? 0}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {!sessionMode && (
+        <>
       <View style={styles.toggleRow}>
         <TouchableOpacity
           style={[styles.toggleChip, styles.toggleChipActive]}
@@ -350,72 +365,63 @@ export function WorkbenchTab() {
           </Text>
         </View>
       </View>
-      {sessionMode && (
-        <View style={styles.workspaceHeader}>
-          <TouchableOpacity 
-            onPress={() => setSessionMode(false)}
-            style={styles.workspaceSectionGesture}
-          >
-            <Text style={styles.sessionModeLabel}>
-              {activeSection} · {sectionClipCounts.get(activeSection) ?? 0} clips
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
       <Text style={styles.partitionHint}>read-only in V3</Text>
+        </>
+      )}
       
 
-      {/* Section chips — shown when music analysis has produced sections */}
-      {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (
-        <>
-          <View style={styles.sectionPillListWrap} onStartShouldSetResponder={() => true}>
-            <ScrollView
-              style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]}
-              contentContainerStyle={styles.sectionPillListContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {musicTrack.sections.map((s) => {
-                const pillContent = (
-                  <>
-                    <Text
+      <View style={styles.sectionStripWrapper}>
+        {/* Section chips — shown when music analysis has produced sections */}
+        {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (
+          <View onStartShouldSetResponder={() => true}>
+            <View style={styles.sectionPillListWrap}>
+              <ScrollView
+                style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]}
+                contentContainerStyle={styles.sectionPillListContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {musicTrack.sections.map((s) => {
+                  const pillContent = (
+                    <>
+                      <Text
+                        style={[
+                          styles.sectionPillText,
+                          s.label === activeSection && styles.sectionPillTextActive,
+                        ]}
+                      >
+                        {s.label}
+                      </Text>
+                      <Text style={styles.sectionPillCount}>
+                        {sectionClipCounts.get(s.label) ?? 0}
+                      </Text>
+                    </>
+                  );
+
+                  return (
+                    <TouchableOpacity
+                      key={s.label}
                       style={[
-                        styles.sectionPillText,
-                        s.label === activeSection && styles.sectionPillTextActive,
+                        styles.sectionPill,
+                        s.label === activeSection && styles.sectionPillActive,
                       ]}
+                      onPress={() => handleSectionPress(s)}
+                      activeOpacity={0.75}
                     >
-                      {s.label}
-                    </Text>
-                    <Text style={styles.sectionPillCount}>
-                      {sectionClipCounts.get(s.label) ?? 0}
-                    </Text>
-                  </>
-                );
-
-                return (
-                  <TouchableOpacity
-                    key={s.label}
-                    style={[
-                      styles.sectionPill,
-                      s.label === activeSection && styles.sectionPillActive,
-                    ]}
-                    onPress={() => handleSectionPress(s)}
-                    activeOpacity={0.75}
-                  >
-                    {pillContent}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                      {pillContent}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+            {showSectionSwipeHint ? (
+              <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
+            ) : null}
           </View>
-          {showSectionSwipeHint ? (
-            <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
-          ) : null}
-        </>
-      ) : null}
+        ) : null}
 
-      {/* Section workspace */}
-      {!sessionMode && (
-        <View style={styles.workspace} onStartShouldSetResponder={() => true}>
+        {/* Section workspace */}
+        {!sessionMode && (
+          <View style={styles.workspace}>
         <View style={styles.workspaceHeader}>
           <View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
             <Text style={styles.workspaceTitle}>{activeSection}</Text>
@@ -577,7 +583,7 @@ export function WorkbenchTab() {
           </View>
         )}
       </View>
-      )}
+      </View>
       <TouchableOpacity
         style={styles.recordFab}
         activeOpacity={0.85}
@@ -950,5 +956,28 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     backgroundColor: '#ffffff',
+  },
+  sessionModeRow: {
+    height: 40,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 0.5,
+    borderTopColor: colors.border,
+  },
+  sessionModeRowLabel: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 11,
+    color: '#3a342d',
+    fontWeight: '700',
+  },
+  sessionModeRowCount: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 10,
+    color: colors.muted,
+  },
+  sectionStripWrapper: {
+    flex: 1,
   },
 });

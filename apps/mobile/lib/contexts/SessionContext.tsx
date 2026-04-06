@@ -17,7 +17,7 @@ export interface SessionContextValue {
   sessionName: string;
   sessionPhrase: string | null;
   setSessionName: (name: string) => void;
-  updateSessionMeta: (meta: { name?: string; phrase?: string }) => Promise<void>;
+  updateSessionMeta: (meta: { name?: string; phrase?: string | null }) => Promise<void>;
   activeTab: 'workbench' | 'spatial' | 'song-map' | 'group';
   setActiveTab: (tab: SessionContextValue['activeTab']) => void;
   activeSection: string;
@@ -55,7 +55,7 @@ export interface SessionContextValue {
   isAnalysing: boolean;
   notes: any[];
   createNote: (note: any) => void;
-  deleteNote: (id: string) => void;
+  deleteNote: (id: string) => Promise<boolean>;
   inboxCount: number;
   refreshCount: () => Promise<void>;
   
@@ -374,7 +374,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setSessionModeStorage(sessionId, mode);
   }, [sessionId]);
 
-  const updateSessionMeta = useCallback(async (meta: { name?: string; phrase?: string }) => {
+  const updateSessionMeta = useCallback(async (meta: { name?: string; phrase?: string | null }) => {
     if (!sessionId || !session?.access_token) return;
 
     const snapshotName = sessionName;
@@ -384,7 +384,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
       setSessionName(meta.name.trim());
     }
     if (meta.phrase !== undefined) {
-      setSessionPhrase(meta.phrase.trim() || null);
+      setSessionPhrase(meta.phrase?.trim() || null);
     }
 
     try {
