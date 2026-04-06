@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  PanResponder,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -105,6 +106,14 @@ export default function YoutubePlayerScreen() {
   const playerRef = useRef<YoutubeIframeRef | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
+  
+  // A/B Loop state
+  const [loopStartSec, setLoopStartSec] = useState<number | null>(null);
+  const [loopEndSec, setLoopEndSec] = useState<number | null>(null);
+  const [abBarWidth, setAbBarWidth] = useState(0);
+  const [durationSec, setDurationSec] = useState(0);
+  const barOriginXRef = useRef<number>(0);
+  const loopSeekingRef = useRef<boolean>(false);
   const [speed, setSpeed] = useState(1);
 
   // Loupe state
@@ -156,7 +165,18 @@ export default function YoutubePlayerScreen() {
     const poll = async () => {
       try {
         const sec = await playerRef.current?.getCurrentTime();
-        if (typeof sec === 'number') setPlaybackPositionSec(sec);
+        if (typeof sec === 'number') {
+          setPlaybackPositionSec(sec);
+          
+          // A/B Loop enforcement for YouTube
+          if (loopStartSec !== null && loopEndSec !== null && sec >= loopEndSec && !loopSeekingRef.current) {
+            loopSeekingRef.current = true;
+            playerRef.current?.seekTo(loopStartSec);
+            setTimeout(() => {
+              loopSeekingRef.current = false;
+            }, 100);
+          }
+        }
       } catch {
         // ignore
       }
@@ -271,6 +291,83 @@ export default function YoutubePlayerScreen() {
       }
     }
   }, [frameSize, loupePersistKey]);
+
+  // Capture duration when player becomes ready
+  useEffect(() => {
+    if (playerState === 'playing' && durationSec === 0) {
+      const getDuration = async () => {
+        try {
+          const duration = await playerRef.current?.getDuration();
+          if (typeof duration === 'number') {
+            setDurationSec(duration);
+          }
+        } catch {
+          // ignore
+        }
+      };
+      getDuration();
+    }
+  }, [playerState, durationSec]);
+
+  // A/B Loop PanResponder factory
+  const makeHandlePanResponder = useCallback((which: 'start' | 'end') => {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gestureState) => {
+        if (abBarWidth <= 0 || durationSec <= 0) return;
+        
+        const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
+        const sec = ratio * durationSec;
+        
+        if (which === 'start') {
+          setLoopStartSec(prev => {
+            const newVal = sec;
+            // Enforce start < end
+            if (loopEndSec !== null && newVal >= loopEndSec) {
+              return Math.max(0, loopEndSec - 0.1);
+            }
+            return newVal;
+          });
+        } else {
+          setLoopEndSec(prev => {
+            const newVal = sec;
+            // Enforce end > start
+            if (loopStartSec !== null && newVal <= loopStartSec) {
+              return Math.min(durationSec, loopStartSec + 0.1);
+            }
+            return newVal;
+          });
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (abBarWidth <= 0 || durationSec <= 0) return;
+        
+        const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
+        const sec = ratio * durationSec;
+        
+        if (which === 'start') {
+          setLoopStartSec(prev => {
+            const newVal = sec;
+            if (loopEndSec !== null && newVal >= loopEndSec) {
+              return Math.max(0, loopEndSec - 0.1);
+            }
+            return newVal;
+          });
+        } else {
+          setLoopEndSec(prev => {
+            const newVal = sec;
+            if (loopStartSec !== null && newVal <= loopStartSec) {
+              return Math.min(durationSec, loopStartSec + 0.1);
+            }
+            return newVal;
+          });
+        }
+      },
+    });
+  }, [abBarWidth, durationSec, loopStartSec, loopEndSec]);
+
+  const startHandlePR = useMemo(() => makeHandlePanResponder('start'), [makeHandlePanResponder]);
+  const endHandlePR = useMemo(() => makeHandlePanResponder('end'), [makeHandlePanResponder]);
 
   const addSectionAtPlayhead = () => {
     const start_ms = playbackPositionSec * 1000;
@@ -399,7 +496,7 @@ export default function YoutubePlayerScreen() {
             setFrameSize((prev) => (prev.width !== width || prev.height !== height ? { width, height } : prev));
           }}
         >
-          <View style={{ transform: [{ scaleX: mirrorActive ? -1 : 1 }] }}>
+          <View style={[StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorActive ? -1 : 1 }] }]}>
             <YoutubeIframe
               ref={playerRef}
               height={220}
@@ -455,6 +552,95 @@ export default function YoutubePlayerScreen() {
         </View>
       </GestureDetector>
 
+      {/* A/B Loop Progress Bar */}
+      <View 
+        style={styles.abProgressBar}
+        onLayout={(e) => {
+          e.currentTarget.measureInWindow((x, _y, width) => {
+            barOriginXRef.current = x;
+            setAbBarWidth(width);
+          });
+        }}
+      >
+        {/* Progress fill */}
+        <View 
+          style={[
+            styles.abProgressFill,
+            {
+              width: durationSec > 0 ? (playbackPositionSec / durationSec) * 100 : 0,
+            }
+          ]}
+        />
+        
+        {/* A/B Loop region band */}
+        {loopStartSec !== null && loopEndSec !== null && abBarWidth > 0 && durationSec > 0 && (
+          <View 
+            style={[
+              styles.abLoopRegion,
+              {
+                left: (loopStartSec / durationSec) * abBarWidth,
+                width: ((loopEndSec - loopStartSec) / durationSec) * abBarWidth,
+              }
+            ]}
+            pointerEvents="none"
+          />
+        )}
+        
+        {/* A/B Loop handles */}
+        {loopStartSec !== null && abBarWidth > 0 && durationSec > 0 && (
+          <View
+            style={[
+              styles.abLoopHandle,
+              styles.abLoopHandleStart,
+              {
+                left: (loopStartSec / durationSec) * abBarWidth - 6, // HANDLE_HALF_WIDTH
+              }
+            ]}
+            {...startHandlePR.panHandlers}
+          />
+        )}
+        
+        {loopEndSec !== null && abBarWidth > 0 && durationSec > 0 && (
+          <View
+            style={[
+              styles.abLoopHandle,
+              styles.abLoopHandleEnd,
+              {
+                left: (loopEndSec / durationSec) * abBarWidth - 6, // HANDLE_HALF_WIDTH
+              }
+            ]}
+            {...endHandlePR.panHandlers}
+          />
+        )}
+      </View>
+
+      {/* A/B Loop controls */}
+      <View style={styles.abLoopControls}>
+        <TouchableOpacity 
+          onPress={() => setLoopStartSec(playbackPositionSec)} 
+          style={styles.controlBtn}
+        >
+          <Text style={styles.controlBtnText}>Set A</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => setLoopEndSec(playbackPositionSec)} 
+          style={styles.controlBtn}
+        >
+          <Text style={styles.controlBtnText}>Set B</Text>
+        </TouchableOpacity>
+        {(loopStartSec !== null || loopEndSec !== null) && (
+          <TouchableOpacity 
+            onPress={() => {
+              setLoopStartSec(null);
+              setLoopEndSec(null);
+            }} 
+            style={styles.abLoopClearBtn}
+          >
+            <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <View style={styles.speedRow}>
         <Slider
           minimumValue={0.25}
@@ -470,6 +656,70 @@ export default function YoutubePlayerScreen() {
         <Text style={styles.speedLabel}>{speed.toFixed(2)}×</Text>
       </View>
 
+      {/* A/B Loop Progress Bar */}
+      <View 
+        style={styles.sliderWrap}
+        onLayout={(e) => {
+          e.currentTarget.measureInWindow((x, _y, width) => {
+            barOriginXRef.current = x;
+            setAbBarWidth(width - 24); // Subtract 12px margin on each side
+          });
+        }}
+      >
+        {/* A/B Loop region band */}
+        {loopStartSec !== null && loopEndSec !== null && abBarWidth > 0 && musicTrack && (
+          <View 
+            style={[
+              styles.abLoopRegion,
+              {
+                left: (loopStartSec / (musicTrack.duration_ms / 1000)) * abBarWidth + 12, // SLIDER_INSET
+                width: ((loopEndSec - loopStartSec) / (musicTrack.duration_ms / 1000)) * abBarWidth,
+              }
+            ]}
+            pointerEvents="none"
+          />
+        )}
+        
+        <Slider
+          style={styles.slider}
+          minimumValue={0}
+          maximumValue={musicTrack ? musicTrack.duration_ms / 1000 : 1}
+          value={playbackPositionSec}
+          onSlidingComplete={(value) => {
+            playerRef.current?.seekTo(value);
+            setPlaybackPositionSec(value);
+          }}
+          minimumTrackTintColor={theme.textPrimary}
+          maximumTrackTintColor={theme.textSecondary}
+          thumbTintColor={theme.textPrimary}
+        />
+        
+        {/* A/B Loop handles */}
+        {loopStartSec !== null && abBarWidth > 0 && musicTrack && (
+          <View
+            style={[
+              styles.abLoopHandle,
+              styles.abLoopHandleStart,
+              {
+                left: (loopStartSec / (musicTrack.duration_ms / 1000)) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+              }
+            ]}
+          />
+        )}
+        
+        {loopEndSec !== null && abBarWidth > 0 && musicTrack && (
+          <View
+            style={[
+              styles.abLoopHandle,
+              styles.abLoopHandleEnd,
+              {
+                left: (loopEndSec / (musicTrack.duration_ms / 1000)) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+              }
+            ]}
+          />
+        )}
+      </View>
+
       <View style={styles.videoControlsRow}>
         <TouchableOpacity
           onPress={() => setMirrorActive((v) => !v)}
@@ -477,7 +727,34 @@ export default function YoutubePlayerScreen() {
         >
           <Text style={styles.videoControlBtnText}>↔</Text>
         </TouchableOpacity>
+        
+        {/* A/B Loop controls */}
+        <TouchableOpacity 
+          onPress={() => setLoopStartSec(playbackPositionSec)} 
+          style={styles.videoControlBtn}
+        >
+          <Text style={styles.videoControlBtnText}>Set A</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={() => setLoopEndSec(playbackPositionSec)} 
+          style={styles.videoControlBtn}
+        >
+          <Text style={styles.videoControlBtnText}>Set B</Text>
+        </TouchableOpacity>
       </View>
+      
+      {/* A/B Loop clear button */}
+      {(loopStartSec !== null || loopEndSec !== null) && (
+        <TouchableOpacity 
+          onPress={() => {
+            setLoopStartSec(null);
+            setLoopEndSec(null);
+          }} 
+          style={styles.abLoopClearBtn}
+        >
+          <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
+        </TouchableOpacity>
+      )}
 
       <View style={styles.sectionsBlock}>
         <Text style={styles.sectionsTitle}>SECTIONS</Text>
@@ -681,10 +958,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   videoControlBtn: {
+    minWidth: 44,
+    minHeight: 44,
     paddingVertical: 11,
     paddingHorizontal: 16,
-    minWidth: 44,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   videoControlBtnText: {
     color: theme.textPrimary,
@@ -711,5 +990,47 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     minWidth: 44,
     textAlign: 'right',
+  },
+  sliderWrap: {
+    width: '100%',
+    position: 'relative',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  abLoopRegion: {
+    position: 'absolute',
+    top: 15,
+    height: 10,
+    backgroundColor: 'rgba(125,185,168,0.3)',
+    borderRadius: 2,
+  },
+  abLoopHandle: {
+    position: 'absolute',
+    top: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  abLoopHandleStart: {
+    backgroundColor: theme.accent,
+  },
+  abLoopHandleEnd: {
+    backgroundColor: theme.accent,
+  },
+  abLoopClearBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    backgroundColor: 'rgba(231,76,60,0.2)',
+    borderRadius: theme.borderRadius,
+    borderWidth: 1,
+    borderColor: 'rgba(231,76,60,0.5)',
+  },
+  abLoopClearBtnText: {
+    color: '#e74c3c',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

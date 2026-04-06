@@ -302,6 +302,7 @@ export default function ClipPlayerScreen() {
       { scale: loupeZoomShared.value },
       { translateX: -(loupeX.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
       { translateY: -(loupeY.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
+      { scaleX: mirrorActive ? -1 : 1 },
     ],
   }));
 
@@ -1844,8 +1845,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   controlBtn: {
+    minHeight: 44,
     paddingVertical: 8,
     paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   controlBtnText: {
     color: theme.textPrimary,
@@ -2109,5 +2113,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     minWidth: 40,
     textAlign: 'right',
+  },
+  // A/B Loop styles
+  abLoopRegion: {
+    position: 'absolute',
+    top: 16,
+    height: 4,
+    backgroundColor: theme.light.amber + '60', // semi-transparent
+    borderRadius: 2,
+    pointerEvents: 'none',
+  },
+  abLoopHandle: {
+    position: 'absolute',
+    top: 10,
+    width: 12,
+    height: 20,
+    borderRadius: 3,
+    backgroundColor: theme.light.amber,
+    zIndex: 5,
+  },
+  abLoopHandleStart: {
+    // Start handle specific styles if needed
+  },
+  abLoopHandleEnd: {
+    // End handle specific styles if needed
+  },
+  abLoopClearBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  abLoopClearBtnText: {
+    color: theme.light.amber,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

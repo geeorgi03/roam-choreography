@@ -45,7 +45,11 @@ export function ClipCard({ clip, onPress, onLongPress, onRetry, commentCount }: 
       activeOpacity={0.8}
     >
       <View style={styles.thumbWrap}>
-        {showThumbnail ? (
+        {clip.clip_type === 'voice_memo' ? (
+          <View style={styles.voiceMemoThumb}>
+            <Text style={styles.voiceMemoIcon}>🎤</Text>
+          </View>
+        ) : showThumbnail ? (
           <Image
             source={{
               uri: `https://image.mux.com/${clip.mux_playback_id}/thumbnail.jpg?time=0`,
@@ -141,6 +145,17 @@ const styles = StyleSheet.create({
   thumbIcon: {
     color: theme.textSecondary,
     fontSize: 20,
+  },
+  voiceMemoThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 6,
+    backgroundColor: theme.capture,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  voiceMemoIcon: {
+    fontSize: 24,
   },
   main: {
     flex: 1,

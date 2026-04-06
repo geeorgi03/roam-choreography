@@ -256,9 +256,6 @@ export default function CameraScreen() {
     dualRequestedAtStartRef.current = false;
   };
 
-  const [voiceMemoNotice, setVoiceMemoNotice] = useState(false);
-  const voiceMemoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const showVoiceMemoNotice = () => {
     setVoiceMemoNotice(true);
     if (voiceMemoTimerRef.current) clearTimeout(voiceMemoTimerRef.current);
