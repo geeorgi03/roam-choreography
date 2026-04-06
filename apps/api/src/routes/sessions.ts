@@ -292,28 +292,34 @@ app.patch('/:id', async (c) => {
 app.patch('/:id/quality-target', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
-  const body = await safeReqJson<{
+  const parsed = await safeReqJson<{
     clip_url: unknown;
     timestamp_ms: unknown;
     source_clip_id: unknown;
   }>(c);
-  if (!body.ok) return c.json({ error: 'Invalid request body' }, 400);
+  if (!parsed.ok) return c.json({ error: 'Malformed JSON' }, 400);
+
+  const {
+    clip_url: rawClipUrl,
+    timestamp_ms: rawTimestampMs,
+    source_clip_id: rawSourceClipId,
+  } = parsed.data;
 
   // Validate input
   if (
-    typeof body.data.clip_url !== 'string' ||
-    !body.data.clip_url.trim() ||
-    typeof body.data.timestamp_ms !== 'number' ||
-    !isFinite(body.data.timestamp_ms) ||
-    typeof body.data.source_clip_id !== 'string' ||
-    !body.data.source_clip_id.trim()
+    typeof rawClipUrl !== 'string' ||
+    !rawClipUrl.trim() ||
+    typeof rawTimestampMs !== 'number' ||
+    !isFinite(rawTimestampMs) ||
+    typeof rawSourceClipId !== 'string' ||
+    !rawSourceClipId.trim()
   ) {
     return c.json({ error: 'Invalid request body' }, 400);
   }
 
-  const clip_url = body.data.clip_url.trim();
-  const timestamp_ms = body.data.timestamp_ms;
-  const source_clip_id = body.data.source_clip_id.trim();
+  const clip_url = rawClipUrl.trim();
+  const timestamp_ms = rawTimestampMs;
+  const source_clip_id = rawSourceClipId.trim();
 
   // Owner check
   const { data: sessionRow, error: fetchError } = await supabase

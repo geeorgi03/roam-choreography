@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../supabase';
 import { API_BASE } from '../api';
+import { enqueueWrite, isNetworkError } from '../writeQueue';
 
 export type NotePin = {
   id: string;
@@ -88,6 +89,14 @@ export function useNotePins(sessionId: string | null) {
       setNotes((prev) => [...prev, note]);
       return note;
     } catch (e) {
+      if (isNetworkError(e)) {
+        enqueueWrite({
+          endpoint: `${API_BASE}/sessions/${sessionId}/notes`,
+          method: 'POST',
+          body: JSON.stringify(input),
+        });
+        return null;
+      }
       setError(e instanceof Error ? e.message : 'Network error');
       return null;
     }

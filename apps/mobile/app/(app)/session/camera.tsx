@@ -26,7 +26,6 @@ export default function CameraScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
-  const [audioPermission, requestAudioPermission] = useState<boolean | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isVoiceMemoRecording, setIsVoiceMemoRecording] = useState(false);
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
@@ -57,13 +56,7 @@ export default function CameraScreen() {
   useEffect(() => {
     if (!cameraPermission?.granted) requestCameraPermission();
     if (!micPermission?.granted) requestMicPermission();
-    // Cache current audio permission state for UX only; runtime gate is checked before recording starts.
-    if (audioPermission === null) {
-      Audio.getPermissionsAsync().then(({ status }) => {
-        requestAudioPermission(status === 'granted');
-      });
-    }
-  }, [cameraPermission?.granted, micPermission?.granted, audioPermission, requestCameraPermission, requestMicPermission]);
+  }, [cameraPermission?.granted, micPermission?.granted, requestCameraPermission, requestMicPermission]);
 
   const stopFpsMonitor = useCallback(() => {
     if (rafRef.current != null) {
@@ -286,9 +279,7 @@ export default function CameraScreen() {
     if (event.nativeEvent.state === State.ACTIVE) {
       try {
         const { status } = await Audio.requestPermissionsAsync();
-        const isGranted = status === 'granted';
-        requestAudioPermission(isGranted);
-        if (!isGranted) return;
+        if (status !== 'granted') return;
 
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
@@ -327,6 +318,9 @@ export default function CameraScreen() {
       event.nativeEvent.state === State.CANCELLED ||
       event.nativeEvent.state === State.FAILED
     ) {
+      pulseAnimationRef.current?.stop();
+      pulseAnimationRef.current = null;
+      pulseAnim.setValue(1);
       if (audioRecordingRef.current) {
         try {
           const recording = audioRecordingRef.current;
@@ -351,9 +345,6 @@ export default function CameraScreen() {
         } finally {
           audioRecordingRef.current = null;
           setIsVoiceMemoRecording(false);
-          pulseAnimationRef.current?.stop();
-          pulseAnimationRef.current = null;
-          pulseAnim.setValue(1);
         }
       }
     }

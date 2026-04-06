@@ -132,7 +132,6 @@ export default function useLoops(sessionId: string | null, sourceUrl: string | n
               color,
               name: `loop ${loops.length + 1}`,
             }),
-            timestamp: Date.now(),
           });
           return optimisticLoop;
         }

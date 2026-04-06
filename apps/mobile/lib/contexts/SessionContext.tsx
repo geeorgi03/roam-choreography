@@ -157,8 +157,8 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
         const cached = getCachedSession(sessionId);
         if (cached) {
           setSessionName(cached.session.name);
-          setSessionPhrase(cached.session.phrase);
-          setQualityTarget(cached.session.quality_target);
+          setSessionPhrase(cached.session.phrase ?? null);
+          setQualityTarget(cached.session.quality_target ?? null);
         }
       }
     })();
@@ -190,6 +190,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   }, [sessionId, session?.access_token]);
 
   useEffect(() => {
+    if (!sessionId) return;
     cacheSession(sessionId, {
       session: {
         name: sessionName,
@@ -453,7 +454,6 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
             endpoint: `${API_BASE}/sessions/${sessionId}`,
             method: 'PATCH',
             body: JSON.stringify(meta),
-            timestamp: Date.now(),
           });
           return;
         }
@@ -474,7 +474,6 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
           endpoint: `${API_BASE}/sessions/${sessionId}`,
           method: 'PATCH',
           body: JSON.stringify(meta),
-          timestamp: Date.now(),
         });
         return;
       }

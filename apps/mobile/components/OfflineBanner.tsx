@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function OfflineBanner() {
   const [isOffline, setIsOffline] = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -15,8 +17,8 @@ export default function OfflineBanner() {
   if (!isOffline) return null;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Offline mode: changes will sync when connection returns</Text>
+    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
+      <Text style={styles.text}>No connection — changes will sync when back online</Text>
     </View>
   );
 }
@@ -29,7 +31,7 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 9999,
     backgroundColor: '#D97706',
-    paddingVertical: 10,
+    paddingBottom: 10,
     paddingHorizontal: 12,
   },
   text: {

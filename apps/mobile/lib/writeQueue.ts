@@ -1,10 +1,18 @@
 import type { MMKV } from 'react-native-mmkv';
+import { randomUUID } from 'expo-crypto';
 
 export type QueuedWrite = {
+  id: string;
   endpoint: string;
   method: string;
   body: string;
   timestamp: number;
+};
+
+type EnqueueWriteInput = {
+  endpoint: string;
+  method: string;
+  body: string;
 };
 
 let writeQueueStorage: MMKV | null = null;
@@ -16,7 +24,7 @@ try {
   console.error('[writeQueue] MMKV init failed:', e);
 }
 
-const WRITE_QUEUE_KEY = 'write_queue';
+const WRITE_QUEUE_KEY = 'write-queue:items';
 
 function getQueue(): QueuedWrite[] {
   if (!writeQueueStorage) return [];
@@ -36,12 +44,20 @@ function setQueue(queue: QueuedWrite[]): void {
 }
 
 export function isNetworkError(error: unknown): error is TypeError {
-  return error instanceof TypeError && error.message.toLowerCase().includes('network');
+  if (!(error instanceof TypeError)) return false;
+  const message = error.message.toLowerCase();
+  return message.includes('network') || message.includes('fetch') || message.includes('net::');
 }
 
-export function enqueueWrite(write: QueuedWrite): void {
+export function enqueueWrite(write: EnqueueWriteInput): void {
   const queue = getQueue();
-  queue.push(write);
+  queue.push({
+    id: randomUUID(),
+    endpoint: write.endpoint,
+    method: write.method,
+    body: write.body,
+    timestamp: Date.now(),
+  });
   setQueue(queue);
 }
 
@@ -58,7 +74,7 @@ export async function drainQueue(accessToken: string): Promise<void> {
   for (let i = 0; i < queue.length; i++) {
     const write = queue[i];
     try {
-      await fetch(write.endpoint, {
+      const res = await fetch(write.endpoint, {
         method: write.method,
         headers: {
           'Content-Type': 'application/json',
@@ -66,11 +82,16 @@ export async function drainQueue(accessToken: string): Promise<void> {
         },
         body: write.body,
       });
+      if (!res.ok) {
+        // Non-network HTTP failures should be dropped so they do not block replay.
+        continue;
+      }
     } catch (error) {
       if (isNetworkError(error)) {
         remaining.push(write, ...queue.slice(i + 1));
         break;
       }
+      // Non-network errors should be dropped so replay can proceed.
     }
   }
 

@@ -3,6 +3,7 @@ import { getTusUrls, getUploadQueue, setTusUrls, setUploadQueue } from '../lib/s
 import { updateClipServerData, updateClipStatus as updateClipStatusDb } from '../lib/database';
 import { uploadClipToMux, UploadAbortedError } from '../lib/upload';
 import { API_BASE } from '../lib/api';
+import { enqueueWrite, isNetworkError } from '../lib/writeQueue';
 
 export interface QueueItem {
   local_id: string;
@@ -350,8 +351,14 @@ export class UploadQueueService {
         },
         body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
       });
-    } catch {
-      // Ignore – section assignment is best-effort; the clip is still saved.
+    } catch (error) {
+      if (isNetworkError(error)) {
+        enqueueWrite({
+          endpoint: `${API_BASE}/sessions/${sessionId}/assembly/section-clip`,
+          method: 'POST',
+          body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
+        });
+      }
     }
   }
 

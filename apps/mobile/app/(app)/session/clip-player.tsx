@@ -81,8 +81,8 @@ const loupeStorage = new MMKV({ id: 'loupe-state' });
 // Loupe constants
 const LOUPE_DIAMETER = 140;
 const AB_LOOP_HANDLE_TOUCH_SIZE = 44;
-const AB_LOOP_HANDLE_HALF = AB_LOOP_HANDLE_TOUCH_SIZE / 2;
-const AB_LOOP_CLEAR_THRESHOLD_MS = 100;
+const AB_LOOP_HANDLE_HALF = 22;
+const AB_LOOP_CLEAR_THRESHOLD_MS = 1;
 
 // YouTube video ID extraction
 function extractVideoId(sourceUrl: string | null): string | null {
@@ -847,44 +847,44 @@ export default function ClipPlayerScreen() {
         if (abBarWidth <= 0 || durationMillis <= 0) return;
         
         const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
-        const ms = ratio * durationMillis;
+        const newVal = ratio * durationMillis;
         
         if (which === 'start') {
-          if (loopEndMs !== null && Math.abs(ms - loopEndMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+          if (loopEndMs !== null && Math.abs(newVal - loopEndMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
             setLoopStartMs(null);
             setLoopEndMs(null);
             return;
           }
-          setLoopStartMs(ms);
+          setLoopStartMs(newVal);
         } else {
-          if (loopStartMs !== null && Math.abs(ms - loopStartMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+          if (loopStartMs !== null && Math.abs(newVal - loopStartMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
             setLoopStartMs(null);
             setLoopEndMs(null);
             return;
           }
-          setLoopEndMs(ms);
+          setLoopEndMs(newVal);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
         if (abBarWidth <= 0 || durationMillis <= 0) return;
         
         const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
-        const ms = ratio * durationMillis;
+        const newVal = ratio * durationMillis;
         
         if (which === 'start') {
-          if (loopEndMs !== null && Math.abs(ms - loopEndMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+          if (loopEndMs !== null && Math.abs(newVal - loopEndMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
             setLoopStartMs(null);
             setLoopEndMs(null);
             return;
           }
-          setLoopStartMs(ms);
+          setLoopStartMs(newVal);
         } else {
-          if (loopStartMs !== null && Math.abs(ms - loopStartMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+          if (loopStartMs !== null && Math.abs(newVal - loopStartMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
             setLoopStartMs(null);
             setLoopEndMs(null);
             return;
           }
-          setLoopEndMs(ms);
+          setLoopEndMs(newVal);
         }
       },
     });
@@ -2151,7 +2151,7 @@ const styles = StyleSheet.create({
     top: -2,
     width: AB_LOOP_HANDLE_TOUCH_SIZE,
     height: AB_LOOP_HANDLE_TOUCH_SIZE,
-    borderRadius: AB_LOOP_HANDLE_TOUCH_SIZE / 2,
+    borderRadius: AB_LOOP_HANDLE_HALF,
     backgroundColor: theme.light.amber,
     zIndex: 5,
   },

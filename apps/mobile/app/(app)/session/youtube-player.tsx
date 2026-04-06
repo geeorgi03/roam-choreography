@@ -72,6 +72,9 @@ const loupeStorage = new MMKV({ id: 'loupe-state' });
 
 // Loupe constants
 const LOUPE_DIAMETER = 140;
+const AB_LOOP_HANDLE_TOUCH_SIZE = 44;
+const AB_LOOP_HANDLE_HALF = AB_LOOP_HANDLE_TOUCH_SIZE / 2;
+const AB_LOOP_CLEAR_THRESHOLD_SEC = 0.1;
 
 function formatMs(ms: number) {
   const s = Math.floor(ms / 1000);
@@ -326,23 +329,19 @@ export default function YoutubePlayerScreen() {
         const sec = ratio * durationSec;
         
         if (which === 'start') {
-          setLoopStartSec(prev => {
-            const newVal = sec;
-            // Enforce start < end
-            if (loopEndSec !== null && newVal >= loopEndSec) {
-              return Math.max(0, loopEndSec - 0.1);
-            }
-            return newVal;
-          });
+          if (loopEndSec !== null && Math.abs(sec - loopEndSec) <= AB_LOOP_CLEAR_THRESHOLD_SEC) {
+            setLoopStartSec(null);
+            setLoopEndSec(null);
+            return;
+          }
+          setLoopStartSec(sec);
         } else {
-          setLoopEndSec(prev => {
-            const newVal = sec;
-            // Enforce end > start
-            if (loopStartSec !== null && newVal <= loopStartSec) {
-              return Math.min(durationSec, loopStartSec + 0.1);
-            }
-            return newVal;
-          });
+          if (loopStartSec !== null && Math.abs(sec - loopStartSec) <= AB_LOOP_CLEAR_THRESHOLD_SEC) {
+            setLoopStartSec(null);
+            setLoopEndSec(null);
+            return;
+          }
+          setLoopEndSec(sec);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
@@ -352,21 +351,19 @@ export default function YoutubePlayerScreen() {
         const sec = ratio * durationSec;
         
         if (which === 'start') {
-          setLoopStartSec(prev => {
-            const newVal = sec;
-            if (loopEndSec !== null && newVal >= loopEndSec) {
-              return Math.max(0, loopEndSec - 0.1);
-            }
-            return newVal;
-          });
+          if (loopEndSec !== null && Math.abs(sec - loopEndSec) <= AB_LOOP_CLEAR_THRESHOLD_SEC) {
+            setLoopStartSec(null);
+            setLoopEndSec(null);
+            return;
+          }
+          setLoopStartSec(sec);
         } else {
-          setLoopEndSec(prev => {
-            const newVal = sec;
-            if (loopStartSec !== null && newVal <= loopStartSec) {
-              return Math.min(durationSec, loopStartSec + 0.1);
-            }
-            return newVal;
-          });
+          if (loopStartSec !== null && Math.abs(sec - loopStartSec) <= AB_LOOP_CLEAR_THRESHOLD_SEC) {
+            setLoopStartSec(null);
+            setLoopEndSec(null);
+            return;
+          }
+          setLoopEndSec(sec);
         }
       },
     });
@@ -599,10 +596,7 @@ export default function YoutubePlayerScreen() {
               styles.abLoopHandle,
               styles.abLoopHandleStart,
               {
-                left: (loopStartSec / durationSec) * abBarWidth - 6, // HANDLE_HALF_WIDTH
-                width: 12,
-                height: 20,
-                borderRadius: 2,
+                left: (loopStartSec / durationSec) * abBarWidth - AB_LOOP_HANDLE_HALF, // HANDLE_HALF_WIDTH
               }
             ]}
             {...startHandlePR.panHandlers}
@@ -615,10 +609,7 @@ export default function YoutubePlayerScreen() {
               styles.abLoopHandle,
               styles.abLoopHandleEnd,
               {
-                left: (loopEndSec / durationSec) * abBarWidth - 6, // HANDLE_HALF_WIDTH
-                width: 12,
-                height: 20,
-                borderRadius: 2,
+                left: (loopEndSec / durationSec) * abBarWidth - AB_LOOP_HANDLE_HALF, // HANDLE_HALF_WIDTH
               }
             ]}
             {...endHandlePR.panHandlers}
@@ -719,12 +710,13 @@ export default function YoutubePlayerScreen() {
               styles.abLoopHandle,
               styles.abLoopHandleStart,
               {
-                left: (loopStartSec / durationSec) * abBarWidth + 12 - 5, // SLIDER_INSET - HANDLE_HALF_WIDTH
-                width: 12,
-                height: 20,
-                borderRadius: 2,
+                left:
+                  (loopStartSec / durationSec) * abBarWidth +
+                  12 -
+                  AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
               }
             ]}
+            {...startHandlePR.panHandlers}
           />
         )}
         
@@ -734,12 +726,13 @@ export default function YoutubePlayerScreen() {
               styles.abLoopHandle,
               styles.abLoopHandleEnd,
               {
-                left: (loopEndSec / durationSec) * abBarWidth + 12 - 5, // SLIDER_INSET - HANDLE_HALF_WIDTH
-                width: 12,
-                height: 20,
-                borderRadius: 2,
+                left:
+                  (loopEndSec / durationSec) * abBarWidth +
+                  12 -
+                  AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
               }
             ]}
+            {...endHandlePR.panHandlers}
           />
         )}
       </View>
@@ -1019,15 +1012,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 15,
     height: 10,
-    backgroundColor: theme.light.amber + '60',
+    backgroundColor: theme.light.mine + '4D',
     borderRadius: 2,
   },
   abLoopHandle: {
     position: 'absolute',
-    top: 10,
-    width: 12,
-    height: 20,
-    borderRadius: 6,
+    top: -2,
+    width: AB_LOOP_HANDLE_TOUCH_SIZE,
+    height: AB_LOOP_HANDLE_TOUCH_SIZE,
+    borderRadius: AB_LOOP_HANDLE_TOUCH_SIZE / 2,
     zIndex: 10,
   },
   abLoopHandleStart: {

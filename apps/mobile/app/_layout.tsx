@@ -243,7 +243,7 @@ function RootNavigator() {
       cancelled = true;
       sub.remove();
     };
-  }, []);
+  }, [session?.access_token]);
 
   const navReady = !!useRootNavigationState()?.key;
 

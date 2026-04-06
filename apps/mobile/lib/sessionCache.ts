@@ -1,6 +1,6 @@
 import type { MMKV } from 'react-native-mmkv';
 
-type CachedSession = {
+export type CachedSession = {
   session: {
     name: string;
     phrase: string | null;
@@ -9,10 +9,6 @@ type CachedSession = {
   sections: unknown[];
   clips: unknown[];
   cachedAt: number;
-};
-
-type SessionCacheIndex = {
-  order: string[];
 };
 
 let sessionCacheStorage: MMKV | null = null;
@@ -24,8 +20,8 @@ try {
   console.error('[sessionCache] MMKV init failed:', e);
 }
 
-const SESSION_CACHE_INDEX_KEY = 'session_cache_index';
-const SESSION_CACHE_KEY_PREFIX = 'session_cache:';
+const SESSION_CACHE_INDEX_KEY = 'session-cache:index';
+const SESSION_CACHE_KEY_PREFIX = 'session-cache:';
 const MAX_CACHED_SESSIONS = 5;
 
 function getCacheKey(sessionId: string): string {
@@ -37,9 +33,9 @@ export function getCachedSessionIndex(): string[] {
   const raw = sessionCacheStorage.getString(SESSION_CACHE_INDEX_KEY);
   if (!raw) return [];
   try {
-    const parsed = JSON.parse(raw) as SessionCacheIndex;
-    if (!Array.isArray(parsed.order)) return [];
-    return parsed.order.filter((id) => typeof id === 'string');
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id): id is string => typeof id === 'string');
   } catch {
     return [];
   }
@@ -47,7 +43,7 @@ export function getCachedSessionIndex(): string[] {
 
 function setCachedSessionIndex(order: string[]): void {
   if (!sessionCacheStorage) return;
-  sessionCacheStorage.set(SESSION_CACHE_INDEX_KEY, JSON.stringify({ order }));
+  sessionCacheStorage.set(SESSION_CACHE_INDEX_KEY, JSON.stringify(order));
 }
 
 export function cacheSession(
