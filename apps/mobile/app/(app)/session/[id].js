@@ -40,6 +40,7 @@ const ClipShareSheet_1 = require("../../../components/ClipShareSheet");
 const NotePinSheet_1 = require("../../../components/NotePinSheet");
 const ClipViewerSheet_1 = require("../../../components/session/ClipViewerSheet");
 const theme_1 = require("../../../lib/theme");
+const storage_1 = require("../../../lib/storage");
 const colors = theme_1.theme.light;
 function SessionShellContent() {
     const { id, tab } = (0, expo_router_1.useLocalSearchParams)();
@@ -112,6 +113,12 @@ function SessionShellContent() {
             setActiveTab(targetTab);
         }
     }, [tab, setActiveTab]);
+    // ── Set active session ID on mount ─────────────────────────────────────────
+    (0, react_1.useEffect)(() => {
+        if (id) {
+            (0, storage_1.setActiveSessionId)(id);
+        }
+    }, [id]);
     // ── Back handling ───────────────────────────────────────────────────────
     (0, react_1.useEffect)(() => {
         const handleBackPress = () => {

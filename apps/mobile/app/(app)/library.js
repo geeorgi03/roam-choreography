@@ -229,7 +229,7 @@ function LibraryScreen() {
               </react_native_1.TouchableOpacity>
             </react_native_1.View>) : (<react_native_1.View style={{ height: 24 }}/>)}/>
       
-      <ClipViewerSheetStandalone_1.ClipViewerSheetStandalone ref={clipSheetRef} clip={selectedClip} onClose={closeClipViewer}/>
+      <ClipViewerSheetStandalone_1.ClipViewerSheetStandalone ref={clipSheetRef} clip={selectedClip} sessionId={selectedClip?.session_id ?? null} onClose={closeClipViewer}/>
     </react_native_1.View>);
 }
 exports.default = LibraryScreen;

@@ -36,6 +36,7 @@ function useClips(sessionId, onPlanLimitReached) {
             difficulty: row?.difficulty ?? null,
             bpm: row?.bpm ?? null,
             notes: row?.notes ?? null,
+            clip_type: row?.clip_type ?? null,
         });
         const server_id = row?.id ?? null;
         const local_id = row?.local_id ?? null;
@@ -62,6 +63,7 @@ function useClips(sessionId, onPlanLimitReached) {
             difficulty: row?.difficulty ?? null,
             bpm: row?.bpm ?? null,
             notes: row?.notes ?? null,
+            clip_type: row?.clip_type ?? null,
         };
         if (idx < 0) {
             return [nextClip, ...prev].sort((a, b) => new Date(b.recorded_at ?? 0).getTime() - new Date(a.recorded_at ?? 0).getTime());
@@ -86,6 +88,7 @@ function useClips(sessionId, onPlanLimitReached) {
             difficulty: nextClip.difficulty ?? prev[idx].difficulty,
             bpm: nextClip.bpm ?? prev[idx].bpm,
             notes: nextClip.notes ?? prev[idx].notes,
+            clip_type: nextClip.clip_type ?? prev[idx].clip_type,
         };
         const next = [...prev];
         next[idx] = merged;
@@ -129,6 +132,7 @@ function useClips(sessionId, onPlanLimitReached) {
                     difficulty: row?.difficulty ?? undefined,
                     bpm: row?.bpm ?? undefined,
                     notes: row?.notes ?? undefined,
+                    clip_type: row?.clip_type ?? undefined,
                 });
             }
             setClips((prev) => mergeServerClipRow(prev, row));
@@ -154,6 +158,7 @@ function useClips(sessionId, onPlanLimitReached) {
                     difficulty: row?.difficulty ?? undefined,
                     bpm: row?.bpm ?? undefined,
                     notes: row?.notes ?? undefined,
+                    clip_type: row?.clip_type ?? undefined,
                 });
             }
             setClips((prev) => mergeServerClipRow(prev, row));

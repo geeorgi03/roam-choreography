@@ -47,6 +47,12 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
     const [playheadFraction, setPlayheadFraction] = (0, react_1.useState)(0);
     const [durationMs, setDurationMs] = (0, react_1.useState)(0);
     const [activeLoop, setActiveLoop] = (0, react_1.useState)(null);
+    // Trim state
+    const [trimStart, setTrimStart] = (0, react_1.useState)(null);
+    const [trimEnd, setTrimEnd] = (0, react_1.useState)(null);
+    const [isSavingSegment, setIsSavingSegment] = (0, react_1.useState)(false);
+    const [progressBarWidth, setProgressBarWidth] = (0, react_1.useState)(0);
+    const [saveSuccess, setSaveSuccess] = (0, react_1.useState)(false);
     // Coordinator useEffect
     (0, react_1.useEffect)(() => {
         if (activeSheetId !== 'clip-viewer') {
@@ -80,6 +86,8 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
     };
     const isClipInSession = selectedClipForSheet.server_id &&
         sectionClips.some(sc => sc.clip_id === selectedClipForSheet.server_id && sc.section_label === activeSection);
+    // Determine if this is a MINE clip (can trim)
+    const isMineClip = (selectedClipForSheet.clip_type === 'MINE' || selectedClipForSheet.clip_type == null) && selectedClipForSheet.mux_playback_id;
     const handleSaveToSession = async () => {
         if (!selectedClipForSheet.server_id || !session?.access_token)
             return;
@@ -105,6 +113,75 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
             console.error('Error saving clip to session:', error);
         }
     };
+    const handleSaveSegment = async () => {
+        if (!selectedClipForSheet.server_id || !session?.access_token || trimStart === null || trimEnd === null)
+            return;
+        setIsSavingSegment(true);
+        try {
+            const startMs = Math.round(trimStart * durationMs);
+            const endMs = Math.round(trimEnd * durationMs);
+            const response = await fetch(`${api_1.API_BASE}/sessions/${sessionId}/clips/${selectedClipForSheet.server_id}/trim`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    start_ms: startMs,
+                    end_ms: endMs,
+                    section_label: activeSection,
+                }),
+            });
+            if (response.ok) {
+                const result = await response.json();
+                const newSectionClip = result.sectionClip;
+                // Update section clips if association was created
+                if (newSectionClip) {
+                    setSectionClips([...sectionClips, newSectionClip]);
+                }
+                setTrimStart(null);
+                setTrimEnd(null);
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 2000);
+                console.log('Segment saved successfully');
+            }
+            else {
+                console.error('Failed to save segment:', await response.text());
+            }
+        }
+        catch (error) {
+            console.error('Error saving segment:', error);
+        }
+        finally {
+            setIsSavingSegment(false);
+        }
+    };
+    const handleInitializeTrim = () => {
+        setTrimStart(0.1);
+        setTrimEnd(0.9);
+    };
+    const createPanResponder = (isLeft) => {
+        return react_native_1.PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
+            onPanResponderGrant: () => { },
+            onPanResponderMove: (_, gestureState) => {
+                if (progressBarWidth === 0)
+                    return;
+                const newFraction = (isLeft ? trimStart : trimEnd) + (gestureState.dx / progressBarWidth);
+                const clampedFraction = Math.max(0, Math.min(1, newFraction));
+                if (isLeft) {
+                    setTrimStart(Math.min(clampedFraction, trimEnd || 1));
+                }
+                else {
+                    setTrimEnd(Math.max(clampedFraction, trimStart || 0));
+                }
+            },
+            onPanResponderRelease: () => { },
+        });
+    };
+    const leftPanResponder = createPanResponder(true);
+    const rightPanResponder = createPanResponder(false);
     const videoSource = selectedClipForSheet.mux_playback_id
         ? { uri: `https://stream.mux.com/${selectedClipForSheet.mux_playback_id}.m3u8` }
         : null;
@@ -137,8 +214,8 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
             </react_native_1.View>)}
         </react_native_1.View>
 
-        {/* Progress bar */}
-        <react_native_1.View style={styles.progressBar}>
+        {/* Progress bar with trim handles */}
+        <react_native_1.View style={styles.progressBar} onLayout={(e) => setProgressBarWidth(e.nativeEvent.layout.width)}>
           {/* Loop region overlay */}
           {activeLoop && durationMs > 0 && (<react_native_1.View style={[
                 styles.loopRegion,
@@ -152,6 +229,28 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
               <react_native_1.View style={[styles.loopEdgeLine, { backgroundColor: activeLoop.color, left: 0 }]}/>
               <react_native_1.View style={[styles.loopEdgeLine, { backgroundColor: activeLoop.color, right: 0 }]}/>
             </react_native_1.View>)}
+          
+          {/* Trim region overlay */}
+          {isMineClip && trimStart !== null && trimEnd !== null && (<react_native_1.View style={[
+                styles.trimRegion,
+                {
+                    left: `${trimStart * 100}%`,
+                    width: `${(trimEnd - trimStart) * 100}%`,
+                },
+            ]}/>)}
+          
+          {/* Trim handles */}
+          {isMineClip && trimStart !== null && trimEnd !== null && (<>
+              <react_native_1.View style={[
+                styles.trimHandle,
+                { left: `${trimStart * 100}%` },
+            ]} {...leftPanResponder.panHandlers}/>
+              <react_native_1.View style={[
+                styles.trimHandle,
+                { right: `${(1 - trimEnd) * 100}%` },
+            ]} {...rightPanResponder.panHandlers}/>
+            </>)}
+          
           <react_native_1.View style={[styles.progressFill, { width: `${playheadFraction * 100}%` }]}/>
         </react_native_1.View>
 
@@ -191,6 +290,20 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
           <react_native_1.TouchableOpacity style={styles.momentButton} onPress={jumpToSongMap}>
             <react_native_1.Text style={styles.momentButtonText}>the moment →</react_native_1.Text>
           </react_native_1.TouchableOpacity>
+          
+          {/* Trim controls */}
+          {isMineClip && (<>
+              {trimStart === null && trimEnd === null ? (<react_native_1.TouchableOpacity style={styles.setTrimButton} onPress={handleInitializeTrim}>
+                  <react_native_1.Text style={styles.setTrimButtonText}>set trim</react_native_1.Text>
+                </react_native_1.TouchableOpacity>) : (<react_native_1.TouchableOpacity style={[
+                    styles.saveSegmentButton,
+                    isSavingSegment && styles.saveSegmentButtonDisabled
+                ]} onPress={handleSaveSegment} disabled={isSavingSegment}>
+                  <react_native_1.Text style={styles.saveSegmentButtonText}>
+                    {saveSuccess ? 'saved ✓' : (isSavingSegment ? 'saving...' : 'save segment')}
+                  </react_native_1.Text>
+                </react_native_1.TouchableOpacity>)}
+            </>)}
         </react_native_1.View>
       </react_native_1.View>
     </bottom_sheet_1.default>);
@@ -355,6 +468,49 @@ const styles = react_native_1.StyleSheet.create({
         color: colors.amber,
         fontSize: 14,
         fontStyle: 'italic',
+        fontWeight: '600',
+    },
+    trimHandle: {
+        position: 'absolute',
+        top: -11,
+        width: 12,
+        height: 24,
+        backgroundColor: colors.amber,
+        borderRadius: 6,
+        zIndex: 10,
+    },
+    trimRegion: {
+        position: 'absolute',
+        top: 0,
+        height: '100%',
+        backgroundColor: colors.amber + '40', // 25% opacity
+        borderRadius: 1,
+    },
+    setTrimButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: colors.amber,
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    setTrimButtonText: {
+        color: colors.amber,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    saveSegmentButton: {
+        backgroundColor: colors.amber,
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    saveSegmentButtonDisabled: {
+        opacity: 0.5,
+    },
+    saveSegmentButtonText: {
+        color: '#ffffff',
+        fontSize: 14,
         fontWeight: '600',
     },
 });

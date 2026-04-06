@@ -149,6 +149,7 @@ function useLoops(sessionId, sourceUrl) {
         createLoop,
         deleteLoop,
         fetchLoops,
+        setLoops,
     };
 }
 exports.default = useLoops;

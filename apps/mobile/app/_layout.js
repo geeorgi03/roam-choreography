@@ -37,13 +37,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
  * Set back to false before shipping.
  */
 const MINIMAL_BOOT_TEST = false;
-const react_1 = __importDefault(require("react"));
+const react_1 = __importStar(require("react"));
 const react_native_1 = require("react-native");
 const react_2 = require("react");
 const expo_router_1 = require("expo-router");
 const SplashScreen = __importStar(require("expo-splash-screen"));
 const react_native_toast_message_1 = __importDefault(require("react-native-toast-message"));
 const useSession_1 = require("../lib/hooks/useSession");
+const useShareIntent_1 = require("../lib/hooks/useShareIntent");
 const theme_1 = require("../lib/theme");
 const devBypassAuth_1 = require("../lib/devBypassAuth");
 let GestureHandlerRootView = null;
@@ -111,9 +112,9 @@ const safeFirstFrameStyles = react_native_1.StyleSheet.create({
     text: { color: '#fff', fontSize: 24, fontWeight: '700' },
 });
 function SafeFirstFrame({ children }) {
-    const [showRealApp, setShowRealApp] = (0, react_2.useState)(false);
-    const [initTimedOut, setInitTimedOut] = (0, react_2.useState)(false);
-    const readyRef = (0, react_2.useRef)(false);
+    const [showRealApp, setShowRealApp] = (0, react_1.useState)(false);
+    const [initTimedOut, setInitTimedOut] = (0, react_1.useState)(false);
+    const readyRef = (0, react_1.useRef)(false);
     (0, react_2.useEffect)(() => {
         console.log('[BOOT] 3. SafeFirstFrame mounted, hiding splash');
         SplashScreen.hideAsync().catch(() => { });
@@ -150,13 +151,15 @@ function SafeFirstFrame({ children }) {
 // --- Main app tree (GestureHandlerRootView + session + router) ---
 function RootNavigator() {
     const { session, loading, error } = (0, useSession_1.useSession)();
+    const { pendingShareUrl, pendingShareMeta, clearPendingShare, createRefClip } = (0, useShareIntent_1.useShareIntent)();
     const pathname = (0, expo_router_1.usePathname)();
-    const [ignoreSessionError, setIgnoreSessionError] = (0, react_2.useState)(false);
-    const [skipToAuth, setSkipToAuth] = (0, react_2.useState)(false);
-    const [showSkipOption, setShowSkipOption] = (0, react_2.useState)(false);
+    const [ignoreSessionError, setIgnoreSessionError] = (0, react_1.useState)(false);
+    const [skipToAuth, setSkipToAuth] = (0, react_1.useState)(false);
+    const [showSkipOption, setShowSkipOption] = (0, react_1.useState)(false);
+    const [sessionNameInput, setSessionNameInput] = (0, react_1.useState)('');
     const devBypass = (0, devBypassAuth_1.getDevBypassAuth)();
-    const uploadQueueRef = (0, react_2.useRef)(null);
-    const splashHiddenRef = (0, react_2.useRef)(false);
+    const uploadQueueRef = (0, react_1.useRef)(null);
+    const splashHiddenRef = (0, react_1.useRef)(false);
     (0, react_2.useEffect)(() => {
         console.log('[BOOT] 5. RootNavigator mounted');
     }, []);
@@ -226,6 +229,38 @@ function RootNavigator() {
         };
     }, []);
     const navReady = !!(0, expo_router_1.useRootNavigationState)()?.key;
+    const handleCreateSessionAndAddClip = async () => {
+        if (!session?.access_token || !pendingShareUrl || !pendingShareMeta)
+            return;
+        try {
+            const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sessions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({
+                    name: sessionNameInput.trim() || 'New Session',
+                }),
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to create session: ${response.status}`);
+            }
+            const { id: newSessionId } = await response.json();
+            await createRefClip(newSessionId, pendingShareUrl, pendingShareMeta);
+            clearPendingShare();
+            setSessionNameInput('');
+            expo_router_1.router.replace(`/session/${newSessionId}`);
+        }
+        catch (error) {
+            console.error('Error creating session and adding clip:', error);
+            react_native_toast_message_1.default.show({
+                type: 'error',
+                text1: 'Failed to create session',
+                text2: error instanceof Error ? error.message : 'Unknown error',
+            });
+        }
+    };
     // Use router.replace inside useEffect — never <Redirect> — to avoid
     // "navigate before mounting Root Layout" errors. Defer by one frame so
     // the navigator container is fully committed before we push a route.
@@ -272,6 +307,29 @@ function RootNavigator() {
     return (<>
       <expo_router_1.Stack screenOptions={{ headerShown: false }}/>
       <react_native_toast_message_1.default />
+      
+      {pendingShareUrl && (<react_native_1.Modal visible={true} transparent={true} animationType="fade" onRequestClose={clearPendingShare}>
+          <react_native_1.View style={modalStyles.overlay}>
+            <react_native_1.View style={modalStyles.container}>
+              <react_native_1.Text style={modalStyles.title}>Create Session</react_native_1.Text>
+              <react_native_1.Text style={modalStyles.subtitle}>
+                Add {pendingShareMeta?.title || pendingShareUrl} to a new session
+              </react_native_1.Text>
+              
+              <react_native_1.TextInput style={modalStyles.input} placeholder="Session name" value={sessionNameInput} onChangeText={setSessionNameInput} autoFocus={true}/>
+              
+              <react_native_1.View style={modalStyles.buttons}>
+                <react_native_1.TouchableOpacity style={[modalStyles.button, modalStyles.cancelButton]} onPress={clearPendingShare}>
+                  <react_native_1.Text style={modalStyles.cancelButtonText}>Cancel</react_native_1.Text>
+                </react_native_1.TouchableOpacity>
+                
+                <react_native_1.TouchableOpacity style={[modalStyles.button, modalStyles.createButton]} onPress={handleCreateSessionAndAddClip}>
+                  <react_native_1.Text style={modalStyles.createButtonText}>Create & Add</react_native_1.Text>
+                </react_native_1.TouchableOpacity>
+              </react_native_1.View>
+            </react_native_1.View>
+          </react_native_1.View>
+        </react_native_1.Modal>)}
     </>);
 }
 function AppTree() {
@@ -341,6 +399,75 @@ const styles = react_native_1.StyleSheet.create({
     },
     continueButtonText: {
         color: theme_1.theme.textPrimary,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+});
+const modalStyles = react_native_1.StyleSheet.create({
+    overlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 32,
+    },
+    container: {
+        backgroundColor: theme_1.theme.light.ground,
+        borderRadius: theme_1.theme.borderRadius,
+        padding: 24,
+        width: '100%',
+        maxWidth: 320,
+    },
+    title: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: theme_1.theme.textPrimary,
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    subtitle: {
+        fontSize: 14,
+        color: theme_1.theme.textSecondary,
+        marginBottom: 20,
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: theme_1.theme.light.border,
+        borderRadius: theme_1.theme.borderRadius,
+        padding: 12,
+        fontSize: 16,
+        color: theme_1.theme.textPrimary,
+        backgroundColor: theme_1.theme.light.ground,
+        marginBottom: 20,
+    },
+    buttons: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    button: {
+        flex: 1,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: theme_1.theme.borderRadius,
+        alignItems: 'center',
+    },
+    cancelButton: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: theme_1.theme.light.border,
+    },
+    createButton: {
+        backgroundColor: theme_1.theme.light.ref,
+    },
+    cancelButtonText: {
+        color: theme_1.theme.textSecondary,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    createButtonText: {
+        color: '#fff',
         fontSize: 16,
         fontWeight: '600',
     },

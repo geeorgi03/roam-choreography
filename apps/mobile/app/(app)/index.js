@@ -7,8 +7,11 @@ const theme_1 = require("../../lib/theme");
 const useSession_1 = require("../../lib/hooks/useSession");
 const CreateSessionSheet_1 = require("../../components/CreateSessionSheet");
 const PaywallSheet_1 = require("../../components/PaywallSheet");
+const react_native_mmkv_1 = require("react-native-mmkv");
 const api_1 = require("../../lib/api");
 const supabase_1 = require("../../lib/supabase");
+const homeStorage = new react_native_mmkv_1.MMKV({ id: 'home-state' });
+const LAST_SESSION_KEY = 'last_session_id';
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
 function HomeScreen() {
@@ -16,14 +19,24 @@ function HomeScreen() {
     const { session } = (0, useSession_1.useSession)();
     const createSheetRef = (0, react_1.useRef)(null);
     const paywallSheetRef = (0, react_1.useRef)(null);
+    const redirected = (0, react_1.useRef)(false);
     const [sessions, setSessions] = (0, react_1.useState)([]);
     const [loading, setLoading] = (0, react_1.useState)(true);
     const [inboxCount, setInboxCount] = (0, react_1.useState)(0);
+    const cachedSessionId = (0, react_1.useRef)(null);
     // TODO(boot): start false so BottomSheet doesn't mount on first render before Reanimated is ready
     const [sheetsReady, setSheetsReady] = (0, react_1.useState)(false);
     (0, react_1.useEffect)(() => {
         const t = setTimeout(() => setSheetsReady(true), 300);
         return () => clearTimeout(t);
+    }, []);
+    (0, react_1.useEffect)(() => {
+        const cachedId = homeStorage.getString(LAST_SESSION_KEY);
+        if (cachedId && !redirected.current) {
+            cachedSessionId.current = cachedId;
+            redirected.current = true;
+            expo_router_1.router.replace(`/session/${cachedId}`);
+        }
     }, []);
     const fetchSessions = async () => {
         if (!session?.access_token) {
@@ -53,7 +66,23 @@ function HomeScreen() {
                 data = null;
             }
             if (res.ok && data && typeof data === 'object' && 'sessions' in data) {
-                setSessions(data.sessions ?? []);
+                const sessionsData = data.sessions ?? [];
+                setSessions(sessionsData);
+                if (sessionsData.length > 0) {
+                    const latestSessionId = sessionsData[0].id;
+                    homeStorage.set(LAST_SESSION_KEY, latestSessionId);
+                    // Reconcile stale cache: if cached ID differs from API result, redirect again
+                    if (cachedSessionId.current && cachedSessionId.current !== latestSessionId) {
+                        expo_router_1.router.replace(`/session/${latestSessionId}`);
+                    }
+                    else if (!redirected.current) {
+                        redirected.current = true;
+                        expo_router_1.router.replace(`/session/${latestSessionId}`);
+                    }
+                }
+                else {
+                    homeStorage.delete(LAST_SESSION_KEY);
+                }
             }
         }
         catch {
@@ -144,10 +173,10 @@ function HomeScreen() {
               </>) : (<>
                 <react_native_1.Text style={styles.title}>What do you want to do?</react_native_1.Text>
                 <react_native_1.View style={styles.twoDoorRow}>
-                  <react_native_1.TouchableOpacity style={styles.doorCard} onPress={() => expo_router_1.router.push('/session/camera')} activeOpacity={0.85}>
-                    <react_native_1.Text style={styles.doorIcon}>🔴</react_native_1.Text>
-                    <react_native_1.Text style={styles.doorTitle}>Record</react_native_1.Text>
-                    <react_native_1.Text style={styles.doorSub}>Capture something now</react_native_1.Text>
+                  <react_native_1.TouchableOpacity style={styles.doorCard} onPress={() => expo_router_1.router.push('/library')} activeOpacity={0.85}>
+                    <react_native_1.Text style={styles.doorIcon}>📚</react_native_1.Text>
+                    <react_native_1.Text style={styles.doorTitle}>Browse library</react_native_1.Text>
+                    <react_native_1.Text style={styles.doorSub}>Explore your collection</react_native_1.Text>
                   </react_native_1.TouchableOpacity>
                   <react_native_1.TouchableOpacity style={styles.doorCard} onPress={() => createSheetRef.current?.snapToIndex(0)} activeOpacity={0.85}>
                     <react_native_1.Text style={styles.doorIcon}>🎵</react_native_1.Text>

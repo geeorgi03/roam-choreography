@@ -1,0 +1,1 @@
+{"version":3,"file":"useShareIntent.d.ts","sourceRoot":"","sources":["useShareIntent.ts"],"names":[],"mappings":"AAQA,UAAU,cAAc;IACtB,KAAK,EAAE,MAAM,CAAC;IACd,aAAa,EAAE,MAAM,GAAG,IAAI,CAAC;CAC9B;AAED,UAAU,YAAY;IACpB,GAAG,EAAE,MAAM,CAAC;IACZ,IAAI,EAAE,cAAc,CAAC;CACtB;AAED,wBAAgB,cAAc;;;;;+BAuCY,MAAM,OAAO,MAAM,QAAQ,cAAc;EAoJlF"}

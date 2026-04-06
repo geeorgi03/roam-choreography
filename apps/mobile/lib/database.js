@@ -13,12 +13,14 @@ CREATE TABLE IF NOT EXISTS clips (
   upload_status TEXT DEFAULT 'local',
   upload_progress INTEGER DEFAULT 0,
   mux_playback_id TEXT,
+  source_url TEXT,
   move_name TEXT,
   style TEXT,
   energy TEXT,
   difficulty TEXT,
   bpm INTEGER,
-  notes TEXT
+  notes TEXT,
+  clip_type TEXT
 );
 `;
 const MIGRATION_20260318_SESSION_ID_NULLABLE = `
@@ -35,6 +37,7 @@ CREATE TABLE clips (
   upload_status TEXT DEFAULT 'local',
   upload_progress INTEGER DEFAULT 0,
   mux_playback_id TEXT,
+  source_url TEXT,
   move_name TEXT,
   style TEXT,
   energy TEXT,
@@ -44,18 +47,20 @@ CREATE TABLE clips (
 );
 INSERT INTO clips (
   local_id, server_id, session_id, dual_pair_id, label, recorded_at, file_uri,
-  upload_status, upload_progress, mux_playback_id,
+  upload_status, upload_progress, mux_playback_id, source_url,
   move_name, style, energy, difficulty, bpm, notes
 )
 SELECT
   local_id, server_id, session_id, NULL, label, recorded_at, file_uri,
-  upload_status, upload_progress, mux_playback_id,
+  upload_status, upload_progress, mux_playback_id, NULL,
   move_name, style, energy, difficulty, bpm, notes
 FROM clips_old;
 DROP TABLE clips_old;
 COMMIT;
 `;
 const MIGRATION_DUAL_PAIR_ID = 'ALTER TABLE clips ADD COLUMN dual_pair_id TEXT;';
+const MIGRATION_CLIP_TYPE = 'ALTER TABLE clips ADD COLUMN clip_type TEXT;';
+const MIGRATION_SOURCE_URL = 'ALTER TABLE clips ADD COLUMN source_url TEXT;';
 let _db = null;
 let _dbError = null;
 let _dbInitialized = false;
@@ -91,6 +96,28 @@ function initDb() {
         catch {
             // If PRAGMA/migration fails, keep DB usable for single clips.
         }
+        // One-time migration: add clip_type for MINE/REF distinction.
+        try {
+            const info = _db.getAllSync('PRAGMA table_info(clips)');
+            const clipTypeCol = info?.find?.((c) => c.name === 'clip_type');
+            if (!clipTypeCol) {
+                _db.execSync(MIGRATION_CLIP_TYPE);
+            }
+        }
+        catch {
+            // If PRAGMA/migration fails, keep DB usable for existing clips.
+        }
+        // One-time migration: add source_url for YouTube content.
+        try {
+            const info = _db.getAllSync('PRAGMA table_info(clips)');
+            const sourceUrlCol = info?.find?.((c) => c.name === 'source_url');
+            if (!sourceUrlCol) {
+                _db.execSync(MIGRATION_SOURCE_URL);
+            }
+        }
+        catch {
+            // If PRAGMA/migration fails, keep DB usable for existing clips.
+        }
         console.log('[database] SQLite initialised');
     }
     catch (e) {
@@ -115,6 +142,7 @@ exports.db = new Proxy({}, {
                     console.warn(`[database] db.${String(prop)} called but SQLite is unavailable`);
                     if (prop === 'getAllSync')
                         return [];
+                    return undefined;
                 };
             }
             return undefined;
@@ -147,9 +175,9 @@ function upsertClipFromServer(row) {
     }
     exports.db.runSync(`INSERT INTO clips (
       local_id, server_id, session_id, label, recorded_at, file_uri,
-      upload_status, upload_progress, mux_playback_id,
-      move_name, style, energy, difficulty, bpm, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      upload_status, upload_progress, mux_playback_id, source_url,
+      move_name, style, energy, difficulty, bpm, notes, clip_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(local_id) DO UPDATE SET
       server_id = COALESCE(excluded.server_id, clips.server_id),
       session_id = COALESCE(excluded.session_id, clips.session_id),
@@ -159,12 +187,14 @@ function upsertClipFromServer(row) {
       upload_status = COALESCE(excluded.upload_status, clips.upload_status),
       upload_progress = COALESCE(excluded.upload_progress, clips.upload_progress),
       mux_playback_id = COALESCE(excluded.mux_playback_id, clips.mux_playback_id),
+      source_url = COALESCE(excluded.source_url, clips.source_url),
       move_name = COALESCE(excluded.move_name, clips.move_name),
       style = COALESCE(excluded.style, clips.style),
       energy = COALESCE(excluded.energy, clips.energy),
       difficulty = COALESCE(excluded.difficulty, clips.difficulty),
       bpm = COALESCE(excluded.bpm, clips.bpm),
-      notes = COALESCE(excluded.notes, clips.notes)`, [
+      notes = COALESCE(excluded.notes, clips.notes),
+      clip_type = COALESCE(excluded.clip_type, clips.clip_type)`, [
         resolvedLocalId,
         serverId,
         row.session_id,
@@ -174,12 +204,14 @@ function upsertClipFromServer(row) {
         row.upload_status ?? null,
         row.upload_progress ?? null,
         row.mux_playback_id ?? null,
+        row.source_url ?? null,
         row.move_name ?? null,
         row.style ?? null,
         row.energy ?? null,
         row.difficulty ?? null,
         row.bpm ?? null,
         row.notes ?? null,
+        row.clip_type ?? null,
     ]);
     return resolvedLocalId;
 }
@@ -187,9 +219,9 @@ exports.upsertClipFromServer = upsertClipFromServer;
 function insertClip(row) {
     exports.db.runSync(`INSERT INTO clips (
       local_id, session_id, dual_pair_id, label, recorded_at, file_uri,
-      upload_status, upload_progress, server_id, mux_playback_id,
-      move_name, style, energy, difficulty, bpm, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+      upload_status, upload_progress, server_id, mux_playback_id, source_url,
+      move_name, style, energy, difficulty, bpm, notes, clip_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
         row.local_id,
         row.session_id,
         row.dual_pair_id ?? null,
@@ -200,12 +232,14 @@ function insertClip(row) {
         row.upload_progress ?? 0,
         row.server_id ?? null,
         row.mux_playback_id ?? null,
+        row.source_url ?? null,
         row.move_name ?? null,
         row.style ?? null,
         row.energy ?? null,
         row.difficulty ?? null,
         row.bpm ?? null,
         row.notes ?? null,
+        row.clip_type ?? null,
     ]);
 }
 exports.insertClip = insertClip;
@@ -249,6 +283,10 @@ function updateClipFromServer(local_id, update) {
         setClauses.push('mux_playback_id = ?');
         values.push(update.mux_playback_id);
     }
+    if (update.source_url !== undefined) {
+        setClauses.push('source_url = ?');
+        values.push(update.source_url);
+    }
     if (update.move_name !== undefined) {
         setClauses.push('move_name = ?');
         values.push(update.move_name);
@@ -272,6 +310,10 @@ function updateClipFromServer(local_id, update) {
     if (update.notes !== undefined) {
         setClauses.push('notes = ?');
         values.push(update.notes);
+    }
+    if (update.clip_type !== undefined) {
+        setClauses.push('clip_type = ?');
+        values.push(update.clip_type);
     }
     if (setClauses.length === 0)
         return;

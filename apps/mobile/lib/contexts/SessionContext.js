@@ -296,7 +296,7 @@ function SessionProvider({ sessionId, children }) {
             setSessionName(meta.name.trim());
         }
         if (meta.phrase !== undefined) {
-            setSessionPhrase(meta.phrase.trim() || null);
+            setSessionPhrase(meta.phrase?.trim() || null);
         }
         try {
             const res = await fetch(`${api_1.API_BASE}/sessions/${sessionId}`, {

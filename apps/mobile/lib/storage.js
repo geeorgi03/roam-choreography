@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setSessionMode = exports.getSessionMode = exports.setLoupeState = exports.getLoupeState = exports.setTusUrls = exports.getTusUrls = exports.setUploadQueue = exports.getUploadQueue = exports.storage = void 0;
+exports.getActiveSessionId = exports.setActiveSessionId = exports.setSessionMode = exports.getSessionMode = exports.setLoupeState = exports.getLoupeState = exports.setTusUrls = exports.getTusUrls = exports.setUploadQueue = exports.getUploadQueue = exports.storage = void 0;
 let storage = null;
 exports.storage = storage;
 try {
@@ -123,4 +123,17 @@ function setSessionMode(sessionId, value) {
     sessionModeStorage.set(`session-mode:${sessionId}`, value ? '1' : '0');
 }
 exports.setSessionMode = setSessionMode;
+const ACTIVE_SESSION_ID_KEY = 'active_session_id';
+function setActiveSessionId(sessionId) {
+    if (!storage)
+        return;
+    storage.set(ACTIVE_SESSION_ID_KEY, sessionId);
+}
+exports.setActiveSessionId = setActiveSessionId;
+function getActiveSessionId() {
+    if (!storage)
+        return null;
+    return storage.getString(ACTIVE_SESSION_ID_KEY) ?? null;
+}
+exports.getActiveSessionId = getActiveSessionId;
 //# sourceMappingURL=storage.js.map

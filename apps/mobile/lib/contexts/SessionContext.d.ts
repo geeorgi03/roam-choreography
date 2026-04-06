@@ -10,7 +10,7 @@ export interface SessionContextValue {
     setSessionName: (name: string) => void;
     updateSessionMeta: (meta: {
         name?: string;
-        phrase?: string;
+        phrase?: string | null;
     }) => Promise<void>;
     activeTab: 'workbench' | 'spatial' | 'song-map' | 'group';
     setActiveTab: (tab: SessionContextValue['activeTab']) => void;
@@ -53,7 +53,7 @@ export interface SessionContextValue {
     isAnalysing: boolean;
     notes: any[];
     createNote: (note: any) => void;
-    deleteNote: (id: string) => void;
+    deleteNote: (id: string) => Promise<boolean>;
     inboxCount: number;
     refreshCount: () => Promise<void>;
     handlePlayPause: () => void;

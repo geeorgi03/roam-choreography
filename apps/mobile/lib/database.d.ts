@@ -14,6 +14,7 @@ export interface ClipRow {
     upload_status: string;
     upload_progress: number;
     mux_playback_id: string | null;
+    source_url: string | null;
     move_name: string | null;
     style: string | null;
     energy: string | null;
@@ -33,6 +34,7 @@ export interface InsertClipRow {
     upload_progress?: number;
     server_id?: string | null;
     mux_playback_id?: string | null;
+    source_url?: string | null;
     move_name?: string | null;
     style?: string | null;
     energy?: string | null;
@@ -59,6 +61,7 @@ export interface ServerClipSnapshot {
     upload_status?: string | null;
     upload_progress?: number | null;
     mux_playback_id?: string | null;
+    source_url?: string | null;
     move_name?: string | null;
     style?: string | null;
     energy?: string | null;
@@ -79,12 +82,14 @@ export interface ClipServerUpdate {
     server_id?: string;
     upload_status?: string;
     mux_playback_id?: string | null;
+    source_url?: string | null;
     move_name?: string | null;
     style?: string | null;
     energy?: string | null;
     difficulty?: string | null;
     bpm?: number | null;
     notes?: string | null;
+    clip_type?: string | null;
 }
 /** Persist server-driven clip fields to SQLite so state survives app restart */
 export declare function updateClipFromServer(local_id: string, update: ClipServerUpdate): void;

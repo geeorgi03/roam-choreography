@@ -370,11 +370,13 @@ export function WorkbenchTab() {
       )}
       
 
-      <View style={styles.sectionStripWrapper}>
+      <View 
+        style={styles.sectionStripWrapper}
+      >
         {/* Section chips — shown when music analysis has produced sections */}
         {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (
-          <View onStartShouldSetResponder={() => true}>
-            <View style={styles.sectionPillListWrap}>
+          <View style={styles.sectionPillListWrap}>
+            <View onStartShouldSetResponder={() => true}>
               <ScrollView
                 style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]}
                 contentContainerStyle={styles.sectionPillListContent}
@@ -583,6 +585,7 @@ export function WorkbenchTab() {
           </View>
         )}
       </View>
+        )}
       </View>
       <TouchableOpacity
         style={styles.recordFab}

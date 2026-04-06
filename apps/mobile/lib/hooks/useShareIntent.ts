@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Linking } from 'react-native';
+import { Linking, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSession } from './useSession';
 import { getActiveSessionId } from '../storage';
@@ -20,8 +20,11 @@ export function useShareIntent() {
   const router = useRouter();
   const { session } = useSession();
   const pendingShareRef = useRef<PendingShare | null>(null);
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingShareUrl, setPendingShareUrl] = useState<string | null>(null);
   const [pendingShareMeta, setPendingShareMeta] = useState<OEmbedMetadata | null>(null);
+  const [initialSharedUrl, setInitialSharedUrl] = useState<string | null>(null);
+  const [initialUrlProcessed, setInitialUrlProcessed] = useState(false);
 
   const fetchOEmbedMetadata = async (url: string): Promise<OEmbedMetadata> => {
     if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
@@ -98,6 +101,14 @@ export function useShareIntent() {
           type: 'success',
           text1: 'Clip added to session',
         });
+        // Only exit app after successful clip creation
+        exitTimerRef.current = setTimeout(() => {
+          try {
+            BackHandler.exitApp();
+          } catch (e) {
+            console.warn('[share] exitApp failed:', e);
+          }
+        }, 1500);
       } else {
         pendingShareRef.current = { url, meta };
         setPendingShareUrl(url);
@@ -124,10 +135,29 @@ export function useShareIntent() {
       }
       
       // For deep links, extract url/text query parameters
-      return url.searchParams.get('url') || url.searchParams.get('text');
-    } catch (error) {
-      // Return null for malformed URLs instead of throwing
+      const candidate = url.searchParams.get('url') ?? url.searchParams.get('text');
+      
+      if (candidate) {
+        // If candidate is already a valid http/https URL, return it directly
+        try {
+          const candidateUrl = new URL(candidate);
+          if (candidateUrl.protocol === 'http:' || candidateUrl.protocol === 'https:') {
+            return candidate;
+          }
+        } catch {
+          // Not a valid URL, continue to regex extraction
+        }
+        
+        // Extract first http/https URL from the text
+        const match = candidate.match(/https?:\/\/[^\s]+/);
+        return match ? match[0] : null;
+      }
+      
       return null;
+    } catch (error) {
+      // Last resort: apply regex directly to raw input for malformed URLs
+      const match = urlString.match(/https?:\/\/[^\s]+/);
+      return match ? match[0] : null;
     }
   };
 
@@ -147,7 +177,7 @@ export function useShareIntent() {
       if (initialUrl) {
         const sharedUrl = extractSharedUrl(initialUrl);
         if (sharedUrl) {
-          await handleShareUrl(sharedUrl);
+          setInitialSharedUrl(sharedUrl);
         }
       }
     };
@@ -163,8 +193,19 @@ export function useShareIntent() {
 
     return () => {
       subscription?.remove();
+      if (exitTimerRef.current) {
+        clearTimeout(exitTimerRef.current);
+      }
     };
   }, []);
+
+  // Process initial shared URL only when auth is ready
+  useEffect(() => {
+    if (initialSharedUrl && !initialUrlProcessed && session?.access_token) {
+      setInitialUrlProcessed(true);
+      handleShareUrl(initialSharedUrl);
+    }
+  }, [initialSharedUrl, initialUrlProcessed, session?.access_token]);
 
   return {
     pendingShareUrl,
