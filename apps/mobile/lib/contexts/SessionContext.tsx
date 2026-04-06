@@ -10,12 +10,14 @@ import { useInbox } from '../hooks/useInbox';
 import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
 import { API_BASE } from '../api';
-import { getSessionMode, setSessionMode as setSessionModeStorage, getActiveSection, setActiveSection as persistActiveSection } from '../storage';
+import { getSessionMode, setSessionMode as setSessionModeStorage, getActiveSection, setActiveSection as persistActiveSection, setActiveSectionId } from '../storage';
 
 export interface SessionContextValue {
   sessionId: string;
   sessionName: string;
   sessionPhrase: string | null;
+  qualityTarget: { clip_url: string; timestamp_ms: number; source_clip_id: string } | null;
+  setQualityTarget: (qt: { clip_url: string; timestamp_ms: number; source_clip_id: string } | null) => void;
   setSessionName: (name: string) => void;
   updateSessionMeta: (meta: { name?: string; phrase?: string | null }) => Promise<void>;
   activeTab: 'workbench' | 'spatial' | 'song-map' | 'group';
@@ -92,6 +94,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   // State
   const [sessionName, setSessionName] = useState('Session');
   const [sessionPhrase, setSessionPhrase] = useState<string | null>(null);
+  const [qualityTarget, setQualityTarget] = useState<{ clip_url: string; timestamp_ms: number; source_clip_id: string } | null>(null);
   const [activeTab, setActiveTab] = useState<SessionContextValue['activeTab']>('workbench');
   const [activeSection, setActiveSectionState] = useState('Section');
   const [activeMoment, setActiveMoment] = useState<string | null>(null);
@@ -142,10 +145,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
         });
         if (!res.ok) return;
         const data = await res.json();
-        const name = (data as { session?: { name?: string; phrase?: string } }).session?.name;
-        const phrase = (data as { session?: { name?: string; phrase?: string } }).session?.phrase;
+        const name = (data as { session?: { name?: string; phrase?: string; quality_target?: any } }).session?.name;
+        const phrase = (data as { session?: { name?: string; phrase?: string; quality_target?: any } }).session?.phrase;
+        const quality_target = (data as { session?: { name?: string; phrase?: string; quality_target?: any } }).session?.quality_target;
         if (name) setSessionName(name);
         if (phrase !== undefined) setSessionPhrase(phrase ?? null);
+        if (quality_target !== undefined) setQualityTarget(quality_target ?? null);
       } catch {
         // ignore
       }
@@ -283,6 +288,13 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setActiveSectionState(section);
     persistActiveSection(sessionId, section);
   }, [sessionId]);
+
+  // Wrapper function to handle tab switches and update active section ID
+  const setActiveTabWithSectionTracking = useCallback((tab: SessionContextValue['activeTab']) => {
+    setActiveTab(tab);
+    // Set active section ID based on tab for share intent
+    setActiveSectionId(tab);
+  }, [setActiveTab]);
 
   // Handlers
   const handlePlayPause = useCallback(() => {
@@ -433,10 +445,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     sessionId,
     sessionName,
     sessionPhrase,
+    qualityTarget,
+    setQualityTarget,
     setSessionName,
     updateSessionMeta,
     activeTab,
-    setActiveTab,
+    setActiveTab: setActiveTabWithSectionTracking,
     activeSection,
     setActiveSection,
     activeMoment,

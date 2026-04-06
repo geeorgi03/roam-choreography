@@ -20,6 +20,7 @@ export interface QueueItem {
   /** When set, a section_clips entry will be created server-side after upload. */
   section_label?: string;
   dual_pair_id?: string;
+  clip_type?: string;
 }
 
 type UploadQueueStatus =
@@ -208,12 +209,14 @@ export class UploadQueueService {
                 recorded_at: item.recorded_at,
                 label: item.label,
                 ...(item.dual_pair_id ? { dual_pair_id: item.dual_pair_id } : {}),
+                ...(item.clip_type ? { clip_type: item.clip_type } : {}),
               }
             : {
                 local_id: item.local_id,
                 recorded_at: item.recorded_at,
                 label: item.label,
                 ...(item.dual_pair_id ? { dual_pair_id: item.dual_pair_id } : {}),
+                ...(item.clip_type ? { clip_type: item.clip_type } : {}),
               };
 
         const res = await fetch(`${API_BASE}/clips/upload-url`, {

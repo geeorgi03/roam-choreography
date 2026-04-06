@@ -6,6 +6,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import YoutubeIframe, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
@@ -100,9 +101,11 @@ export default function YoutubePlayerScreen() {
   const [editingSection, setEditingSection] = useState<{ index: number; label: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [playerState, setPlayerState] = useState<string>('unstarted');
+  const [mirrorActive, setMirrorActive] = useState(false);
   const playerRef = useRef<YoutubeIframeRef | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
+  const [speed, setSpeed] = useState(1);
 
   // Loupe state
   const [loupeActive, setLoupeActive] = useState(false);
@@ -249,6 +252,13 @@ export default function YoutubePlayerScreen() {
     loupeLastY.current = 0;
   }, [videoId]);
 
+  // Reset mirror on unmount
+  useEffect(() => {
+    return () => {
+      setMirrorActive(false);
+    };
+  }, []);
+
   // Initialize loupe position to center of video container only if no saved state exists
   useEffect(() => {
     if (frameSize.width > 0 && frameSize.height > 0) {
@@ -297,6 +307,11 @@ export default function YoutubePlayerScreen() {
       if (__DEV__) console.warn(e);
       setSaving(false);
     }
+  };
+
+  const handleSpeedChange = (value: number) => {
+    playerRef.current?.setPlaybackRate(value);
+    setSpeed(value);
   };
 
   // JS-thread helpers for gesture callbacks
@@ -384,14 +399,16 @@ export default function YoutubePlayerScreen() {
             setFrameSize((prev) => (prev.width !== width || prev.height !== height ? { width, height } : prev));
           }}
         >
-          <YoutubeIframe
-            ref={playerRef}
-            height={220}
-            videoId={videoId}
-            onChangeState={(state) => {
-              setPlayerState(state);
-            }}
-          />
+          <View style={{ transform: [{ scaleX: mirrorActive ? -1 : 1 }] }}>
+            <YoutubeIframe
+              ref={playerRef}
+              height={220}
+              videoId={videoId}
+              onChangeState={(state) => {
+                setPlayerState(state);
+              }}
+            />
+          </View>
           {loupeActive && (
             <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
               <View style={styles.loupeMask}>
@@ -437,6 +454,30 @@ export default function YoutubePlayerScreen() {
           )}
         </View>
       </GestureDetector>
+
+      <View style={styles.speedRow}>
+        <Slider
+          minimumValue={0.25}
+          maximumValue={2}
+          step={0}
+          value={speed}
+          onValueChange={handleSpeedChange}
+          minimumTrackTintColor={theme.accent}
+          maximumTrackTintColor={theme.textSecondary}
+          thumbTintColor={theme.accent}
+          style={styles.speedSlider}
+        />
+        <Text style={styles.speedLabel}>{speed.toFixed(2)}×</Text>
+      </View>
+
+      <View style={styles.videoControlsRow}>
+        <TouchableOpacity
+          onPress={() => setMirrorActive((v) => !v)}
+          style={[styles.videoControlBtn, mirrorActive && styles.mirrorBtnActive]}
+        >
+          <Text style={styles.videoControlBtnText}>↔</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.sectionsBlock}>
         <Text style={styles.sectionsTitle}>SECTIONS</Text>
@@ -631,5 +672,44 @@ const styles = StyleSheet.create({
   loupeRestoreBtnText: {
     color: '#fff',
     fontSize: 20,
+  },
+  videoControlsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  videoControlBtn: {
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    minWidth: 44,
+    alignItems: 'center',
+  },
+  videoControlBtnText: {
+    color: theme.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  mirrorBtnActive: {
+    backgroundColor: theme.accent,
+    borderRadius: theme.borderRadius,
+  },
+  speedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  speedSlider: {
+    flex: 1,
+    height: 40,
+  },
+  speedLabel: {
+    color: theme.textPrimary,
+    fontSize: 13,
+    fontWeight: '600',
+    minWidth: 44,
+    textAlign: 'right',
   },
 });

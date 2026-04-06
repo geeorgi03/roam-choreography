@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Modal,
   Image,
+  PanResponder,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
@@ -229,6 +230,7 @@ export default function ClipPlayerScreen() {
   const [durationMillis, setDurationMillis] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [rate, setRate] = useState(1);
+  const [mirrorActive, setMirrorActive] = useState(false);
   const [displayClip, setDisplayClip] = useState<ClipRow | null>(null);
   const [comments, setComments] = useState<ClipComment[]>([]);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -245,6 +247,13 @@ export default function ClipPlayerScreen() {
   const videoRef = useRef<Video>(null);
   const tagSheetRef = useRef<BottomSheet | null>(null);
   const webViewRef = useRef<WebView>(null);
+  
+  // A/B Loop state
+  const [loopStartMs, setLoopStartMs] = useState<number | null>(null);
+  const [loopEndMs, setLoopEndMs] = useState<number | null>(null);
+  const [abBarWidth, setAbBarWidth] = useState(0);
+  const loopSeekingRef = useRef<boolean>(false);
+  const barOriginXRef = useRef<number>(0);
   
   const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
   
@@ -441,6 +450,13 @@ export default function ClipPlayerScreen() {
     setCapturedFrameDataUrl(null);
   }, [currentIndex]);
 
+  // Reset mirror on unmount
+  useEffect(() => {
+    return () => {
+      setMirrorActive(false);
+    };
+  }, []);
+
   // Continuous frame capture for YouTube when loupe is active
   useEffect(() => {
     if (!loupeActive || !isYouTubeContent || !webViewRef.current) return;
@@ -474,6 +490,16 @@ export default function ClipPlayerScreen() {
     setPositionMillis(status.positionMillis);
     if (status.durationMillis) setDurationMillis(status.durationMillis);
     setPlaying(status.isPlaying);
+    
+    // A/B Loop enforcement for expo-av
+    if (loopStartMs !== null && loopEndMs !== null && status.positionMillis >= loopEndMs && !loopSeekingRef.current) {
+      loopSeekingRef.current = true;
+      videoRef.current?.setStatusAsync({ positionMillis: loopStartMs }).then(() => {
+        loopSeekingRef.current = false;
+      }).catch(() => {
+        loopSeekingRef.current = false;
+      });
+    }
     
     // Sync loupe video with main video
     if (loupeVideoRef.current && status.isLoaded) {
@@ -531,23 +557,6 @@ export default function ClipPlayerScreen() {
     }
   };
 
-  const handleSpeedToggle = async () => {
-    if (isYouTubeContent && webViewRef.current) {
-      // YouTube WebView speed control
-      const newRate = rate === 1 ? 0.5 : 1;
-      setRate(newRate);
-      webViewRef.current.injectJavaScript(`
-        if (window.player) {
-          window.player.setPlaybackRate(${newRate});
-        }
-      `);
-    } else if (videoRef.current) {
-      // Regular Video speed control
-      const newRate = rate === 1 ? 0.5 : 1;
-      setRate(newRate);
-      await videoRef.current.setRateAsync(newRate, true);
-    }
-  };
 
   const handleSliderComplete = async (value: number) => {
     if (isYouTubeContent && webViewRef.current) {
@@ -561,6 +570,22 @@ export default function ClipPlayerScreen() {
     } else if (videoRef.current) {
       // Regular Video seek
       await videoRef.current.setPositionAsync(value);
+    }
+  };
+
+  const handleSpeedChange = async (value: number) => {
+    if (isYouTubeContent && webViewRef.current) {
+      // YouTube WebView speed control
+      setRate(value);
+      webViewRef.current?.injectJavaScript(`
+        if (window.player) {
+          window.player.setPlaybackRate(${value});
+        }
+      `);
+    } else if (videoRef.current) {
+      // Regular Video speed control
+      setRate(value);
+      await videoRef.current.setRateAsync(value, true);
     }
   };
 
@@ -620,6 +645,15 @@ export default function ClipPlayerScreen() {
           setYoutubeCurrentTime(message.currentTime);
           // Update shared position state from YouTube current time
           setPositionMillis(message.currentTime * 1000);
+          
+          // A/B Loop enforcement for YouTube
+          if (loopStartMs !== null && loopEndMs !== null && message.currentTime * 1000 >= loopEndMs) {
+            webViewRef.current?.injectJavaScript(`
+              if (window.player) {
+                window.player.seekTo(${loopStartMs / 1000});
+              }
+            `);
+          }
           break;
         case 'frameCapture':
           if (message.dataUrl) {
@@ -791,6 +825,66 @@ export default function ClipPlayerScreen() {
 
   // Compose loupe gestures (pinch and two-finger pan)
   const loupeGesture = Gesture.Simultaneous(pinchGesture, twoFingerPan);
+
+  // A/B Loop PanResponder factory
+  const makeHandlePanResponder = useCallback((which: 'start' | 'end') => {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gestureState) => {
+        if (abBarWidth <= 0 || durationMillis <= 0) return;
+        
+        const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
+        const ms = ratio * durationMillis;
+        
+        if (which === 'start') {
+          setLoopStartMs(prev => {
+            const newVal = ms;
+            // Enforce start < end
+            if (loopEndMs !== null && newVal >= loopEndMs) {
+              return Math.max(0, loopEndMs - 1);
+            }
+            return newVal;
+          });
+        } else {
+          setLoopEndMs(prev => {
+            const newVal = ms;
+            // Enforce end > start
+            if (loopStartMs !== null && newVal <= loopStartMs) {
+              return Math.min(durationMillis, loopStartMs + 1);
+            }
+            return newVal;
+          });
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (abBarWidth <= 0 || durationMillis <= 0) return;
+        
+        const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
+        const ms = ratio * durationMillis;
+        
+        if (which === 'start') {
+          setLoopStartMs(prev => {
+            const newVal = ms;
+            if (loopEndMs !== null && newVal >= loopEndMs) {
+              return Math.max(0, loopEndMs - 1);
+            }
+            return newVal;
+          });
+        } else {
+          setLoopEndMs(prev => {
+            const newVal = ms;
+            if (loopStartMs !== null && newVal <= loopStartMs) {
+              return Math.min(durationMillis, loopStartMs + 1);
+            }
+            return newVal;
+          });
+        }
+      },
+    });
+  }, [abBarWidth, durationMillis, loopStartMs, loopEndMs]);
+
+  const startHandlePR = useMemo(() => makeHandlePanResponder('start'), [makeHandlePanResponder]);
+  const endHandlePR = useMemo(() => makeHandlePanResponder('end'), [makeHandlePanResponder]);
 
   const handleTagSaved = (updatedClip: ClipRow) => {
     setDisplayClip(updatedClip);
@@ -1003,16 +1097,18 @@ export default function ClipPlayerScreen() {
                   mediaPlaybackRequiresUserAction={false}
                 />
               ) : (
-                <Video
-                  key={mux_playback_id}
-                  ref={videoRef}
-                  source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }}
-                  style={StyleSheet.absoluteFill}
-                  useNativeControls={false}
-                  resizeMode={ResizeMode.CONTAIN}
-                  shouldPlay={playing}
-                  onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-                />
+                <View style={[StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorActive ? -1 : 1 }] }]}>
+                  <Video
+                    key={mux_playback_id}
+                    ref={videoRef}
+                    source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }}
+                    style={StyleSheet.absoluteFill}
+                    useNativeControls={false}
+                    resizeMode={ResizeMode.CONTAIN}
+                    shouldPlay={playing}
+                    onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+                  />
+                </View>
               )}
             {loupeActive && (
               <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
@@ -1079,6 +1175,29 @@ export default function ClipPlayerScreen() {
           </TouchableOpacity>
 
           <View style={styles.controls}>
+          <View 
+            style={styles.sliderWrap}
+            onLayout={(e) => {
+              e.currentTarget.measureInWindow((x, _y, width) => {
+                barOriginXRef.current = x;
+                setAbBarWidth(width - 24); // Subtract 12px margin on each side
+              });
+            }}
+          >
+            {/* A/B Loop region band */}
+            {loopStartMs !== null && loopEndMs !== null && abBarWidth > 0 && durationMillis > 0 && (
+              <View 
+                style={[
+                  styles.abLoopRegion,
+                  {
+                    left: (loopStartMs / durationMillis) * abBarWidth + 12, // SLIDER_INSET
+                    width: ((loopEndMs - loopStartMs) / durationMillis) * abBarWidth,
+                  }
+                ]}
+                pointerEvents="none"
+              />
+            )}
+            
             <Slider
               style={styles.slider}
               minimumValue={0}
@@ -1089,26 +1208,95 @@ export default function ClipPlayerScreen() {
               maximumTrackTintColor={theme.textSecondary}
               thumbTintColor={theme.textPrimary}
             />
-            <View style={styles.controlsRow}>
-              <TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
-                <Text style={styles.controlBtnText}>−5s</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handlePlayPause}
-                style={styles.controlBtn}
-              >
-                <Text style={styles.controlBtnText}>
-                  {playing ? 'Pause' : 'Play'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSpeedToggle}
-                style={styles.controlBtn}
-              >
-                <Text style={styles.controlBtnText}>{rate}×</Text>
-              </TouchableOpacity>
-            </View>
+            
+            {/* A/B Loop handles */}
+            {loopStartMs !== null && abBarWidth > 0 && durationMillis > 0 && (
+              <View
+                style={[
+                  styles.abLoopHandle,
+                  styles.abLoopHandleStart,
+                  {
+                    left: (loopStartMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                  }
+                ]}
+                {...startHandlePR.panHandlers}
+              />
+            )}
+            
+            {loopEndMs !== null && abBarWidth > 0 && durationMillis > 0 && (
+              <View
+                style={[
+                  styles.abLoopHandle,
+                  styles.abLoopHandleEnd,
+                  {
+                    left: (loopEndMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                  }
+                ]}
+                {...endHandlePR.panHandlers}
+              />
+            )}
           </View>
+          <View style={styles.controlsRow}>
+            <TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
+              <Text style={styles.controlBtnText}>−5s</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handlePlayPause}
+              style={styles.controlBtn}
+            >
+              <Text style={styles.controlBtnText}>
+                {playing ? 'Pause' : 'Play'}
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.speedRow}>
+              <Slider
+                minimumValue={0.25}
+                maximumValue={2}
+                step={0}
+                value={rate}
+                onValueChange={handleSpeedChange}
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={theme.textSecondary}
+                thumbTintColor={theme.accent}
+                style={styles.speedSlider}
+              />
+              <Text style={styles.speedLabel}>{rate.toFixed(2)}×</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setMirrorActive((v) => !v)}
+              style={[styles.controlBtn, mirrorActive && styles.mirrorBtnActive]}
+            >
+              <Text style={styles.controlBtnText}>↔</Text>
+            </TouchableOpacity>
+            
+            {/* A/B Loop controls */}
+            <TouchableOpacity 
+              onPress={() => setLoopStartMs(positionMillis)} 
+              style={styles.controlBtn}
+            >
+              <Text style={styles.controlBtnText}>Set A</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => setLoopEndMs(positionMillis)} 
+              style={styles.controlBtn}
+            >
+              <Text style={styles.controlBtnText}>Set B</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* A/B Loop clear button */}
+          {(loopStartMs !== null || loopEndMs !== null) && (
+            <TouchableOpacity 
+              onPress={() => {
+                setLoopStartMs(null);
+                setLoopEndMs(null);
+              }} 
+              style={styles.abLoopClearBtn}
+            >
+              <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
           <View style={styles.tagsRow}>
             {librarySection ? (
@@ -1192,23 +1380,25 @@ export default function ClipPlayerScreen() {
                 mediaPlaybackRequiresUserAction={false}
               />
             ) : (
-              <Video
-                key={clip!.local_id}
-                ref={videoRef}
-                source={{ uri: `https://stream.mux.com/${clip!.mux_playback_id}.m3u8` }}
-                style={StyleSheet.absoluteFill}
-                useNativeControls={false}
-                resizeMode={ResizeMode.CONTAIN}
-                shouldPlay={playing}
-                onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-                onReadyForDisplay={(e) => {
-                  const ns = e?.naturalSize;
-                  if (!ns?.width || !ns?.height) return;
-                  setVideoNaturalSize((prev) =>
-                    prev?.width === ns.width && prev?.height === ns.height ? prev : { width: ns.width, height: ns.height }
-                  );
-                }}
-              />
+              <View style={[StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorActive ? -1 : 1 }] }]}>
+                <Video
+                  key={clip!.local_id}
+                  ref={videoRef}
+                  source={{ uri: `https://stream.mux.com/${clip!.mux_playback_id}.m3u8` }}
+                  style={StyleSheet.absoluteFill}
+                  useNativeControls={false}
+                  resizeMode={ResizeMode.CONTAIN}
+                  shouldPlay={playing}
+                  onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+                  onReadyForDisplay={(e) => {
+                    const ns = e?.naturalSize;
+                    if (!ns?.width || !ns?.height) return;
+                    setVideoNaturalSize((prev) =>
+                      prev?.width === ns.width && prev?.height === ns.height ? prev : { width: ns.width, height: ns.height }
+                    );
+                  }}
+                />
+              </View>
             )}
           {loupeActive && (
             <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
@@ -1367,7 +1557,15 @@ export default function ClipPlayerScreen() {
         )}
 
         <View style={styles.controls}>
-          <View style={styles.sliderWrap}>
+          <View 
+            style={styles.sliderWrap}
+            onLayout={(e) => {
+              e.currentTarget.measureInWindow((x, _y, width) => {
+                barOriginXRef.current = x;
+                setAbBarWidth(width - 24); // Subtract 12px margin on each side
+              });
+            }}
+          >
             {(comments.length > 0 || annotations.length > 0) && durationMillis > 0 && (
               <View style={styles.commentMarkers} pointerEvents="box-none">
                 {comments.map((c) => {
@@ -1398,6 +1596,21 @@ export default function ClipPlayerScreen() {
                 })}
               </View>
             )}
+            
+            {/* A/B Loop region band */}
+            {loopStartMs !== null && loopEndMs !== null && abBarWidth > 0 && durationMillis > 0 && (
+              <View 
+                style={[
+                  styles.abLoopRegion,
+                  {
+                    left: (loopStartMs / durationMillis) * abBarWidth + 12, // SLIDER_INSET
+                    width: ((loopEndMs - loopStartMs) / durationMillis) * abBarWidth,
+                  }
+                ]}
+                pointerEvents="none"
+              />
+            )}
+            
             <Slider
               style={styles.slider}
               minimumValue={0}
@@ -1408,6 +1621,33 @@ export default function ClipPlayerScreen() {
               maximumTrackTintColor={theme.textSecondary}
               thumbTintColor={theme.textPrimary}
             />
+            
+            {/* A/B Loop handles */}
+            {loopStartMs !== null && abBarWidth > 0 && durationMillis > 0 && (
+              <View
+                style={[
+                  styles.abLoopHandle,
+                  styles.abLoopHandleStart,
+                  {
+                    left: (loopStartMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                  }
+                ]}
+                {...startHandlePR.panHandlers}
+              />
+            )}
+            
+            {loopEndMs !== null && abBarWidth > 0 && durationMillis > 0 && (
+              <View
+                style={[
+                  styles.abLoopHandle,
+                  styles.abLoopHandleEnd,
+                  {
+                    left: (loopEndMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                  }
+                ]}
+                {...endHandlePR.panHandlers}
+              />
+            )}
           </View>
           <View style={styles.controlsRow}>
             <TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
@@ -1418,13 +1658,58 @@ export default function ClipPlayerScreen() {
                 {playing ? 'Pause' : 'Play'}
               </Text>
             </TouchableOpacity>
+            <View style={styles.speedRow}>
+              <Slider
+                minimumValue={0.25}
+                maximumValue={2}
+                step={0}
+                value={rate}
+                onValueChange={handleSpeedChange}
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={theme.textSecondary}
+                thumbTintColor={theme.accent}
+                style={styles.speedSlider}
+              />
+              <Text style={styles.speedLabel}>{rate.toFixed(2)}×</Text>
+            </View>
             <TouchableOpacity
-              onPress={handleSpeedToggle}
-              style={styles.controlBtn}
+              onPress={() => setMirrorActive((v) => !v)}
+              style={[styles.controlBtn, mirrorActive && styles.mirrorBtnActive]}
             >
-              <Text style={styles.controlBtnText}>{rate}×</Text>
+              <Text style={styles.controlBtnText}>↔</Text>
             </TouchableOpacity>
+            
+            {/* A/B Loop controls */}
+            {!annotationMode && (
+              <>
+                <TouchableOpacity 
+                  onPress={() => setLoopStartMs(positionMillis)} 
+                  style={styles.controlBtn}
+                >
+                  <Text style={styles.controlBtnText}>Set A</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={() => setLoopEndMs(positionMillis)} 
+                  style={styles.controlBtn}
+                >
+                  <Text style={styles.controlBtnText}>Set B</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
+          
+          {/* A/B Loop clear button */}
+          {(loopStartMs !== null || loopEndMs !== null) && (
+            <TouchableOpacity 
+              onPress={() => {
+                setLoopStartMs(null);
+                setLoopEndMs(null);
+              }} 
+              style={styles.abLoopClearBtn}
+            >
+              <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.tagsRow}>
@@ -1554,7 +1839,7 @@ const styles = StyleSheet.create({
   },
   controlsRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    alignItems: 'center',
     gap: 24,
     marginTop: 8,
   },
@@ -1566,6 +1851,10 @@ const styles = StyleSheet.create({
     color: theme.textPrimary,
     fontSize: 16,
     fontWeight: '600',
+  },
+  mirrorBtnActive: {
+    backgroundColor: theme.accent,
+    borderRadius: theme.borderRadius,
   },
   tagsRow: {
     position: 'absolute',
@@ -1803,5 +2092,22 @@ const styles = StyleSheet.create({
   loupeRestoreBtnText: {
     color: '#fff',
     fontSize: 20,
+  },
+  speedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  speedSlider: {
+    flex: 1,
+    height: 40,
+  },
+  speedLabel: {
+    color: theme.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+    minWidth: 40,
+    textAlign: 'right',
   },
 });

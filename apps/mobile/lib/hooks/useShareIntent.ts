@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSession } from './useSession';
-import { getActiveSessionId, getActiveSection } from '../storage';
+import { getActiveSessionId, getActiveSection, getActiveSectionId } from '../storage';
 import { API_BASE } from '../api';
 import Toast from 'react-native-toast-message';
 
@@ -121,8 +121,8 @@ export function useShareIntent() {
       const activeSessionId = getActiveSessionId();
 
       if (activeSessionId) {
-        // Get active section from storage if not provided
-        const currentActiveSection = activeSection || getActiveSection(activeSessionId) || undefined;
+        // Get active section from storage if not provided, using new getActiveSectionId function
+        const currentActiveSection = activeSection || getActiveSectionId() || getActiveSection(activeSessionId) || undefined;
         await createRefClip(activeSessionId, url, meta, currentActiveSection);
         Toast.show({
           type: 'success',

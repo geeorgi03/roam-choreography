@@ -62,8 +62,8 @@ app.post('/:sessionId/clips', async (c) => {
     notes?: string | null;
     url?: string | null;
     thumbnail_url?: string | null;
-    clip_type?: 'MINE' | 'REF' | null;
-    type?: 'MINE' | 'REF' | null; // Alias for clip_type for documented contract
+    clip_type?: 'MINE' | 'REF' | 'voice_memo' | null;
+    type?: 'MINE' | 'REF' | 'voice_memo' | null; // Alias for clip_type for documented contract
     title?: string | null;
     start_ms?: number | null;
   }>();
@@ -321,6 +321,59 @@ app.post('/:sessionId/clips/:clipId/trim', async (c) => {
   }
 
   return c.json({ clip: newClip, sectionClip }, 201);
+});
+
+/** POST /sessions/:sessionId/section_clips — assign clip to section */
+app.post('/:sessionId/section_clips', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('sessionId');
+  const session = await getSessionForUser(sessionId, userId);
+  if (!session) return c.json({ error: 'Not found' }, 404);
+
+  const body = await c.req.json<{
+    clip_id: string;
+    section_label?: string;
+    section_id?: string;
+  }>();
+
+  if (!body?.clip_id) {
+    return c.json({ error: 'clip_id is required' }, 400);
+  }
+
+  if (!body?.section_label && !body?.section_id) {
+    return c.json({ error: 'section_label or section_id is required' }, 400);
+  }
+
+  // Verify clip belongs to the session
+  const { data: clip, error: clipError } = await supabase
+    .from('clips')
+    .select('id')
+    .eq('id', body.clip_id)
+    .eq('session_id', sessionId)
+    .single();
+
+  if (clipError) {
+    if (clipError.code === 'PGRST116') return c.json({ error: 'Clip not found' }, 404);
+    return c.json({ error: clipError.message }, 500);
+  }
+
+  // Create section_clips association
+  const { data: sectionClip, error: sectionError } = await supabase
+    .from('section_clips')
+    .insert({
+      session_id: sessionId,
+      clip_id: body.clip_id,
+      section_label: body.section_label || null,
+      section_id: body.section_id || null,
+    })
+    .select('*')
+    .single();
+
+  if (sectionError) {
+    return c.json({ error: sectionError.message }, 500);
+  }
+
+  return c.json(sectionClip, 201);
 });
 
 export const clipsRoutes = app;

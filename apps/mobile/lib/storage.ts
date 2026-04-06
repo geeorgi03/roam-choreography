@@ -133,3 +133,15 @@ export function getActiveSection(sessionId: string): string | null {
   return storage.getString(`${ACTIVE_SECTION_PREFIX}${sessionId}`) ?? null;
 }
 
+const ACTIVE_SECTION_ID_KEY = 'active_section_id';
+
+export function setActiveSectionId(sectionId: string): void {
+  if (!storage) return;
+  storage.set(ACTIVE_SECTION_ID_KEY, sectionId);
+}
+
+export function getActiveSectionId(): string | null {
+  if (!storage) return null;
+  return storage.getString(ACTIVE_SECTION_ID_KEY) ?? null;
+}
+

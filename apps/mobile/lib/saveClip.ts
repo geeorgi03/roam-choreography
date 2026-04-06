@@ -17,7 +17,8 @@ export async function saveClip(
   label: string,
   token: string,
   sectionLabel?: string,
-  dualPairId?: string
+  dualPairId?: string,
+  clipType?: string
 ): Promise<SaveClipResult> {
   try {
     const existing = getClipsForSession(sessionId);
@@ -34,6 +35,7 @@ export async function saveClip(
       recorded_at,
       file_uri: fileUri,
       upload_status: 'local',
+      clip_type: clipType ?? null,
     });
 
     uploadQueue.enqueue({
@@ -45,6 +47,7 @@ export async function saveClip(
       token,
       section_label: sectionLabel,
       dual_pair_id: dualPairId,
+      clip_type: clipType,
     });
 
     return { ok: true, local_id };

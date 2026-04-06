@@ -581,9 +581,8 @@ export function WorkbenchTab() {
               </View>
             ))}
           </View>
+        </View>
         )}
-        )}
-      </View>
       </View>
       <TouchableOpacity
         style={styles.recordFab}
