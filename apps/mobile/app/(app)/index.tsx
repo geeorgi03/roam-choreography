@@ -135,22 +135,6 @@ export default function HomeScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerLeft: () => (
-        <View style={styles.headerLeft}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.push('/library')}
-          >
-            <Text style={styles.headerLeftText}>Library</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.push('/profile')}
-          >
-            <Text style={styles.headerLeftText}>Profile</Text>
-          </TouchableOpacity>
-        </View>
-      ),
       headerRight: () => (
         <View style={styles.headerRight}>
           <TouchableOpacity
@@ -317,10 +301,6 @@ const styles = StyleSheet.create({
     minHeight: 400,
     justifyContent: 'center',
   },
-  headerLeft: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   headerButton: {
     padding: 8,
     marginRight: 8,
@@ -332,11 +312,6 @@ const styles = StyleSheet.create({
   headerButtonText: {
     color: colors.active,
     fontSize: 24,
-  },
-  headerLeftText: {
-    color: colors.active,
-    fontSize: 14,
-    fontWeight: '700',
   },
   empty: {
     flex: 1,

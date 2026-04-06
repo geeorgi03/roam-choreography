@@ -11,6 +11,8 @@ import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
 import { API_BASE } from '../api';
 import { getSessionMode, setSessionMode as setSessionModeStorage, getActiveSection, setActiveSection as persistActiveSection, setActiveSectionId } from '../storage';
+import { cacheSession, getCachedSession } from '../sessionCache';
+import { enqueueWrite, isNetworkError } from '../writeQueue';
 
 export interface SessionContextValue {
   sessionId: string;
@@ -152,7 +154,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
         if (phrase !== undefined) setSessionPhrase(phrase ?? null);
         if (quality_target !== undefined) setQualityTarget(quality_target ?? null);
       } catch {
-        // ignore
+        const cached = getCachedSession(sessionId);
+        if (cached) {
+          setSessionName(cached.session.name);
+          setSessionPhrase(cached.session.phrase);
+          setQualityTarget(cached.session.quality_target);
+        }
       }
     })();
   }, [sessionId, session?.access_token]);
@@ -176,8 +183,24 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
       .then((data: unknown) => {
         if (Array.isArray(data)) setSectionClips(data as SectionClip[]);
       })
-      .catch(() => {});
+      .catch(() => {
+        const cached = getCachedSession(sessionId);
+        if (cached) setSectionClips(cached.sections as SectionClip[]);
+      });
   }, [sessionId, session?.access_token]);
+
+  useEffect(() => {
+    cacheSession(sessionId, {
+      session: {
+        name: sessionName,
+        phrase: sessionPhrase,
+        quality_target: qualityTarget,
+      },
+      sections: sectionClips,
+      clips: [],
+      cachedAt: Date.now(),
+    });
+  }, [sessionId, sessionName, sessionPhrase, qualityTarget, sectionClips]);
 
   useEffect(() => {
     const path = musicTrack?.storage_path;
@@ -424,6 +447,16 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
       });
 
       if (!res.ok) {
+        const error = new Error(`Failed to update session meta: ${res.status}`);
+        if (isNetworkError(error)) {
+          enqueueWrite({
+            endpoint: `${API_BASE}/sessions/${sessionId}`,
+            method: 'PATCH',
+            body: JSON.stringify(meta),
+            timestamp: Date.now(),
+          });
+          return;
+        }
         setSessionName(snapshotName);
         setSessionPhrase(snapshotPhrase);
         return;
@@ -436,6 +469,15 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
       if (updatedName !== undefined) setSessionName(updatedName);
       if (updatedPhrase !== undefined) setSessionPhrase(updatedPhrase ?? null);
     } catch (error) {
+      if (isNetworkError(error)) {
+        enqueueWrite({
+          endpoint: `${API_BASE}/sessions/${sessionId}`,
+          method: 'PATCH',
+          body: JSON.stringify(meta),
+          timestamp: Date.now(),
+        });
+        return;
+      }
       setSessionName(snapshotName);
       setSessionPhrase(snapshotPhrase);
     }

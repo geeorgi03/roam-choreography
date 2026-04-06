@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
 
 const colors = theme.light;
+const phraseBaseStyle = {
+  fontFamily: theme.typography.displayFamily,
+  fontStyle: 'italic' as const,
+  color: colors.muted,
+};
 
 export function FeelingStrip() {
-  const { sessionName, sessionPhrase, updateSessionMeta, openSheet } = useSessionContext();
+  const { sessionName, sessionPhrase, updateSessionMeta, openSheet, qualityTarget } = useSessionContext();
   const [phrase, setPhrase] = useState('');
   const [phraseEditing, setPhraseEditing] = useState(false);
   const [nameEditing, setNameEditing] = useState(false);
@@ -72,6 +77,12 @@ export function FeelingStrip() {
             </TouchableOpacity>
           )}
         </View>
+        {qualityTarget && (
+          <View style={styles.qualityTargetRow}>
+            <Image style={styles.qualityTargetThumb} source={{ uri: qualityTarget.clip_url }} />
+            <Text style={styles.qualityTargetLabel}>what I'm reaching for</Text>
+          </View>
+        )}
       </View>
       <View style={styles.iconRow}>
         <TouchableOpacity style={styles.iconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
@@ -87,7 +98,7 @@ export function FeelingStrip() {
 
 const styles = StyleSheet.create({
   container: {
-    height: 56,
+    minHeight: 56,
     backgroundColor: colors.amberBg,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
@@ -105,11 +116,24 @@ const styles = StyleSheet.create({
     color: colors.active,
   },
   phrase: {
-    fontFamily: theme.typography.displayFamily,
-    fontStyle: 'italic',
+    ...phraseBaseStyle,
     fontSize: 16,
-    color: colors.muted,
     marginLeft: 12,
+  },
+  qualityTargetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  qualityTargetThumb: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
+  },
+  qualityTargetLabel: {
+    ...phraseBaseStyle,
+    fontSize: 12,
   },
   iconRow: {
     marginLeft: 'auto',

@@ -293,42 +293,40 @@ app.patch('/:id/quality-target', async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
   const body = await safeReqJson<{
-    clip_url?: unknown;
-    timestamp_ms?: unknown;
-    source_clip_id?: unknown;
+    clip_url: unknown;
+    timestamp_ms: unknown;
+    source_clip_id: unknown;
   }>(c);
+  if (!body.ok) return c.json({ error: 'Invalid request body' }, 400);
 
   // Validate input
   if (
-    !body ||
-    typeof body.clip_url !== 'string' ||
-    !body.clip_url.trim() ||
-    typeof body.timestamp_ms !== 'number' ||
-    !isFinite(body.timestamp_ms) ||
-    typeof body.source_clip_id !== 'string' ||
-    !body.source_clip_id.trim()
+    typeof body.data.clip_url !== 'string' ||
+    !body.data.clip_url.trim() ||
+    typeof body.data.timestamp_ms !== 'number' ||
+    !isFinite(body.data.timestamp_ms) ||
+    typeof body.data.source_clip_id !== 'string' ||
+    !body.data.source_clip_id.trim()
   ) {
     return c.json({ error: 'Invalid request body' }, 400);
   }
 
-  const clip_url = body.clip_url.trim();
-  const timestamp_ms = body.timestamp_ms;
-  const source_clip_id = body.source_clip_id.trim();
+  const clip_url = body.data.clip_url.trim();
+  const timestamp_ms = body.data.timestamp_ms;
+  const source_clip_id = body.data.source_clip_id.trim();
 
   // Owner check
   const { data: sessionRow, error: fetchError } = await supabase
     .from('sessions')
     .select('id, user_id')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (fetchError) {
-    if (fetchError.code === 'PGRST116') {
-      return c.json({ error: 'Session not found' }, 404);
-    }
+    if (isInvalidUuidCastError(fetchError)) return c.json({ error: 'Not found' }, 404);
     return c.json({ error: fetchError.message }, 500);
   }
-
+  if (!sessionRow) return c.json({ error: 'Not found' }, 404);
   if (sessionRow.user_id !== userId) {
     return c.json({ error: 'Forbidden' }, 403);
   }
@@ -337,14 +335,20 @@ app.patch('/:id/quality-target', async (c) => {
   const { data, error } = await supabase
     .from('sessions')
     .update({
-      quality_target: { clip_url, timestamp_ms, source_clip_id },
+      quality_target: {
+        clip_url,
+        timestamp_ms,
+        source_clip_id,
+      },
     })
     .eq('id', id)
-    .select('id, user_id, name, phrase, quality_target, created_at')
-    .single();
+    .eq('user_id', userId)
+    .select('quality_target')
+    .maybeSingle();
 
   if (error) return c.json({ error: error.message }, 500);
-  return c.json(data as Session);
+  if (!data) return c.json({ error: 'Not found' }, 404);
+  return c.json({ quality_target: data.quality_target });
 });
 
 /** POST /sessions/:id/join — join/upsert a group participant row */

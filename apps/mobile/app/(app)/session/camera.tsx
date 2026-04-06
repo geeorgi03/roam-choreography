@@ -39,6 +39,8 @@ export default function CameraScreen() {
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const frontRecordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const audioRecordingRef = useRef<Audio.Recording | null>(null);
+  const pulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const didConsumeLongPressRef = useRef(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const quickSaveRef = useRef<BottomSheet | null>(null);
   const frontCameraRef = useRef<CameraView>(null);
@@ -55,7 +57,7 @@ export default function CameraScreen() {
   useEffect(() => {
     if (!cameraPermission?.granted) requestCameraPermission();
     if (!micPermission?.granted) requestMicPermission();
-    // Request audio permissions for voice memos using expo-av Audio API
+    // Cache current audio permission state for UX only; runtime gate is checked before recording starts.
     if (audioPermission === null) {
       Audio.getPermissionsAsync().then(({ status }) => {
         requestAudioPermission(status === 'granted');
@@ -144,6 +146,9 @@ export default function CameraScreen() {
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
       if (recordErrorTimerRef.current) clearTimeout(recordErrorTimerRef.current);
       if (voiceMemoTimerRef.current) clearTimeout(voiceMemoTimerRef.current);
+      pulseAnimationRef.current?.stop();
+      pulseAnimationRef.current = null;
+      pulseAnim.setValue(1);
       // Cleanup audio recording on unmount
       if (audioRecordingRef.current) {
         audioRecordingRef.current.stopAndUnloadAsync().catch(() => {});
@@ -153,6 +158,10 @@ export default function CameraScreen() {
   }, [stopFpsMonitor]);
 
   const handleRecordPress = async () => {
+    if (didConsumeLongPressRef.current) {
+      didConsumeLongPressRef.current = false;
+      return;
+    }
     if (!cameraRef.current) return;
     if (!isRecording) {
       const shouldAttemptDual = dualEnabled && !!frontCameraRef.current;
@@ -276,14 +285,26 @@ export default function CameraScreen() {
     
     if (event.nativeEvent.state === State.ACTIVE) {
       try {
+        const { status } = await Audio.requestPermissionsAsync();
+        const isGranted = status === 'granted';
+        requestAudioPermission(isGranted);
+        if (!isGranted) return;
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
         const { recording } = await Audio.Recording.createAsync(
           Audio.RecordingOptionsPresets.HIGH_QUALITY
         );
         audioRecordingRef.current = recording;
         setIsVoiceMemoRecording(true);
+        didConsumeLongPressRef.current = true;
         
         // Start pulsing animation
-        Animated.loop(
+        pulseAnimationRef.current?.stop();
+        pulseAnimationRef.current = Animated.loop(
           Animated.sequence([
             Animated.timing(pulseAnim, {
               toValue: 0.3,
@@ -296,7 +317,8 @@ export default function CameraScreen() {
               useNativeDriver: true,
             }),
           ])
-        ).start();
+        );
+        pulseAnimationRef.current.start();
       } catch (error) {
         console.error('Failed to start voice memo recording:', error);
       }
@@ -329,6 +351,8 @@ export default function CameraScreen() {
         } finally {
           audioRecordingRef.current = null;
           setIsVoiceMemoRecording(false);
+          pulseAnimationRef.current?.stop();
+          pulseAnimationRef.current = null;
           pulseAnim.setValue(1);
         }
       }

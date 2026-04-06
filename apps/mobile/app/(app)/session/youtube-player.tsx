@@ -824,7 +824,7 @@ export default function YoutubePlayerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: theme.light.ground,
     padding: 16,
   },
   loadingText: {
@@ -881,7 +881,7 @@ const styles = StyleSheet.create({
   saveBtn: {
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: theme.accent,
+    backgroundColor: theme.light.mine,
     borderWidth: 1,
     borderColor: theme.textSecondary,
     borderRadius: theme.borderRadius,
@@ -979,16 +979,17 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingVertical: 11,
     paddingHorizontal: 16,
+    backgroundColor: theme.light.amberBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   videoControlBtnText: {
-    color: theme.textPrimary,
+    color: theme.light.active,
     fontSize: 16,
     fontWeight: '600',
   },
   mirrorBtnActive: {
-    backgroundColor: theme.accent,
+    backgroundColor: theme.light.mine,
     borderRadius: theme.borderRadius,
   },
   speedRow: {

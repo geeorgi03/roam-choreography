@@ -80,6 +80,9 @@ const loupeStorage = new MMKV({ id: 'loupe-state' });
 
 // Loupe constants
 const LOUPE_DIAMETER = 140;
+const AB_LOOP_HANDLE_TOUCH_SIZE = 44;
+const AB_LOOP_HANDLE_HALF = AB_LOOP_HANDLE_TOUCH_SIZE / 2;
+const AB_LOOP_CLEAR_THRESHOLD_MS = 100;
 
 // YouTube video ID extraction
 function extractVideoId(sourceUrl: string | null): string | null {
@@ -300,8 +303,14 @@ export default function ClipPlayerScreen() {
   const loupeVideoAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
       { scale: loupeZoomShared.value },
-      { translateX: -(loupeX.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
+      {
+        translateX:
+          (loupeX.value - LOUPE_DIAMETER / 2) *
+          (loupeZoomShared.value - 1) *
+          (mirrorActive ? -1 : 1),
+      },
       { translateY: -(loupeY.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
+      { scaleX: mirrorActive ? -1 : 1 },
     ],
   }));
 
@@ -841,23 +850,19 @@ export default function ClipPlayerScreen() {
         const ms = ratio * durationMillis;
         
         if (which === 'start') {
-          setLoopStartMs(prev => {
-            const newVal = ms;
-            // Enforce start < end
-            if (loopEndMs !== null && newVal >= loopEndMs) {
-              return Math.max(0, loopEndMs - 1);
-            }
-            return newVal;
-          });
+          if (loopEndMs !== null && Math.abs(ms - loopEndMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+            setLoopStartMs(null);
+            setLoopEndMs(null);
+            return;
+          }
+          setLoopStartMs(ms);
         } else {
-          setLoopEndMs(prev => {
-            const newVal = ms;
-            // Enforce end > start
-            if (loopStartMs !== null && newVal <= loopStartMs) {
-              return Math.min(durationMillis, loopStartMs + 1);
-            }
-            return newVal;
-          });
+          if (loopStartMs !== null && Math.abs(ms - loopStartMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+            setLoopStartMs(null);
+            setLoopEndMs(null);
+            return;
+          }
+          setLoopEndMs(ms);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
@@ -867,21 +872,19 @@ export default function ClipPlayerScreen() {
         const ms = ratio * durationMillis;
         
         if (which === 'start') {
-          setLoopStartMs(prev => {
-            const newVal = ms;
-            if (loopEndMs !== null && newVal >= loopEndMs) {
-              return Math.max(0, loopEndMs - 1);
-            }
-            return newVal;
-          });
+          if (loopEndMs !== null && Math.abs(ms - loopEndMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+            setLoopStartMs(null);
+            setLoopEndMs(null);
+            return;
+          }
+          setLoopStartMs(ms);
         } else {
-          setLoopEndMs(prev => {
-            const newVal = ms;
-            if (loopStartMs !== null && newVal <= loopStartMs) {
-              return Math.min(durationMillis, loopStartMs + 1);
-            }
-            return newVal;
-          });
+          if (loopStartMs !== null && Math.abs(ms - loopStartMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+            setLoopStartMs(null);
+            setLoopEndMs(null);
+            return;
+          }
+          setLoopEndMs(ms);
         }
       },
     });
@@ -1220,7 +1223,10 @@ export default function ClipPlayerScreen() {
                   styles.abLoopHandle,
                   styles.abLoopHandleStart,
                   {
-                    left: (loopStartMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                    left:
+                      (loopStartMs / durationMillis) * abBarWidth +
+                      12 -
+                      AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
                   }
                 ]}
                 {...startHandlePR.panHandlers}
@@ -1233,7 +1239,10 @@ export default function ClipPlayerScreen() {
                   styles.abLoopHandle,
                   styles.abLoopHandleEnd,
                   {
-                    left: (loopEndMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                    left:
+                      (loopEndMs / durationMillis) * abBarWidth +
+                      12 -
+                      AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
                   }
                 ]}
                 {...endHandlePR.panHandlers}
@@ -1270,7 +1279,7 @@ export default function ClipPlayerScreen() {
               onPress={() => setMirrorActive((v) => !v)}
               style={[styles.controlBtn, mirrorActive && styles.mirrorBtnActive]}
             >
-              <Text style={styles.controlBtnText}>↔</Text>
+              <Text style={styles.mirrorBtnText}>↔</Text>
             </TouchableOpacity>
             
             {/* A/B Loop controls */}
@@ -1633,7 +1642,10 @@ export default function ClipPlayerScreen() {
                   styles.abLoopHandle,
                   styles.abLoopHandleStart,
                   {
-                    left: (loopStartMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                    left:
+                      (loopStartMs / durationMillis) * abBarWidth +
+                      12 -
+                      AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
                   }
                 ]}
                 {...startHandlePR.panHandlers}
@@ -1646,7 +1658,10 @@ export default function ClipPlayerScreen() {
                   styles.abLoopHandle,
                   styles.abLoopHandleEnd,
                   {
-                    left: (loopEndMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                    left:
+                      (loopEndMs / durationMillis) * abBarWidth +
+                      12 -
+                      AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
                   }
                 ]}
                 {...endHandlePR.panHandlers}
@@ -1680,7 +1695,7 @@ export default function ClipPlayerScreen() {
               onPress={() => setMirrorActive((v) => !v)}
               style={[styles.controlBtn, mirrorActive && styles.mirrorBtnActive]}
             >
-              <Text style={styles.controlBtnText}>↔</Text>
+              <Text style={styles.mirrorBtnText}>↔</Text>
             </TouchableOpacity>
             
             {/* A/B Loop controls */}
@@ -1860,8 +1875,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   mirrorBtnActive: {
-    backgroundColor: theme.accent,
+    backgroundColor: theme.light.mine,
     borderRadius: theme.borderRadius,
+  },
+  mirrorBtnText: {
+    color: theme.light.active,
+    fontSize: 16,
+    fontWeight: '600',
   },
   tagsRow: {
     position: 'absolute',
@@ -2122,16 +2142,16 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 16,
     height: 4,
-    backgroundColor: theme.light.amber + '60', // semi-transparent
+    backgroundColor: theme.light.mine + '4D', // ~30% opacity
     borderRadius: 2,
     pointerEvents: 'none',
   },
   abLoopHandle: {
     position: 'absolute',
-    top: 10,
-    width: 12,
-    height: 20,
-    borderRadius: 3,
+    top: -2,
+    width: AB_LOOP_HANDLE_TOUCH_SIZE,
+    height: AB_LOOP_HANDLE_TOUCH_SIZE,
+    borderRadius: AB_LOOP_HANDLE_TOUCH_SIZE / 2,
     backgroundColor: theme.light.amber,
     zIndex: 5,
   },

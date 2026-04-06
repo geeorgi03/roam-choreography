@@ -21,6 +21,8 @@ import { useShareIntent } from '../lib/hooks/useShareIntent';
 import { theme } from '../lib/theme';
 import { getDevBypassAuth } from '../lib/devBypassAuth';
 import { API_BASE } from '../lib/api';
+import OfflineBanner from '../components/OfflineBanner';
+import { drainQueue, getQueueLength } from '../lib/writeQueue';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -230,7 +232,12 @@ function RootNavigator() {
         if (__DEV__) console.warn('[RootLayout] uploadQueue load failed:', err);
       });
     const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') uploadQueueRef.current?.onAppForeground();
+      if (nextState === 'active') {
+        uploadQueueRef.current?.onAppForeground();
+        if (getQueueLength() > 0 && session?.access_token) {
+          drainQueue(session.access_token).catch(() => {});
+        }
+      }
     });
     return () => {
       cancelled = true;
@@ -331,6 +338,7 @@ function RootNavigator() {
 
   return (
     <>
+      <OfflineBanner />
       <Stack screenOptions={{ headerShown: false }} />
       <Toast />
       
