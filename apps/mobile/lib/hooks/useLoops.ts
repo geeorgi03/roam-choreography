@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { API_BASE } from '../api';
 import { useSession } from './useSession';
 import type { Loop } from '@roam/types';
-import { enqueueWrite, isNetworkError } from '../writeQueue';
+import { enqueue, isNetworkError } from '../writeQueue';
 
 export default function useLoops(sessionId: string | null, sourceUrl: string | null) {
   const [loops, setLoops] = useState<Loop[]>([]);
@@ -122,7 +122,7 @@ export default function useLoops(sessionId: string | null, sourceUrl: string | n
         return serverLoop;
       } catch (error) {
         if (isNetworkError(error)) {
-          enqueueWrite({
+          enqueue({
             endpoint: `${API_BASE}/sessions/${sessionId}/loops`,
             method: 'POST',
             body: JSON.stringify({
@@ -132,6 +132,7 @@ export default function useLoops(sessionId: string | null, sourceUrl: string | n
               color,
               name: `loop ${loops.length + 1}`,
             }),
+            timestamp: Date.now(),
           });
           return optimisticLoop;
         }

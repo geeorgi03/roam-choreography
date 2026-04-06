@@ -4,6 +4,7 @@ exports.useNotePins = void 0;
 const react_1 = require("react");
 const supabase_1 = require("../supabase");
 const api_1 = require("../api");
+const writeQueue_1 = require("../writeQueue");
 async function authHeader() {
     if (!supabase_1.supabase)
         return null;
@@ -75,6 +76,14 @@ function useNotePins(sessionId) {
             return note;
         }
         catch (e) {
+            if ((0, writeQueue_1.isNetworkError)(e)) {
+                (0, writeQueue_1.enqueueWrite)({
+                    endpoint: `${api_1.API_BASE}/sessions/${sessionId}/notes`,
+                    method: 'POST',
+                    body: JSON.stringify(input),
+                });
+                return null;
+            }
             setError(e instanceof Error ? e.message : 'Network error');
             return null;
         }

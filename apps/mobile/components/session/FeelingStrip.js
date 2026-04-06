@@ -29,8 +29,13 @@ const react_native_1 = require("react-native");
 const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const theme_1 = require("../../lib/theme");
 const colors = theme_1.theme.light;
+const phraseBaseStyle = {
+    fontFamily: theme_1.theme.typography.displayFamily,
+    fontStyle: 'italic',
+    color: colors.muted,
+};
 function FeelingStrip() {
-    const { sessionName, sessionPhrase, updateSessionMeta, openSheet } = (0, SessionContext_1.useSessionContext)();
+    const { sessionName, sessionPhrase, updateSessionMeta, openSheet, qualityTarget } = (0, SessionContext_1.useSessionContext)();
     const [phrase, setPhrase] = (0, react_1.useState)('');
     const [phraseEditing, setPhraseEditing] = (0, react_1.useState)(false);
     const [nameEditing, setNameEditing] = (0, react_1.useState)(false);
@@ -66,6 +71,10 @@ function FeelingStrip() {
               </react_native_1.Text>
             </react_native_1.TouchableOpacity>)}
         </react_native_1.View>
+        {qualityTarget && (<react_native_1.View style={styles.qualityTargetRow}>
+            <react_native_1.Image style={styles.qualityTargetThumb} source={{ uri: qualityTarget.clip_url }}/>
+            <react_native_1.Text style={styles.qualityTargetLabel}>what I'm reaching for</react_native_1.Text>
+          </react_native_1.View>)}
       </react_native_1.View>
       <react_native_1.View style={styles.iconRow}>
         <react_native_1.TouchableOpacity style={styles.iconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
@@ -80,7 +89,7 @@ function FeelingStrip() {
 exports.FeelingStrip = FeelingStrip;
 const styles = react_native_1.StyleSheet.create({
     container: {
-        height: 56,
+        minHeight: 56,
         backgroundColor: colors.amberBg,
         borderBottomWidth: 0.5,
         borderBottomColor: colors.border,
@@ -98,11 +107,24 @@ const styles = react_native_1.StyleSheet.create({
         color: colors.active,
     },
     phrase: {
-        fontFamily: theme_1.theme.typography.displayFamily,
-        fontStyle: 'italic',
+        ...phraseBaseStyle,
         fontSize: 16,
-        color: colors.muted,
         marginLeft: 12,
+    },
+    qualityTargetRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 4,
+    },
+    qualityTargetThumb: {
+        width: 40,
+        height: 40,
+        borderRadius: 4,
+    },
+    qualityTargetLabel: {
+        ...phraseBaseStyle,
+        fontSize: 12,
     },
     iconRow: {
         marginLeft: 'auto',

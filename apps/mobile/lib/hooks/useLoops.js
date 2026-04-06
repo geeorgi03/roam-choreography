@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = require("react");
 const api_1 = require("../api");
 const useSession_1 = require("./useSession");
+const writeQueue_1 = require("../writeQueue");
 function useLoops(sessionId, sourceUrl) {
     const [loops, setLoops] = (0, react_1.useState)([]);
     const [isLoading, setIsLoading] = (0, react_1.useState)(false);
@@ -107,7 +108,21 @@ function useLoops(sessionId, sourceUrl) {
             });
             return serverLoop;
         }
-        catch {
+        catch (error) {
+            if ((0, writeQueue_1.isNetworkError)(error)) {
+                (0, writeQueue_1.enqueueWrite)({
+                    endpoint: `${api_1.API_BASE}/sessions/${sessionId}/loops`,
+                    method: 'POST',
+                    body: JSON.stringify({
+                        source_url: sourceUrl,
+                        start_ms: startMs,
+                        end_ms: endMs,
+                        color,
+                        name: `loop ${loops.length + 1}`,
+                    }),
+                });
+                return optimisticLoop;
+            }
             setLoops((prev) => prev.filter((l) => l.id !== tempId));
             return null;
         }

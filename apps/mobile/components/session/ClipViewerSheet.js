@@ -81,7 +81,7 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
         setClipSpeed(prev => prev === 1 ? 0.5 : 1);
     };
     const handleSetMoment = async () => {
-        if (!selectedClipForSheet?.mux_playback_id || !session?.access_token)
+        if (!selectedClipForSheet?.mux_playback_id || !selectedClipForSheet.server_id || !session?.access_token)
             return;
         setIsSavingMoment(true);
         try {
@@ -101,8 +101,12 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
                 setQualityTarget(data.quality_target);
                 onClose();
             }
+            else {
+                react_native_1.Alert.alert('Save failed', await response.text());
+            }
         }
         catch (error) {
+            react_native_1.Alert.alert('Save failed', 'Clip must be synced first.');
             console.error('Failed to set quality target:', error);
         }
         finally {
@@ -317,7 +321,10 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
             </react_native_1.Text>
           </react_native_1.TouchableOpacity>
 
-          <react_native_1.TouchableOpacity style={styles.momentButton} onPress={handleSetMoment}>
+          <react_native_1.TouchableOpacity style={[
+            styles.momentButton,
+            (!selectedClipForSheet?.server_id || isSavingMoment) && styles.momentButtonDisabled
+        ]} onPress={handleSetMoment} disabled={!selectedClipForSheet?.server_id || isSavingMoment}>
             <react_native_1.Text style={styles.momentButtonText}>{isSavingMoment ? 'saving...' : 'the moment →'}</react_native_1.Text>
           </react_native_1.TouchableOpacity>
           
@@ -493,6 +500,9 @@ const styles = react_native_1.StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 8,
         alignItems: 'center',
+    },
+    momentButtonDisabled: {
+        opacity: 0.5,
     },
     momentButtonText: {
         color: colors.amber,

@@ -13,6 +13,7 @@ type EnqueueWriteInput = {
   endpoint: string;
   method: string;
   body: string;
+  timestamp?: number;
 };
 
 let writeQueueStorage: MMKV | null = null;
@@ -49,17 +50,19 @@ export function isNetworkError(error: unknown): error is TypeError {
   return message.includes('network') || message.includes('fetch') || message.includes('net::');
 }
 
-export function enqueueWrite(write: EnqueueWriteInput): void {
+export function enqueue(write: EnqueueWriteInput): void {
   const queue = getQueue();
   queue.push({
     id: randomUUID(),
     endpoint: write.endpoint,
     method: write.method,
     body: write.body,
-    timestamp: Date.now(),
+    timestamp: typeof write.timestamp === 'number' ? write.timestamp : Date.now(),
   });
   setQueue(queue);
 }
+
+export const enqueueWrite = enqueue;
 
 export function getQueueLength(): number {
   return getQueue().length;

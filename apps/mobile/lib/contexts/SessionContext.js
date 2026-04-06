@@ -38,6 +38,8 @@ const useSession_1 = require("../hooks/useSession");
 const supabase_1 = require("../supabase");
 const api_1 = require("../api");
 const storage_1 = require("../storage");
+const sessionCache_1 = require("../sessionCache");
+const writeQueue_1 = require("../writeQueue");
 const SessionContext = (0, react_1.createContext)(null);
 function SessionProvider({ sessionId, children }) {
     // State
@@ -93,7 +95,12 @@ function SessionProvider({ sessionId, children }) {
                     setQualityTarget(quality_target ?? null);
             }
             catch {
-                // ignore
+                const cached = (0, sessionCache_1.getCachedSession)(sessionId);
+                if (cached) {
+                    setSessionName(cached.session.name);
+                    setSessionPhrase(cached.session.phrase ?? null);
+                    setQualityTarget(cached.session.quality_target ?? null);
+                }
             }
         })();
     }, [sessionId, session?.access_token]);
@@ -116,8 +123,26 @@ function SessionProvider({ sessionId, children }) {
             if (Array.isArray(data))
                 setSectionClips(data);
         })
-            .catch(() => { });
+            .catch(() => {
+            const cached = (0, sessionCache_1.getCachedSession)(sessionId);
+            if (cached)
+                setSectionClips(cached.sections);
+        });
     }, [sessionId, session?.access_token]);
+    (0, react_1.useEffect)(() => {
+        if (!sessionId)
+            return;
+        (0, sessionCache_1.cacheSession)(sessionId, {
+            session: {
+                name: sessionName,
+                phrase: sessionPhrase,
+                quality_target: qualityTarget,
+            },
+            sections: sectionClips,
+            clips: [],
+            cachedAt: Date.now(),
+        });
+    }, [sessionId, sessionName, sessionPhrase, qualityTarget, sectionClips]);
     (0, react_1.useEffect)(() => {
         const path = musicTrack?.storage_path;
         if (!path || !supabase_1.supabase) {
@@ -330,6 +355,15 @@ function SessionProvider({ sessionId, children }) {
                 body: JSON.stringify(meta),
             });
             if (!res.ok) {
+                const error = new Error(`Failed to update session meta: ${res.status}`);
+                if ((0, writeQueue_1.isNetworkError)(error)) {
+                    (0, writeQueue_1.enqueueWrite)({
+                        endpoint: `${api_1.API_BASE}/sessions/${sessionId}`,
+                        method: 'PATCH',
+                        body: JSON.stringify(meta),
+                    });
+                    return;
+                }
                 setSessionName(snapshotName);
                 setSessionPhrase(snapshotPhrase);
                 return;
@@ -343,6 +377,14 @@ function SessionProvider({ sessionId, children }) {
                 setSessionPhrase(updatedPhrase ?? null);
         }
         catch (error) {
+            if ((0, writeQueue_1.isNetworkError)(error)) {
+                (0, writeQueue_1.enqueueWrite)({
+                    endpoint: `${api_1.API_BASE}/sessions/${sessionId}`,
+                    method: 'PATCH',
+                    body: JSON.stringify(meta),
+                });
+                return;
+            }
             setSessionName(snapshotName);
             setSessionPhrase(snapshotPhrase);
         }

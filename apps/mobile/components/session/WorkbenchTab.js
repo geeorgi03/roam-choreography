@@ -47,6 +47,12 @@ function formatTimecode(ms) {
     return `${m}:${ss}`;
 }
 function isReferenceClip(clip) {
+    // First check explicit clip_type
+    if (clip.clip_type === 'REF')
+        return true;
+    if (clip.clip_type === 'voice_memo')
+        return false;
+    // Fall back to text heuristics for legacy data
     const haystack = `${clip.label ?? ''} ${clip.move_name ?? ''} ${clip.notes ?? ''}`.toLowerCase();
     return haystack.includes('ref') || haystack.includes('reference');
 }
@@ -321,22 +327,29 @@ function WorkbenchTab() {
         {workspaceTab === 'ideas' ? (<react_native_1.FlatList data={displayClips} keyExtractor={(c) => c.local_id} numColumns={2} columnWrapperStyle={{ gap: 10 }} contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 40 }} renderItem={({ item, index }) => (<react_native_1.View style={styles.clipCell}>
                 <react_native_1.TouchableOpacity style={[
                         styles.clipThumb,
-                        isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
+                        item.clip_type === 'voice_memo' ? styles.clipThumbVoiceMemo :
+                            isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
                     ]} onPress={() => openClipSheet(item)} activeOpacity={0.85}>
-                  {item.mux_playback_id ? (<react_native_1.Image source={{
+                  {item.clip_type === 'voice_memo' ? (<react_native_1.View style={styles.voiceMemoIndicator}>
+                      <react_native_1.Text style={styles.voiceMemoIcon}>🎤</react_native_1.Text>
+                      <react_native_1.Text style={styles.voiceMemoLabel}>Voice Memo</react_native_1.Text>
+                    </react_native_1.View>) : item.mux_playback_id ? (<react_native_1.Image source={{
                             uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
                         }} style={styles.clipThumbImage}/>) : null}
                   <react_native_1.View style={[
                         styles.clipTypeBadge,
-                        isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine,
+                        item.clip_type === 'voice_memo' ? styles.clipTypeBadgeVoiceMemo :
+                            isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine,
                     ]}>
                     <react_native_1.Text style={[
                         styles.clipTypeBadgeText,
-                        isReferenceClip(item)
-                            ? styles.clipTypeBadgeTextRef
-                            : styles.clipTypeBadgeTextMine,
+                        item.clip_type === 'voice_memo' ? styles.clipTypeBadgeTextVoiceMemo :
+                            isReferenceClip(item)
+                                ? styles.clipTypeBadgeTextRef
+                                : styles.clipTypeBadgeTextMine,
                     ]}>
-                      {isReferenceClip(item) ? 'REF' : 'MINE'}
+                      {item.clip_type === 'voice_memo' ? 'VOICE' :
+                        isReferenceClip(item) ? 'REF' : 'MINE'}
                     </react_native_1.Text>
                   </react_native_1.View>
                   {item.upload_status === 'failed' ? (<react_native_1.TouchableOpacity style={styles.retryPill} onPress={() => retryClip(item.local_id)}>
@@ -627,6 +640,9 @@ const styles = react_native_1.StyleSheet.create({
     clipThumbMine: {
         backgroundColor: colors.mine,
     },
+    clipThumbVoiceMemo: {
+        backgroundColor: colors.capture,
+    },
     clipThumbImage: {
         width: '100%',
         height: '100%',
@@ -645,6 +661,9 @@ const styles = react_native_1.StyleSheet.create({
     clipTypeBadgeMine: {
         backgroundColor: 'rgba(255,255,255,0.9)',
     },
+    clipTypeBadgeVoiceMemo: {
+        backgroundColor: 'rgba(255,255,255,0.9)',
+    },
     clipTypeBadgeText: {
         fontSize: 9,
         fontWeight: '700',
@@ -654,6 +673,9 @@ const styles = react_native_1.StyleSheet.create({
     },
     clipTypeBadgeTextMine: {
         color: colors.mine,
+    },
+    clipTypeBadgeTextVoiceMemo: {
+        color: colors.capture,
     },
     retryPill: {
         position: 'absolute',
@@ -684,6 +706,21 @@ const styles = react_native_1.StyleSheet.create({
     clipShareIconText: {
         color: colors.muted,
         fontSize: 12,
+    },
+    voiceMemoIndicator: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
+    },
+    voiceMemoIcon: {
+        fontSize: 32,
+    },
+    voiceMemoLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#ffffff',
+        textAlign: 'center',
     },
     notesContent: {
         gap: 8,

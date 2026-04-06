@@ -9,6 +9,7 @@ const storage_1 = require("../lib/storage");
 const database_1 = require("../lib/database");
 const upload_1 = require("../lib/upload");
 const api_1 = require("../lib/api");
+const writeQueue_1 = require("../lib/writeQueue");
 const uploadQueueListeners = new Set();
 function addUploadQueueListener(listener) {
     uploadQueueListeners.add(listener);
@@ -284,8 +285,14 @@ class UploadQueueService {
                 body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
             });
         }
-        catch {
-            // Ignore – section assignment is best-effort; the clip is still saved.
+        catch (error) {
+            if ((0, writeQueue_1.isNetworkError)(error)) {
+                (0, writeQueue_1.enqueueWrite)({
+                    endpoint: `${api_1.API_BASE}/sessions/${sessionId}/assembly/section-clip`,
+                    method: 'POST',
+                    body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
+                });
+            }
         }
     }
     _pauseAll() {

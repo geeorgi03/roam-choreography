@@ -21,7 +21,6 @@ import { useShareIntent } from '../lib/hooks/useShareIntent';
 import { theme } from '../lib/theme';
 import { getDevBypassAuth } from '../lib/devBypassAuth';
 import { API_BASE } from '../lib/api';
-import OfflineBanner from '../components/OfflineBanner';
 import { drainQueue, getQueueLength } from '../lib/writeQueue';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
@@ -338,7 +337,6 @@ function RootNavigator() {
 
   return (
     <>
-      <OfflineBanner />
       <Stack screenOptions={{ headerShown: false }} />
       <Toast />
       

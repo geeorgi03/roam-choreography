@@ -71,6 +71,9 @@ const react_native_mmkv_1 = require("react-native-mmkv");
 const loupeStorage = new react_native_mmkv_1.MMKV({ id: 'loupe-state' });
 // Loupe constants
 const LOUPE_DIAMETER = 140;
+const AB_LOOP_HANDLE_TOUCH_SIZE = 44;
+const AB_LOOP_HANDLE_HALF = 22;
+const AB_LOOP_CLEAR_THRESHOLD_MS = 1;
 // YouTube video ID extraction
 function extractVideoId(sourceUrl) {
     if (!sourceUrl)
@@ -241,7 +244,11 @@ function ClipPlayerScreen() {
     const loupeVideoAnimatedStyle = (0, react_native_reanimated_1.useAnimatedStyle)(() => ({
         transform: [
             { scale: loupeZoomShared.value },
-            { translateX: -(loupeX.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
+            {
+                translateX: (loupeX.value - LOUPE_DIAMETER / 2) *
+                    (loupeZoomShared.value - 1) *
+                    (mirrorActive ? -1 : 1),
+            },
             { translateY: -(loupeY.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
             { scaleX: mirrorActive ? -1 : 1 },
         ],
@@ -594,12 +601,16 @@ function ClipPlayerScreen() {
                     // Update shared position state from YouTube current time
                     setPositionMillis(message.currentTime * 1000);
                     // A/B Loop enforcement for YouTube
-                    if (loopStartMs !== null && loopEndMs !== null && message.currentTime * 1000 >= loopEndMs) {
+                    if (loopStartMs !== null && loopEndMs !== null && message.currentTime * 1000 >= loopEndMs && !loopSeekingRef.current) {
+                        loopSeekingRef.current = true;
                         webViewRef.current?.injectJavaScript(`
               if (window.player) {
                 window.player.seekTo(${loopStartMs / 1000});
               }
             `);
+                        setTimeout(() => {
+                            loopSeekingRef.current = false;
+                        }, 100);
                     }
                     break;
                 case 'frameCapture':
@@ -773,50 +784,44 @@ function ClipPlayerScreen() {
                 if (abBarWidth <= 0 || durationMillis <= 0)
                     return;
                 const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
-                const ms = ratio * durationMillis;
+                const newVal = ratio * durationMillis;
                 if (which === 'start') {
-                    setLoopStartMs(prev => {
-                        const newVal = ms;
-                        // Enforce start < end
-                        if (loopEndMs !== null && newVal >= loopEndMs) {
-                            return Math.max(0, loopEndMs - 1);
-                        }
-                        return newVal;
-                    });
+                    if (loopEndMs !== null && Math.abs(newVal - loopEndMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+                        setLoopStartMs(null);
+                        setLoopEndMs(null);
+                        return;
+                    }
+                    setLoopStartMs(newVal);
                 }
                 else {
-                    setLoopEndMs(prev => {
-                        const newVal = ms;
-                        // Enforce end > start
-                        if (loopStartMs !== null && newVal <= loopStartMs) {
-                            return Math.min(durationMillis, loopStartMs + 1);
-                        }
-                        return newVal;
-                    });
+                    if (loopStartMs !== null && Math.abs(newVal - loopStartMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+                        setLoopStartMs(null);
+                        setLoopEndMs(null);
+                        return;
+                    }
+                    setLoopEndMs(newVal);
                 }
             },
             onPanResponderRelease: (_, gestureState) => {
                 if (abBarWidth <= 0 || durationMillis <= 0)
                     return;
                 const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
-                const ms = ratio * durationMillis;
+                const newVal = ratio * durationMillis;
                 if (which === 'start') {
-                    setLoopStartMs(prev => {
-                        const newVal = ms;
-                        if (loopEndMs !== null && newVal >= loopEndMs) {
-                            return Math.max(0, loopEndMs - 1);
-                        }
-                        return newVal;
-                    });
+                    if (loopEndMs !== null && Math.abs(newVal - loopEndMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+                        setLoopStartMs(null);
+                        setLoopEndMs(null);
+                        return;
+                    }
+                    setLoopStartMs(newVal);
                 }
                 else {
-                    setLoopEndMs(prev => {
-                        const newVal = ms;
-                        if (loopStartMs !== null && newVal <= loopStartMs) {
-                            return Math.min(durationMillis, loopStartMs + 1);
-                        }
-                        return newVal;
-                    });
+                    if (loopStartMs !== null && Math.abs(newVal - loopStartMs) <= AB_LOOP_CLEAR_THRESHOLD_MS) {
+                        setLoopStartMs(null);
+                        setLoopEndMs(null);
+                        return;
+                    }
+                    setLoopEndMs(newVal);
                 }
             },
         });
@@ -1048,7 +1053,9 @@ function ClipPlayerScreen() {
                     styles.abLoopHandle,
                     styles.abLoopHandleStart,
                     {
-                        left: (loopStartMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                        left: (loopStartMs / durationMillis) * abBarWidth +
+                            12 -
+                            AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
                     }
                 ]} {...startHandlePR.panHandlers}/>)}
             
@@ -1056,7 +1063,9 @@ function ClipPlayerScreen() {
                     styles.abLoopHandle,
                     styles.abLoopHandleEnd,
                     {
-                        left: (loopEndMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                        left: (loopEndMs / durationMillis) * abBarWidth +
+                            12 -
+                            AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
                     }
                 ]} {...endHandlePR.panHandlers}/>)}
           </react_native_1.View>
@@ -1074,7 +1083,7 @@ function ClipPlayerScreen() {
               <react_native_1.Text style={styles.speedLabel}>{rate.toFixed(2)}×</react_native_1.Text>
             </react_native_1.View>
             <react_native_1.TouchableOpacity onPress={() => setMirrorActive((v) => !v)} style={[styles.controlBtn, mirrorActive && styles.mirrorBtnActive]}>
-              <react_native_1.Text style={styles.controlBtnText}>↔</react_native_1.Text>
+              <react_native_1.Text style={styles.mirrorBtnText}>↔</react_native_1.Text>
             </react_native_1.TouchableOpacity>
             
             {/* A/B Loop controls */}
@@ -1275,7 +1284,9 @@ function ClipPlayerScreen() {
                 styles.abLoopHandle,
                 styles.abLoopHandleStart,
                 {
-                    left: (loopStartMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                    left: (loopStartMs / durationMillis) * abBarWidth +
+                        12 -
+                        AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
                 }
             ]} {...startHandlePR.panHandlers}/>)}
             
@@ -1283,7 +1294,9 @@ function ClipPlayerScreen() {
                 styles.abLoopHandle,
                 styles.abLoopHandleEnd,
                 {
-                    left: (loopEndMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                    left: (loopEndMs / durationMillis) * abBarWidth +
+                        12 -
+                        AB_LOOP_HANDLE_HALF, // SLIDER_INSET - HANDLE_HALF_WIDTH
                 }
             ]} {...endHandlePR.panHandlers}/>)}
           </react_native_1.View>
@@ -1301,7 +1314,7 @@ function ClipPlayerScreen() {
               <react_native_1.Text style={styles.speedLabel}>{rate.toFixed(2)}×</react_native_1.Text>
             </react_native_1.View>
             <react_native_1.TouchableOpacity onPress={() => setMirrorActive((v) => !v)} style={[styles.controlBtn, mirrorActive && styles.mirrorBtnActive]}>
-              <react_native_1.Text style={styles.controlBtnText}>↔</react_native_1.Text>
+              <react_native_1.Text style={styles.mirrorBtnText}>↔</react_native_1.Text>
             </react_native_1.TouchableOpacity>
             
             {/* A/B Loop controls */}
@@ -1433,8 +1446,13 @@ const styles = react_native_1.StyleSheet.create({
         fontWeight: '600',
     },
     mirrorBtnActive: {
-        backgroundColor: theme_1.theme.accent,
+        backgroundColor: theme_1.theme.light.mine,
         borderRadius: theme_1.theme.borderRadius,
+    },
+    mirrorBtnText: {
+        color: theme_1.theme.light.active,
+        fontSize: 16,
+        fontWeight: '600',
     },
     tagsRow: {
         position: 'absolute',
@@ -1695,16 +1713,16 @@ const styles = react_native_1.StyleSheet.create({
         position: 'absolute',
         top: 16,
         height: 4,
-        backgroundColor: theme_1.theme.light.amber + '60', // semi-transparent
+        backgroundColor: theme_1.theme.light.mine + '4D', // ~30% opacity
         borderRadius: 2,
         pointerEvents: 'none',
     },
     abLoopHandle: {
         position: 'absolute',
-        top: 10,
-        width: 12,
-        height: 20,
-        borderRadius: 3,
+        top: -2,
+        width: AB_LOOP_HANDLE_TOUCH_SIZE,
+        height: AB_LOOP_HANDLE_TOUCH_SIZE,
+        borderRadius: AB_LOOP_HANDLE_HALF,
         backgroundColor: theme_1.theme.light.amber,
         zIndex: 5,
     },

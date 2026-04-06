@@ -48,6 +48,8 @@ const useShareIntent_1 = require("../lib/hooks/useShareIntent");
 const theme_1 = require("../lib/theme");
 const devBypassAuth_1 = require("../lib/devBypassAuth");
 const api_1 = require("../lib/api");
+const OfflineBanner_1 = __importDefault(require("../components/OfflineBanner"));
+const writeQueue_1 = require("../lib/writeQueue");
 let GestureHandlerRootView = null;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -221,14 +223,18 @@ function RootNavigator() {
                 console.warn('[RootLayout] uploadQueue load failed:', err);
         });
         const sub = react_native_1.AppState.addEventListener('change', (nextState) => {
-            if (nextState === 'active')
+            if (nextState === 'active') {
                 uploadQueueRef.current?.onAppForeground();
+                if ((0, writeQueue_1.getQueueLength)() > 0 && session?.access_token) {
+                    (0, writeQueue_1.drainQueue)(session.access_token).catch(() => { });
+                }
+            }
         });
         return () => {
             cancelled = true;
             sub.remove();
         };
-    }, []);
+    }, [session?.access_token]);
     const navReady = !!(0, expo_router_1.useRootNavigationState)()?.key;
     const handleCreateSessionAndAddClip = async () => {
         if (!session?.access_token || !pendingShareUrl || !pendingShareMeta)
@@ -306,6 +312,7 @@ function RootNavigator() {
       </react_native_1.View>);
     }
     return (<>
+      <OfflineBanner_1.default />
       <expo_router_1.Stack screenOptions={{ headerShown: false }}/>
       <react_native_toast_message_1.default />
       

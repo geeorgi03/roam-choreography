@@ -12,7 +12,7 @@ import { supabase } from '../supabase';
 import { API_BASE } from '../api';
 import { getSessionMode, setSessionMode as setSessionModeStorage, getActiveSection, setActiveSection as persistActiveSection, setActiveSectionId } from '../storage';
 import { cacheSession, getCachedSession } from '../sessionCache';
-import { enqueueWrite, isNetworkError } from '../writeQueue';
+import { enqueue, isNetworkError } from '../writeQueue';
 
 export interface SessionContextValue {
   sessionId: string;
@@ -448,15 +448,6 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
       });
 
       if (!res.ok) {
-        const error = new Error(`Failed to update session meta: ${res.status}`);
-        if (isNetworkError(error)) {
-          enqueueWrite({
-            endpoint: `${API_BASE}/sessions/${sessionId}`,
-            method: 'PATCH',
-            body: JSON.stringify(meta),
-          });
-          return;
-        }
         setSessionName(snapshotName);
         setSessionPhrase(snapshotPhrase);
         return;
@@ -470,10 +461,11 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
       if (updatedPhrase !== undefined) setSessionPhrase(updatedPhrase ?? null);
     } catch (error) {
       if (isNetworkError(error)) {
-        enqueueWrite({
+        enqueue({
           endpoint: `${API_BASE}/sessions/${sessionId}`,
           method: 'PATCH',
           body: JSON.stringify(meta),
+          timestamp: Date.now(),
         });
         return;
       }

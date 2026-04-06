@@ -15,6 +15,7 @@ import { CaptureSheet } from '../../../components/CaptureSheet';
 import { ClipShareSheet } from '../../../components/ClipShareSheet';
 import { NotePinSheet } from '../../../components/NotePinSheet';
 import { ClipViewerSheet } from '../../../components/session/ClipViewerSheet';
+import { OfflineBanner } from '../../../components/session/OfflineBanner';
 import { theme } from '../../../lib/theme';
 import { setActiveSessionId } from '../../../lib/storage';
 
@@ -156,6 +157,7 @@ function SessionShellContent() {
 
   return (
     <View style={styles.container}>
+      <OfflineBanner />
       <FeelingStrip />
       <SessionTabBar />
       

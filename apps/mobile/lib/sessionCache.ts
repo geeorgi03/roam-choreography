@@ -1,4 +1,5 @@
 import type { MMKV } from 'react-native-mmkv';
+import type { Session } from '@roam/types';
 
 export type CachedSession = {
   session: {
@@ -11,6 +12,8 @@ export type CachedSession = {
   cachedAt: number;
 };
 
+export type CachedSessionListItem = Pick<Session, 'id' | 'name' | 'created_at'>;
+
 let sessionCacheStorage: MMKV | null = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -22,6 +25,7 @@ try {
 
 const SESSION_CACHE_INDEX_KEY = 'session-cache:index';
 const SESSION_CACHE_KEY_PREFIX = 'session-cache:';
+const SESSION_LIST_KEY = 'session-cache:list';
 const MAX_CACHED_SESSIONS = 5;
 
 function getCacheKey(sessionId: string): string {
@@ -71,6 +75,33 @@ export function cacheSession(
     setCachedSessionIndex(nextOrder.slice(0, MAX_CACHED_SESSIONS));
   } catch (e) {
     console.error('[sessionCache] Failed to cache session:', e);
+  }
+}
+
+export function cacheSessionList(sessions: CachedSessionListItem[]): void {
+  if (!sessionCacheStorage) return;
+  const limited = sessions.slice(0, MAX_CACHED_SESSIONS);
+  sessionCacheStorage.set(SESSION_LIST_KEY, JSON.stringify(limited));
+}
+
+export function getCachedSessionList(): CachedSessionListItem[] {
+  if (!sessionCacheStorage) return [];
+  const raw = sessionCacheStorage.getString(SESSION_LIST_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is CachedSessionListItem => {
+      return (
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as { id?: unknown }).id === 'string' &&
+        typeof (item as { name?: unknown }).name === 'string' &&
+        typeof (item as { created_at?: unknown }).created_at === 'string'
+      );
+    });
+  } catch {
+    return [];
   }
 }
 

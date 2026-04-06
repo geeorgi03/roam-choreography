@@ -28,7 +28,6 @@ const react_native_1 = require("react-native");
 const expo_router_1 = require("expo-router");
 const expo_camera_1 = require("expo-camera");
 const expo_av_1 = require("expo-av");
-const expo_av_2 = require("expo-av");
 const react_native_gesture_handler_1 = require("react-native-gesture-handler");
 const theme_1 = require("../../../lib/theme");
 const QuickSaveSheet_1 = require("../../../components/QuickSaveSheet");
@@ -43,10 +42,10 @@ function CameraScreen() {
     const cameraRef = (0, react_1.useRef)(null);
     const [cameraPermission, requestCameraPermission] = (0, expo_camera_1.useCameraPermissions)();
     const [micPermission, requestMicPermission] = (0, expo_camera_1.useMicrophonePermissions)();
-    const [audioPermission, requestAudioPermission] = (0, expo_av_2.useAudioPermissions)();
     const [isRecording, setIsRecording] = (0, react_1.useState)(false);
     const [isVoiceMemoRecording, setIsVoiceMemoRecording] = (0, react_1.useState)(false);
     const [recordedUri, setRecordedUri] = (0, react_1.useState)(null);
+    const [frontRecordedUri, setFrontRecordedUri] = (0, react_1.useState)(null);
     const [dualPairId, setDualPairId] = (0, react_1.useState)(undefined);
     const [dualEnabled, setDualEnabled] = (0, react_1.useState)(false);
     const [showFallbackNotice, setShowFallbackNotice] = (0, react_1.useState)(false);
@@ -55,6 +54,8 @@ function CameraScreen() {
     const recordingPromiseRef = (0, react_1.useRef)(null);
     const frontRecordingPromiseRef = (0, react_1.useRef)(null);
     const audioRecordingRef = (0, react_1.useRef)(null);
+    const pulseAnimationRef = (0, react_1.useRef)(null);
+    const didConsumeLongPressRef = (0, react_1.useRef)(false);
     const pulseAnim = (0, react_1.useRef)(new react_native_1.Animated.Value(1)).current;
     const quickSaveRef = (0, react_1.useRef)(null);
     const frontCameraRef = (0, react_1.useRef)(null);
@@ -63,6 +64,7 @@ function CameraScreen() {
     const rafRef = (0, react_1.useRef)(null);
     const fallbackTimerRef = (0, react_1.useRef)(null);
     const voiceMemoTimerRef = (0, react_1.useRef)(null);
+    const recordErrorTimerRef = (0, react_1.useRef)(null);
     const autoOpenQuickSaveRef = (0, react_1.useRef)(false);
     const dualRequestedAtStartRef = (0, react_1.useRef)(false);
     const didAutoFallbackRef = (0, react_1.useRef)(false);
@@ -71,9 +73,7 @@ function CameraScreen() {
             requestCameraPermission();
         if (!micPermission?.granted)
             requestMicPermission();
-        if (!audioPermission?.granted)
-            requestAudioPermission();
-    }, [cameraPermission?.granted, micPermission?.granted, audioPermission?.granted, requestCameraPermission, requestMicPermission, requestAudioPermission]);
+    }, [cameraPermission?.granted, micPermission?.granted, requestCameraPermission, requestMicPermission]);
     const stopFpsMonitor = (0, react_1.useCallback)(() => {
         if (rafRef.current != null) {
             cancelAnimationFrame(rafRef.current);
@@ -153,6 +153,9 @@ function CameraScreen() {
                 clearTimeout(recordErrorTimerRef.current);
             if (voiceMemoTimerRef.current)
                 clearTimeout(voiceMemoTimerRef.current);
+            pulseAnimationRef.current?.stop();
+            pulseAnimationRef.current = null;
+            pulseAnim.setValue(1);
             // Cleanup audio recording on unmount
             if (audioRecordingRef.current) {
                 audioRecordingRef.current.stopAndUnloadAsync().catch(() => { });
@@ -161,6 +164,10 @@ function CameraScreen() {
         };
     }, [stopFpsMonitor]);
     const handleRecordPress = async () => {
+        if (didConsumeLongPressRef.current) {
+            didConsumeLongPressRef.current = false;
+            return;
+        }
         if (!cameraRef.current)
             return;
         if (!isRecording) {
@@ -291,11 +298,20 @@ function CameraScreen() {
             return; // Guard against video recording conflicts
         if (event.nativeEvent.state === react_native_gesture_handler_1.State.ACTIVE) {
             try {
+                const { status } = await expo_av_1.Audio.requestPermissionsAsync();
+                if (status !== 'granted')
+                    return;
+                await expo_av_1.Audio.setAudioModeAsync({
+                    allowsRecordingIOS: true,
+                    playsInSilentModeIOS: true,
+                });
                 const { recording } = await expo_av_1.Audio.Recording.createAsync(expo_av_1.Audio.RecordingOptionsPresets.HIGH_QUALITY);
                 audioRecordingRef.current = recording;
                 setIsVoiceMemoRecording(true);
+                didConsumeLongPressRef.current = true;
                 // Start pulsing animation
-                react_native_1.Animated.loop(react_native_1.Animated.sequence([
+                pulseAnimationRef.current?.stop();
+                pulseAnimationRef.current = react_native_1.Animated.loop(react_native_1.Animated.sequence([
                     react_native_1.Animated.timing(pulseAnim, {
                         toValue: 0.3,
                         duration: 600,
@@ -306,7 +322,8 @@ function CameraScreen() {
                         duration: 600,
                         useNativeDriver: true,
                     }),
-                ])).start();
+                ]));
+                pulseAnimationRef.current.start();
             }
             catch (error) {
                 console.error('Failed to start voice memo recording:', error);
@@ -315,6 +332,9 @@ function CameraScreen() {
         else if (event.nativeEvent.state === react_native_gesture_handler_1.State.END ||
             event.nativeEvent.state === react_native_gesture_handler_1.State.CANCELLED ||
             event.nativeEvent.state === react_native_gesture_handler_1.State.FAILED) {
+            pulseAnimationRef.current?.stop();
+            pulseAnimationRef.current = null;
+            pulseAnim.setValue(1);
             if (audioRecordingRef.current) {
                 try {
                     const recording = audioRecordingRef.current;
@@ -331,7 +351,6 @@ function CameraScreen() {
                 finally {
                     audioRecordingRef.current = null;
                     setIsVoiceMemoRecording(false);
-                    pulseAnim.setValue(1);
                 }
             }
         }

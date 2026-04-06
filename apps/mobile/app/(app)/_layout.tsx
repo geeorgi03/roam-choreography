@@ -1,11 +1,15 @@
 import { router, Tabs } from 'expo-router';
 import { TouchableOpacity, Text } from 'react-native';
+import { getActiveSessionId } from '../../lib/storage';
 import { theme } from '../../lib/theme';
 
 export default function AppStackLayout() {
   return (
     <Tabs
       screenOptions={{
+        headerStyle: { backgroundColor: theme.light.ground },
+        headerTintColor: theme.light.active,
+        headerTitleStyle: { fontWeight: '700' },
         tabBarStyle: { backgroundColor: theme.light.ground },
         tabBarActiveTintColor: theme.light.active,
         tabBarInactiveTintColor: theme.light.muted,
@@ -15,22 +19,38 @@ export default function AppStackLayout() {
         name="index"
         options={{
           title: 'Session',
-          headerStyle: { backgroundColor: theme.light.ground },
-          headerTintColor: theme.light.active,
           headerRight: () => (
-            <TouchableOpacity onPress={() => router.push('/(app)/profile')} style={{ padding: 8 }}>
+            <TouchableOpacity onPress={() => router.push('/profile')} style={{ padding: 8 }}>
               <Text style={{ color: theme.light.active, fontSize: 20 }}>⚙</Text>
             </TouchableOpacity>
           ),
         }}
       />
-      <Tabs.Screen name="map" options={{ title: 'Map' }} />
+      <Tabs.Screen
+        name="map"
+        options={{ title: 'Map' }}
+        listeners={{
+          tabPress: (e) => {
+            const activeSessionId = getActiveSessionId();
+            if (activeSessionId) {
+              e.preventDefault();
+              router.push(`/session/${activeSessionId}?tab=map`);
+            }
+          },
+        }}
+      />
       <Tabs.Screen name="library" options={{ title: 'Library' }} />
       <Tabs.Screen
         name="profile"
         options={{
           href: null,
-          tabBarStyle: { display: 'none' },
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="inbox"
+        options={{
+          href: null,
           headerShown: false,
         }}
       />
@@ -38,7 +58,6 @@ export default function AppStackLayout() {
         name="session/[id]"
         options={{
           href: null,
-          tabBarStyle: { display: 'none' },
           headerShown: false,
         }}
       />
@@ -46,7 +65,6 @@ export default function AppStackLayout() {
         name="session/song-map"
         options={{
           href: null,
-          tabBarStyle: { display: 'none' },
           headerShown: false,
         }}
       />
@@ -54,7 +72,6 @@ export default function AppStackLayout() {
         name="session/spatial"
         options={{
           href: null,
-          tabBarStyle: { display: 'none' },
           headerShown: false,
         }}
       />
@@ -62,7 +79,34 @@ export default function AppStackLayout() {
         name="session/group"
         options={{
           href: null,
-          tabBarStyle: { display: 'none' },
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="session/beat-grid"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="session/camera"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="session/music-setup"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="session/youtube-player"
+        options={{
+          href: null,
           headerShown: false,
         }}
       />
@@ -70,7 +114,6 @@ export default function AppStackLayout() {
         name="session/clip-player"
         options={{
           href: null,
-          tabBarStyle: { display: 'none' },
           presentation: 'modal',
           headerShown: false,
         }}

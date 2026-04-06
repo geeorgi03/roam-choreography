@@ -1,4 +1,7 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = require("react");
 const react_native_1 = require("react-native");
@@ -8,14 +11,14 @@ const useSession_1 = require("../../lib/hooks/useSession");
 const CreateSessionSheet_1 = require("../../components/CreateSessionSheet");
 const PaywallSheet_1 = require("../../components/PaywallSheet");
 const react_native_mmkv_1 = require("react-native-mmkv");
+const netinfo_1 = __importDefault(require("@react-native-community/netinfo"));
 const api_1 = require("../../lib/api");
-const supabase_1 = require("../../lib/supabase");
+const sessionCache_1 = require("../../lib/sessionCache");
 const homeStorage = new react_native_mmkv_1.MMKV({ id: 'home-state' });
 const LAST_SESSION_KEY = 'last_session_id';
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
 function HomeScreen() {
-    const navigation = (0, expo_router_1.useNavigation)();
     const { session } = (0, useSession_1.useSession)();
     const createSheetRef = (0, react_1.useRef)(null);
     const paywallSheetRef = (0, react_1.useRef)(null);
@@ -40,6 +43,13 @@ function HomeScreen() {
     }, []);
     const fetchSessions = async () => {
         if (!session?.access_token) {
+            setLoading(false);
+            return;
+        }
+        const netState = await netinfo_1.default.fetch();
+        if (!netState.isConnected) {
+            const cached = (0, sessionCache_1.getCachedSessionList)();
+            setSessions(cached);
             setLoading(false);
             return;
         }
@@ -68,6 +78,14 @@ function HomeScreen() {
             if (res.ok && data && typeof data === 'object' && 'sessions' in data) {
                 const sessionsData = data.sessions ?? [];
                 setSessions(sessionsData);
+                sessionsData.forEach((s) => {
+                    (0, sessionCache_1.cacheSession)(s.id, {
+                        session: { name: s.name, phrase: null, quality_target: null },
+                        sections: [],
+                        clips: [],
+                        cachedAt: Date.now(),
+                    });
+                });
                 if (sessionsData.length > 0) {
                     const latestSessionId = sessionsData[0].id;
                     homeStorage.set(LAST_SESSION_KEY, latestSessionId);
@@ -87,7 +105,8 @@ function HomeScreen() {
         }
         catch {
             // API unreachable, timeout, or network error
-            setSessions([]);
+            const cached = (0, sessionCache_1.getCachedSessionList)();
+            setSessions((cached.length ? cached : []));
         }
         finally {
             clearTimeout(timeoutId);
@@ -120,33 +139,6 @@ function HomeScreen() {
     (0, react_1.useEffect)(() => {
         fetchInboxCount();
     }, [session?.access_token, sessions.length]);
-    (0, react_1.useLayoutEffect)(() => {
-        navigation.setOptions({
-            headerLeft: () => (<react_native_1.View style={styles.headerLeft}>
-          <react_native_1.TouchableOpacity style={styles.headerButton} onPress={() => expo_router_1.router.push('/library')}>
-            <react_native_1.Text style={styles.headerLeftText}>Library</react_native_1.Text>
-          </react_native_1.TouchableOpacity>
-          <react_native_1.TouchableOpacity style={styles.headerButton} onPress={() => expo_router_1.router.push('/profile')}>
-            <react_native_1.Text style={styles.headerLeftText}>Profile</react_native_1.Text>
-          </react_native_1.TouchableOpacity>
-        </react_native_1.View>),
-            headerRight: () => (<react_native_1.View style={styles.headerRight}>
-          <react_native_1.TouchableOpacity style={styles.headerButton} onPress={async () => {
-                    try {
-                        await supabase_1.supabase?.auth.signOut();
-                    }
-                    catch {
-                        // ignore
-                    }
-                }}>
-            <react_native_1.Text style={styles.headerButtonText}>⎋</react_native_1.Text>
-          </react_native_1.TouchableOpacity>
-          <react_native_1.TouchableOpacity style={styles.headerButton} onPress={() => createSheetRef.current?.snapToIndex(0)}>
-            <react_native_1.Text style={styles.headerButtonText}>+</react_native_1.Text>
-          </react_native_1.TouchableOpacity>
-        </react_native_1.View>),
-        });
-    }, [navigation]);
     const handleCreated = (newSession) => {
         setSessions((prev) => [newSession, ...prev]);
         createSheetRef.current?.close();
@@ -225,27 +217,6 @@ const styles = react_native_1.StyleSheet.create({
         flexGrow: 1,
         minHeight: 400,
         justifyContent: 'center',
-    },
-    headerLeft: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    headerButton: {
-        padding: 8,
-        marginRight: 8,
-    },
-    headerRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    headerButtonText: {
-        color: colors.active,
-        fontSize: 24,
-    },
-    headerLeftText: {
-        color: colors.active,
-        fontSize: 14,
-        fontWeight: '700',
     },
     empty: {
         flex: 1,

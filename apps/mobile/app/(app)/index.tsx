@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useLayoutEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { router, useNavigation } from 'expo-router';
+import { router } from 'expo-router';
 import { theme } from '../../lib/theme';
 import type { Session } from '@roam/types';
 import { useSession } from '../../lib/hooks/useSession';
@@ -16,9 +16,10 @@ import { CreateSessionSheet } from '../../components/CreateSessionSheet';
 import { PaywallSheet } from '../../components/PaywallSheet';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { MMKV } from 'react-native-mmkv';
+import NetInfo from '@react-native-community/netinfo';
 
 import { API_BASE } from '../../lib/api';
-import { supabase } from '../../lib/supabase';
+import { cacheSession, getCachedSessionList } from '../../lib/sessionCache';
 
 const homeStorage = new MMKV({ id: 'home-state' });
 const LAST_SESSION_KEY = 'last_session_id';
@@ -26,8 +27,20 @@ const LAST_SESSION_KEY = 'last_session_id';
 const colors = theme.light;
 const spacing = theme.spacing;
 
+function mapCachedToSession(
+  cached: ReturnType<typeof getCachedSessionList>[number]
+): Session {
+  return {
+    id: cached.id,
+    name: cached.name,
+    created_at: new Date(cached.created_at).toISOString(),
+    user_id: '',
+    phrase: null,
+    quality_target: null,
+  };
+}
+
 export default function HomeScreen() {
-  const navigation = useNavigation();
   const { session } = useSession();
   const createSheetRef = useRef<BottomSheet | null>(null);
   const paywallSheetRef = useRef<BottomSheet | null>(null);
@@ -58,6 +71,12 @@ export default function HomeScreen() {
       setLoading(false);
       return;
     }
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
+      setSessions(getCachedSessionList().map(mapCachedToSession));
+      setLoading(false);
+      return;
+    }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10_000);
     try {
@@ -82,6 +101,14 @@ export default function HomeScreen() {
       if (res.ok && data && typeof data === 'object' && 'sessions' in data) {
         const sessionsData = (data as { sessions: Session[] }).sessions ?? [];
         setSessions(sessionsData);
+        sessionsData.forEach((s) => {
+          cacheSession(s.id, {
+            session: { name: s.name, phrase: null, quality_target: null },
+            sections: [],
+            clips: [],
+            cachedAt: Date.now(),
+          });
+        });
         
         if (sessionsData.length > 0) {
           const latestSessionId = sessionsData[0].id;
@@ -100,7 +127,8 @@ export default function HomeScreen() {
       }
     } catch {
       // API unreachable, timeout, or network error
-      setSessions([]);
+      const cachedSessions = getCachedSessionList().map(mapCachedToSession);
+      setSessions(cachedSessions.length > 0 ? cachedSessions : []);
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);
@@ -132,33 +160,6 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchInboxCount();
   }, [session?.access_token, sessions.length]);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={async () => {
-              try {
-                await supabase?.auth.signOut();
-              } catch {
-                // ignore
-              }
-            }}
-          >
-            <Text style={styles.headerButtonText}>⎋</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => createSheetRef.current?.snapToIndex(0)}
-          >
-            <Text style={styles.headerButtonText}>+</Text>
-          </TouchableOpacity>
-        </View>
-      ),
-    });
-  }, [navigation]);
 
   const handleCreated = (newSession: Session) => {
     setSessions((prev) => [newSession, ...prev]);
@@ -300,18 +301,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     minHeight: 400,
     justifyContent: 'center',
-  },
-  headerButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerButtonText: {
-    color: colors.active,
-    fontSize: 24,
   },
   empty: {
     flex: 1,

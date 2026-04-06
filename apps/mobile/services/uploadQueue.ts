@@ -3,7 +3,7 @@ import { getTusUrls, getUploadQueue, setTusUrls, setUploadQueue } from '../lib/s
 import { updateClipServerData, updateClipStatus as updateClipStatusDb } from '../lib/database';
 import { uploadClipToMux, UploadAbortedError } from '../lib/upload';
 import { API_BASE } from '../lib/api';
-import { enqueueWrite, isNetworkError } from '../lib/writeQueue';
+import { enqueue, isNetworkError } from '../lib/writeQueue';
 
 export interface QueueItem {
   local_id: string;
@@ -343,7 +343,7 @@ export class UploadQueueService {
     token: string
   ) {
     try {
-      await fetch(`${API_BASE}/sessions/${sessionId}/assembly/section-clip`, {
+      const res = await fetch(`${API_BASE}/sessions/${sessionId}/assembly/section-clip`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -351,12 +351,21 @@ export class UploadQueueService {
         },
         body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
       });
-    } catch (error) {
-      if (isNetworkError(error)) {
-        enqueueWrite({
+      if (!res.ok) {
+        enqueue({
           endpoint: `${API_BASE}/sessions/${sessionId}/assembly/section-clip`,
           method: 'POST',
           body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
+          timestamp: Date.now(),
+        });
+      }
+    } catch (error) {
+      if (isNetworkError(error)) {
+        enqueue({
+          endpoint: `${API_BASE}/sessions/${sessionId}/assembly/section-clip`,
+          method: 'POST',
+          body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
+          timestamp: Date.now(),
         });
       }
     }

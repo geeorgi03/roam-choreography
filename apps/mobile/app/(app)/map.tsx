@@ -1,25 +1,26 @@
-import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
-import { MMKV } from 'react-native-mmkv';
+import { useCallback, useEffect } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { getActiveSessionId } from '../../lib/storage';
 import { theme } from '../../lib/theme';
 
-const homeStorage = new MMKV({ id: 'home-state' });
-
 export default function MapScreen() {
-  const navigated = useRef(false);
-
-  useEffect(() => {
-    const lastId = homeStorage.getString('last_session_id');
-    if (!navigated.current && lastId) {
-      navigated.current = true;
-      router.replace(`/(app)/session/${lastId}?tab=map`);
+  const redirectToActiveSession = useCallback(() => {
+    const activeSessionId = getActiveSessionId();
+    if (activeSessionId) {
+      router.push(`/session/${activeSessionId}?tab=map`);
     }
   }, []);
 
+  useEffect(() => {
+    redirectToActiveSession();
+  }, [redirectToActiveSession]);
+
+  useFocusEffect(redirectToActiveSession);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>No active session</Text>
+      <Text style={styles.text}>No active session. Start one from Session tab.</Text>
     </View>
   );
 }
@@ -30,9 +31,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.light.ground,
+    paddingHorizontal: 24,
   },
   text: {
     color: theme.light.muted,
     fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
   },
 });
