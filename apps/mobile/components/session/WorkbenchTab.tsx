@@ -593,6 +593,16 @@ export function WorkbenchTab() {
         <View style={styles.recordFabInner} />
       </TouchableOpacity>
       
+      {/* Background tap area for collapse when in review mode */}
+      {!sessionMode && (
+        <TouchableWithoutFeedback 
+          onPress={() => setSessionMode(true)}
+          style={StyleSheet.absoluteFill}
+        >
+          <View style={StyleSheet.absoluteFill} />
+        </TouchableWithoutFeedback>
+      )}
+      
     </View>
   );
 }
