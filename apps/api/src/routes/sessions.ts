@@ -160,9 +160,9 @@ app.get('/', async (c) => {
   const userId = c.get('userId');
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, user_id, name, phrase, created_at')
+    .select('id, user_id, name, phrase, created_at, updated_at')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .order('updated_at', { ascending: false });
 
   if (error) {
     return c.json({ error: error.message }, 500);

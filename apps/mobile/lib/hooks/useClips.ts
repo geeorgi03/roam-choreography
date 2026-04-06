@@ -47,6 +47,7 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
         difficulty: (row?.difficulty as string | null | undefined) ?? null,
         bpm: (row?.bpm as number | null | undefined) ?? null,
         notes: (row?.notes as string | null | undefined) ?? null,
+        clip_type: (row?.clip_type as string | null | undefined) ?? null,
       });
 
       const server_id = (row?.id as string | null | undefined) ?? null;
@@ -79,6 +80,7 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
         difficulty: (row?.difficulty as string | null | undefined) ?? null,
         bpm: (row?.bpm as number | null | undefined) ?? null,
         notes: (row?.notes as string | null | undefined) ?? null,
+        clip_type: (row?.clip_type as string | null | undefined) ?? null,
       };
 
       if (idx < 0) {
@@ -108,6 +110,7 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
         difficulty: nextClip.difficulty ?? prev[idx].difficulty,
         bpm: nextClip.bpm ?? prev[idx].bpm,
         notes: nextClip.notes ?? prev[idx].notes,
+        clip_type: nextClip.clip_type ?? prev[idx].clip_type,
       };
       const next = [...prev];
       next[idx] = merged;
@@ -166,6 +169,7 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
               difficulty: (row?.difficulty as string | null | undefined) ?? undefined,
               bpm: (row?.bpm as number | null | undefined) ?? undefined,
               notes: (row?.notes as string | null | undefined) ?? undefined,
+              clip_type: (row?.clip_type as string | null | undefined) ?? undefined,
             });
           }
           setClips((prev) => mergeServerClipRow(prev, row));
@@ -194,6 +198,7 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
               difficulty: (row?.difficulty as string | null | undefined) ?? undefined,
               bpm: (row?.bpm as number | null | undefined) ?? undefined,
               notes: (row?.notes as string | null | undefined) ?? undefined,
+              clip_type: (row?.clip_type as string | null | undefined) ?? undefined,
             });
           }
           setClips((prev) => mergeServerClipRow(prev, row));

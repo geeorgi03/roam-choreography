@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, PanResponder } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Video, AVPlaybackStatus } from 'expo-av';
 import { SectionClip, Loop } from '@roam/types';
@@ -26,6 +26,13 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
   const [playheadFraction, setPlayheadFraction] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [activeLoop, setActiveLoop] = useState<Loop | null>(null);
+  
+  // Trim state
+  const [trimStart, setTrimStart] = useState<number | null>(null);
+  const [trimEnd, setTrimEnd] = useState<number | null>(null);
+  const [isSavingSegment, setIsSavingSegment] = useState(false);
+  const [progressBarWidth, setProgressBarWidth] = useState(0);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Coordinator useEffect
   useEffect(() => {
@@ -67,6 +74,9 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
 
   const isClipInSession = selectedClipForSheet.server_id && 
     sectionClips.some(sc => sc.clip_id === selectedClipForSheet.server_id && sc.section_label === activeSection);
+  
+  // Determine if this is a MINE clip (can trim)
+  const isMineClip = (selectedClipForSheet.clip_type === 'MINE' || selectedClipForSheet.clip_type == null) && selectedClipForSheet.mux_playback_id;
 
   const handleSaveToSession = async () => {
     if (!selectedClipForSheet.server_id || !session?.access_token) return;
@@ -93,6 +103,80 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       console.error('Error saving clip to session:', error);
     }
   };
+
+  const handleSaveSegment = async () => {
+    if (!selectedClipForSheet.server_id || !session?.access_token || trimStart === null || trimEnd === null) return;
+    
+    setIsSavingSegment(true);
+    try {
+      const startMs = Math.round(trimStart * durationMs);
+      const endMs = Math.round(trimEnd * durationMs);
+      
+      const response = await fetch(`${API_BASE}/sessions/${sessionId}/clips/${selectedClipForSheet.server_id}/trim`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          start_ms: startMs,
+          end_ms: endMs,
+          section_label: activeSection,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const newSectionClip = result.sectionClip;
+        
+        // Update section clips if association was created
+        if (newSectionClip) {
+          setSectionClips([...sectionClips, newSectionClip]);
+        }
+        
+        setTrimStart(null);
+        setTrimEnd(null);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
+        console.log('Segment saved successfully');
+      } else {
+        console.error('Failed to save segment:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error saving segment:', error);
+    } finally {
+      setIsSavingSegment(false);
+    }
+  };
+
+  const handleInitializeTrim = () => {
+    setTrimStart(0.1);
+    setTrimEnd(0.9);
+  };
+
+  const createPanResponder = (isLeft: boolean) => {
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {},
+      onPanResponderMove: (_, gestureState) => {
+        if (progressBarWidth === 0) return;
+        
+        const newFraction = (isLeft ? trimStart : trimEnd) + (gestureState.dx / progressBarWidth);
+        const clampedFraction = Math.max(0, Math.min(1, newFraction));
+        
+        if (isLeft) {
+          setTrimStart(Math.min(clampedFraction, trimEnd || 1));
+        } else {
+          setTrimEnd(Math.max(clampedFraction, trimStart || 0));
+        }
+      },
+      onPanResponderRelease: () => {},
+    });
+  };
+
+  const leftPanResponder = createPanResponder(true);
+  const rightPanResponder = createPanResponder(false);
 
   const videoSource = selectedClipForSheet.mux_playback_id
     ? { uri: `https://stream.mux.com/${selectedClipForSheet.mux_playback_id}.m3u8` }
@@ -149,8 +233,11 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
           )}
         </View>
 
-        {/* Progress bar */}
-        <View style={styles.progressBar}>
+        {/* Progress bar with trim handles */}
+        <View 
+          style={styles.progressBar}
+          onLayout={(e) => setProgressBarWidth(e.nativeEvent.layout.width)}
+        >
           {/* Loop region overlay */}
           {activeLoop && durationMs > 0 && (
             <View
@@ -168,6 +255,40 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
               <View style={[styles.loopEdgeLine, { backgroundColor: activeLoop.color, right: 0 }]} />
             </View>
           )}
+          
+          {/* Trim region overlay */}
+          {isMineClip && trimStart !== null && trimEnd !== null && (
+            <View
+              style={[
+                styles.trimRegion,
+                {
+                  left: `${trimStart * 100}%`,
+                  width: `${(trimEnd - trimStart) * 100}%`,
+                },
+              ]}
+            />
+          )}
+          
+          {/* Trim handles */}
+          {isMineClip && trimStart !== null && trimEnd !== null && (
+            <>
+              <View
+                style={[
+                  styles.trimHandle,
+                  { left: `${trimStart * 100}%` },
+                ]}
+                {...leftPanResponder.panHandlers}
+              />
+              <View
+                style={[
+                  styles.trimHandle,
+                  { right: `${(1 - trimEnd) * 100}%` },
+                ]}
+                {...rightPanResponder.panHandlers}
+              />
+            </>
+          )}
+          
           <View 
             style={[styles.progressFill, { width: `${playheadFraction * 100}%` }]}
           />
@@ -219,6 +340,30 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
           <TouchableOpacity style={styles.momentButton} onPress={jumpToSongMap}>
             <Text style={styles.momentButtonText}>the moment →</Text>
           </TouchableOpacity>
+          
+          {/* Trim controls */}
+          {isMineClip && (
+            <>
+              {trimStart === null && trimEnd === null ? (
+                <TouchableOpacity style={styles.setTrimButton} onPress={handleInitializeTrim}>
+                  <Text style={styles.setTrimButtonText}>set trim</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.saveSegmentButton,
+                    isSavingSegment && styles.saveSegmentButtonDisabled
+                  ]}
+                  onPress={handleSaveSegment}
+                  disabled={isSavingSegment}
+                >
+                  <Text style={styles.saveSegmentButtonText}>
+                    {saveSuccess ? 'saved ✓' : (isSavingSegment ? 'saving...' : 'save segment')}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
         </View>
       </View>
     </BottomSheet>
@@ -385,6 +530,49 @@ const styles = StyleSheet.create({
     color: colors.amber,
     fontSize: 14,
     fontStyle: 'italic',
+    fontWeight: '600',
+  },
+  trimHandle: {
+    position: 'absolute',
+    top: -11,
+    width: 12,
+    height: 24,
+    backgroundColor: colors.amber,
+    borderRadius: 6,
+    zIndex: 10,
+  },
+  trimRegion: {
+    position: 'absolute',
+    top: 0,
+    height: '100%',
+    backgroundColor: colors.amber + '40', // 25% opacity
+    borderRadius: 1,
+  },
+  setTrimButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.amber,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  setTrimButtonText: {
+    color: colors.amber,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  saveSegmentButton: {
+    backgroundColor: colors.amber,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  saveSegmentButtonDisabled: {
+    opacity: 0.5,
+  },
+  saveSegmentButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '600',
   },
 });

@@ -62,7 +62,9 @@ app.post('/:sessionId/clips', async (c) => {
     notes?: string | null;
     url?: string | null;
     thumbnail_url?: string | null;
-    clip_type?: Clip['clip_type'];
+    clip_type?: 'MINE' | 'REF' | null;
+    type?: 'MINE' | 'REF' | null; // Alias for clip_type for documented contract
+    title?: string | null;
     start_ms?: number | null;
   }>();
 
@@ -70,11 +72,14 @@ app.post('/:sessionId/clips', async (c) => {
     return c.json({ error: 'local_id and recorded_at are required' }, 400);
   }
 
+  // Normalize type to clip_type for documented contract compatibility
+  const normalizedClipType = body.type || body.clip_type;
+  
   const row = {
     user_id: userId,
     session_id: sessionId,
     local_id: body.local_id,
-    label: body.label ?? 'Clip',
+    label: body.title || body.label || 'Clip', // Use title if provided, fallback to label
     recorded_at: body.recorded_at,
     mux_upload_id: body.mux_upload_id ?? null,
     mux_playback_id: body.mux_playback_id ?? null,
@@ -89,7 +94,7 @@ app.post('/:sessionId/clips', async (c) => {
     notes: body.notes ?? null,
     url: body.url ?? null,
     thumbnail_url: body.thumbnail_url ?? null,
-    clip_type: body.clip_type ?? null,
+    clip_type: normalizedClipType ?? null,
     start_ms: body.start_ms ?? null,
   };
 
@@ -194,7 +199,7 @@ app.post('/:sessionId/clips/:clipId/trim', async (c) => {
   if (!session) return c.json({ error: 'Not found' }, 404);
 
   // Parse and validate request body
-  const body = await c.req.json<{ start_ms: number; end_ms: number }>();
+  const body = await c.req.json<{ start_ms: number; end_ms: number; section_label?: string }>();
   if (!Number.isFinite(body.start_ms) || !Number.isFinite(body.end_ms) || body.end_ms <= body.start_ms) {
     return c.json({ error: 'start_ms and end_ms must be finite numbers with end_ms > start_ms' }, 400);
   }
@@ -282,6 +287,9 @@ app.post('/:sessionId/clips/:clipId/trim', async (c) => {
       mux_playback_id: newMuxPlaybackId,
       upload_status: newMuxPlaybackId ? 'ready' : 'processing',
       clip_type: 'REF',
+      url: null,
+      thumbnail_url: null,
+      start_ms: body.start_ms,
       trimmed_from_clip_id: clipId,
     })
     .select('*')
@@ -291,7 +299,28 @@ app.post('/:sessionId/clips/:clipId/trim', async (c) => {
     return c.json({ error: insertError.message }, 500);
   }
 
-  return c.json(newClip as Clip, 201);
+  // If section_label provided, create section_clips association
+  let sectionClip = null;
+  if (body.section_label) {
+    const { data: newSectionClip, error: sectionError } = await supabase
+      .from('section_clips')
+      .insert({
+        session_id: sessionId,
+        clip_id: newClip.id,
+        section_label: body.section_label,
+      })
+      .select('*')
+      .single();
+
+    if (sectionError) {
+      // Log error but don't fail the request - the clip was still created
+      console.error('Failed to create section association:', sectionError);
+    } else {
+      sectionClip = newSectionClip;
+    }
+  }
+
+  return c.json({ clip: newClip, sectionClip }, 201);
 });
 
 export const clipsRoutes = app;

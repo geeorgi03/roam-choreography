@@ -74,7 +74,7 @@ import type { VideoContentRect } from '../../../components/AnnotationOverlay';
 import { API_BASE } from '../../../lib/api';
 import { MMKV } from 'react-native-mmkv';
 
-// Loupe persistence — key: loupe:${mux_playback_id ?? clip_id} -> { x, y, zoom }
+// Loupe persistence — key: YouTube clips use loupe:${source_url}, others use loupe:${mux_playback_id ?? clip_id ?? source_url} -> { x, y, zoom }
 const loupeStorage = new MMKV({ id: 'loupe-state' });
 
 // Loupe constants
@@ -123,6 +123,13 @@ const CAPTURE_WEBVIEW_HTML = `
         events: {
           onReady: function(event) {
             window.ReactNativeWebView.postMessage(JSON.stringify({type: 'ready'}));
+            // Poll duration once when ready
+            if (window.player && window.player.getDuration) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'durationUpdate',
+                duration: window.player.getDuration()
+              }));
+            }
           },
           onStateChange: function(event) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -237,11 +244,16 @@ export default function ClipPlayerScreen() {
   const tagSheetRef = useRef<BottomSheet | null>(null);
   const webViewRef = useRef<WebView>(null);
   
-  // YouTube detection and render path
+  const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
+  
+  // YouTube detection - route-param-only (no clip reference)
   const isYouTubeContent = source_url ? extractVideoId(source_url) !== null : false;
   const youtubeVideoId = source_url ? extractVideoId(source_url) : null;
   const hasLibraryClip = !hasSessionContext && (!!mux_playback_id || !!source_url);
   const isYouTubeLibraryClip = !hasSessionContext && isYouTubeContent;
+  const isSessionClipYouTube = hasSessionContext && source_url ? extractVideoId(source_url) !== null : false;
+  const sessionClipYouTubeId = hasSessionContext && source_url ? extractVideoId(source_url) : null;
+  
   const [youtubePlayerState, setYoutubePlayerState] = useState<string>('unstarted');
   const [youtubeCurrentTime, setYoutubeCurrentTime] = useState(0);
   const [capturedFrameDataUrl, setCapturedFrameDataUrl] = useState<string | null>(null);
@@ -276,13 +288,13 @@ export default function ClipPlayerScreen() {
     ],
   }));
 
-  const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
-
-  const loupePersistKey = mux_playback_id
-    ? `loupe:${mux_playback_id}` 
-    : clip?.server_id
-    ? `loupe:${clip.server_id}` 
-    : null;
+  const loupePersistKey = isClipYouTube
+    ? (hasSessionContext ? (clip?.source_url ? `loupe:${clip.source_url}` : null) : (source_url ? `loupe:${source_url}` : null))
+    : (hasSessionContext
+        ? (clip?.server_id ? `loupe:${clip.server_id}` : null)
+        : (mux_playback_id ? `loupe:${mux_playback_id}` 
+           : source_url ? `loupe:${source_url}`
+           : null));
 
   useEffect(() => {
     if (!hasSessionContext) return;
@@ -428,9 +440,7 @@ export default function ClipPlayerScreen() {
 
   // Continuous frame capture for YouTube when loupe is active
   useEffect(() => {
-    if (!loupeActive || !isYouTubeLibraryClip || !webViewRef.current) return;
-    
-    let animationFrameId: number;
+    if (!loupeActive || !isClipYouTube || !webViewRef.current) return;
     
     const captureFrame = () => {
       if (webViewRef.current && loupeActive) {
@@ -446,22 +456,15 @@ export default function ClipPlayerScreen() {
           }
         `);
       }
-      
-      // Continue capturing at ~60fps if loupe is still active
-      if (loupeActive) {
-        animationFrameId = requestAnimationFrame(captureFrame);
-      }
     };
     
-    // Start capture loop
-    animationFrameId = requestAnimationFrame(captureFrame);
+    // Start capture loop at 5fps (200ms)
+    const intervalId = setInterval(captureFrame, 200);
     
     return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
+      clearInterval(intervalId);
     };
-  }, [loupeActive, isYouTubeLibraryClip]);
+  }, [loupeActive, isClipYouTube]);
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -493,7 +496,7 @@ export default function ClipPlayerScreen() {
   }, [frameSize.width, frameSize.height, videoNaturalSize?.width, videoNaturalSize?.height]);
 
   const handlePlayPause = async () => {
-    if (isYouTubeLibraryClip && webViewRef.current) {
+    if (isClipYouTube && webViewRef.current) {
       // YouTube WebView control
       const command = playing ? 'pauseVideo()' : 'playVideo()';
       webViewRef.current.injectJavaScript(`
@@ -511,7 +514,7 @@ export default function ClipPlayerScreen() {
   const handleSeekBack = async () => {
     const newPos = Math.max(0, positionMillis - 5000);
     
-    if (isYouTubeLibraryClip && webViewRef.current) {
+    if (isClipYouTube && webViewRef.current) {
       // YouTube WebView seek
       webViewRef.current.injectJavaScript(`
         if (window.player) {
@@ -526,7 +529,7 @@ export default function ClipPlayerScreen() {
   };
 
   const handleSpeedToggle = async () => {
-    if (isYouTubeLibraryClip && webViewRef.current) {
+    if (isClipYouTube && webViewRef.current) {
       // YouTube WebView speed control
       const newRate = rate === 1 ? 0.5 : 1;
       setRate(newRate);
@@ -544,7 +547,7 @@ export default function ClipPlayerScreen() {
   };
 
   const handleSliderComplete = async (value: number) => {
-    if (isYouTubeLibraryClip && webViewRef.current) {
+    if (isClipYouTube && webViewRef.current) {
       // YouTube WebView seek
       webViewRef.current.injectJavaScript(`
         if (window.player) {
@@ -569,8 +572,10 @@ export default function ClipPlayerScreen() {
           break;
         case 'stateChange':
           setYoutubePlayerState(message.state);
-          // Poll current time when playing
+          // Map YouTube state to shared playing state
           if (message.state === 'playing') {
+            setPlaying(true);
+            // Poll current time when playing
             const pollCurrentTime = async () => {
               if (webViewRef.current) {
                 webViewRef.current.injectJavaScript(`
@@ -586,7 +591,8 @@ export default function ClipPlayerScreen() {
             // Start polling
             const interval = setInterval(pollCurrentTime, 500);
             pollIntervalRef.current = interval;
-          } else {
+          } else if (message.state === 'paused') {
+            setPlaying(false);
             // Stop polling when not playing
             if (pollIntervalRef.current) {
               clearInterval(pollIntervalRef.current);
@@ -596,10 +602,18 @@ export default function ClipPlayerScreen() {
           break;
         case 'timeUpdate':
           setYoutubeCurrentTime(message.currentTime);
+          // Update shared position state from YouTube current time
+          setPositionMillis(message.currentTime * 1000);
           break;
         case 'frameCapture':
           if (message.dataUrl) {
             setCapturedFrameDataUrl(message.dataUrl);
+          }
+          break;
+        case 'durationUpdate':
+          // Update shared duration state from YouTube duration
+          if (message.duration) {
+            setDurationMillis(message.duration * 1000);
           }
           break;
       }
@@ -668,7 +682,7 @@ export default function ClipPlayerScreen() {
     loupeLastY.current = y;
     
     // Capture frame for YouTube content when loupe activates
-    if (isYouTubeLibraryClip && webViewRef.current) {
+    if (isClipYouTube && webViewRef.current) {
       // Clear previous frame and request new capture
       setCapturedFrameDataUrl(null);
       webViewRef.current.injectJavaScript(`
@@ -954,11 +968,17 @@ export default function ClipPlayerScreen() {
       <GestureDetector gesture={composedGesture}>
         <View style={styles.container}>
           <GestureDetector gesture={loupeGesture}>
-            <View style={StyleSheet.absoluteFill}>
-              {isYouTubeLibraryClip && youtubeVideoId ? (
+            <View style={StyleSheet.absoluteFill}
+              onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                setFrameSize((prev) =>
+                  prev.width !== width || prev.height !== height ? { width, height } : prev
+                );
+              }}>
+              {isClipYouTube && clipYouTubeId ? (
                 <WebView
                   ref={webViewRef}
-                  source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, youtubeVideoId) }}
+                  source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, clipYouTubeId) }}
                   style={StyleSheet.absoluteFill}
                   onMessage={handleYouTubeWebViewMessage}
                   javaScriptEnabled={true}
@@ -981,18 +1001,18 @@ export default function ClipPlayerScreen() {
             {loupeActive && (
               <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
                 <View style={styles.loupeMask}>
-                  {isYouTubeLibraryClip ? (
+                  {isClipYouTube ? (
                     <>
                       {capturedFrameDataUrl ? (
-                        <Image 
+                        <Animated.Image 
                           source={{ uri: capturedFrameDataUrl }} 
                           style={[styles.loupeVideo, loupeVideoAnimatedStyle]} 
                           resizeMode="cover" 
                         />
                       ) : (
-                        <View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
+                        <Animated.View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
                           <Text style={styles.loupeOverlayText}>Capturing frame...</Text>
-                        </View>
+                        </Animated.View>
                       )}
                     </>
                   ) : (
@@ -1132,9 +1152,6 @@ export default function ClipPlayerScreen() {
       displayClip.notes);
   const sectionLabel = section_label ?? null;
   
-  // Check if session clip has YouTube content
-  const isSessionClipYouTube = displayClip?.source_url ? extractVideoId(displayClip.source_url) !== null : false;
-  const sessionClipYouTubeId = displayClip?.source_url ? extractVideoId(displayClip.source_url) : null;
 
   return (
     <GestureDetector gesture={composedGesture}>
@@ -1147,36 +1164,65 @@ export default function ClipPlayerScreen() {
               setFrameSize((prev) => (prev.width !== width || prev.height !== height ? { width, height } : prev));
             }}
           >
-          <Video
-            key={clip!.local_id}
-            ref={videoRef}
-            source={{ uri: `https://stream.mux.com/${clip!.mux_playback_id}.m3u8` }}
-            style={StyleSheet.absoluteFill}
-            useNativeControls={false}
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay={playing}
-            onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-            onReadyForDisplay={(e) => {
-              const ns = e?.naturalSize;
-              if (!ns?.width || !ns?.height) return;
-              setVideoNaturalSize((prev) =>
-                prev?.width === ns.width && prev?.height === ns.height ? prev : { width: ns.width, height: ns.height }
-              );
-            }}
-          />
+            {isClipYouTube && clipYouTubeId ? (
+              <WebView
+                ref={webViewRef}
+                source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, clipYouTubeId) }}
+                style={StyleSheet.absoluteFill}
+                onMessage={handleYouTubeWebViewMessage}
+                javaScriptEnabled={true}
+                domStorageEnabled={true}
+                allowsInlineMediaPlayback={true}
+                mediaPlaybackRequiresUserAction={false}
+              />
+            ) : (
+              <Video
+                key={clip!.local_id}
+                ref={videoRef}
+                source={{ uri: `https://stream.mux.com/${clip!.mux_playback_id}.m3u8` }}
+                style={StyleSheet.absoluteFill}
+                useNativeControls={false}
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay={playing}
+                onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+                onReadyForDisplay={(e) => {
+                  const ns = e?.naturalSize;
+                  if (!ns?.width || !ns?.height) return;
+                  setVideoNaturalSize((prev) =>
+                    prev?.width === ns.width && prev?.height === ns.height ? prev : { width: ns.width, height: ns.height }
+                  );
+                }}
+              />
+            )}
           {loupeActive && (
             <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
               <View style={styles.loupeMask}>
-                <Video
-                  source={{ uri: `https://stream.mux.com/${clip!.mux_playback_id}.m3u8` }}
-                  style={[styles.loupeVideo, loupeVideoAnimatedStyle]}
-                  useNativeControls={false}
-                  resizeMode={ResizeMode.COVER}
-                  shouldPlay={playing}
-                  isMuted
-                  ref={loupeVideoRef}
-                  onPlaybackStatusUpdate={undefined}
-                />
+                {isClipYouTube ? (
+                  <>
+                    {capturedFrameDataUrl ? (
+                      <Animated.Image 
+                        source={{ uri: capturedFrameDataUrl }} 
+                        style={[styles.loupeVideo, loupeVideoAnimatedStyle]} 
+                        resizeMode="cover" 
+                      />
+                    ) : (
+                      <Animated.View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
+                        <Text style={styles.loupeOverlayText}>Capturing frame...</Text>
+                      </Animated.View>
+                    )}
+                  </>
+                ) : (
+                  <Video
+                    source={{ uri: `https://stream.mux.com/${clip!.mux_playback_id}.m3u8` }}
+                    style={[styles.loupeVideo, loupeVideoAnimatedStyle]}
+                    useNativeControls={false}
+                    resizeMode={ResizeMode.COVER}
+                    shouldPlay={playing}
+                    isMuted
+                    ref={loupeVideoRef}
+                    onPlaybackStatusUpdate={undefined}
+                  />
+                )}
                 {/* Duplicate Video for magnification — no true pixel sampling with expo-av; upgrade to Skia in a future wave if @shopify/react-native-skia is added */}
               </View>
             </Animated.View>

@@ -35,6 +35,7 @@ export default function HomeScreen() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [inboxCount, setInboxCount] = useState<number>(0);
+  const cachedSessionId = useRef<string | null>(null);
   // TODO(boot): start false so BottomSheet doesn't mount on first render before Reanimated is ready
   const [sheetsReady, setSheetsReady] = useState(false);
 
@@ -46,6 +47,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const cachedId = homeStorage.getString(LAST_SESSION_KEY);
     if (cachedId && !redirected.current) {
+      cachedSessionId.current = cachedId;
       redirected.current = true;
       router.replace(`/session/${cachedId}`);
     }
@@ -82,10 +84,15 @@ export default function HomeScreen() {
         setSessions(sessionsData);
         
         if (sessionsData.length > 0) {
-          homeStorage.set(LAST_SESSION_KEY, sessionsData[0].id);
-          if (!redirected.current) {
+          const latestSessionId = sessionsData[0].id;
+          homeStorage.set(LAST_SESSION_KEY, latestSessionId);
+          
+          // Reconcile stale cache: if cached ID differs from API result, redirect again
+          if (cachedSessionId.current && cachedSessionId.current !== latestSessionId) {
+            router.replace(`/session/${latestSessionId}`);
+          } else if (!redirected.current) {
             redirected.current = true;
-            router.replace(`/session/${sessionsData[0].id}`);
+            router.replace(`/session/${latestSessionId}`);
           }
         } else {
           homeStorage.delete(LAST_SESSION_KEY);
@@ -205,12 +212,12 @@ export default function HomeScreen() {
                 <View style={styles.twoDoorRow}>
                   <TouchableOpacity
                     style={styles.doorCard}
-                    onPress={() => router.push('/session/camera')}
+                    onPress={() => router.push('/library')}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.doorIcon}>🔴</Text>
-                    <Text style={styles.doorTitle}>Record</Text>
-                    <Text style={styles.doorSub}>Capture something now</Text>
+                    <Text style={styles.doorIcon}>📚</Text>
+                    <Text style={styles.doorTitle}>Browse library</Text>
+                    <Text style={styles.doorSub}>Explore your collection</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.doorCard}

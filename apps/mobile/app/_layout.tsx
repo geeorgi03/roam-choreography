@@ -10,13 +10,14 @@
  */
 const MINIMAL_BOOT_TEST = false;
 
-import React from 'react';
-import { AppState, ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, Linking } from 'react-native';
-import { useEffect, useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
+import { AppState, ActivityIndicator, StyleSheet, View, Text, TextInput, TouchableOpacity, Modal, Linking } from 'react-native';
+import { useEffect } from 'react';
 import { Stack, usePathname, useRootNavigationState, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import Toast from 'react-native-toast-message';
 import { useSession } from '../lib/hooks/useSession';
+import { useShareIntent } from '../lib/hooks/useShareIntent';
 import { theme } from '../lib/theme';
 import { getDevBypassAuth } from '../lib/devBypassAuth';
 
@@ -159,10 +160,12 @@ function SafeFirstFrame({ children }: { children: React.ReactNode }) {
 // --- Main app tree (GestureHandlerRootView + session + router) ---
 function RootNavigator() {
   const { session, loading, error } = useSession();
+  const { pendingShareUrl, pendingShareMeta, clearPendingShare, createRefClip } = useShareIntent();
   const pathname = usePathname();
   const [ignoreSessionError, setIgnoreSessionError] = useState(false);
   const [skipToAuth, setSkipToAuth] = useState(false);
   const [showSkipOption, setShowSkipOption] = useState(false);
+  const [sessionNameInput, setSessionNameInput] = useState('');
   const devBypass = getDevBypassAuth();
   const uploadQueueRef = useRef<{ onAppForeground: () => void } | null>(null);
   const splashHiddenRef = useRef(false);
@@ -236,6 +239,41 @@ function RootNavigator() {
 
   const navReady = !!useRootNavigationState()?.key;
 
+  const handleCreateSessionAndAddClip = async () => {
+    if (!session?.access_token || !pendingShareUrl || !pendingShareMeta) return;
+
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sessions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          name: sessionNameInput.trim() || 'New Session',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create session: ${response.status}`);
+      }
+
+      const { id: newSessionId } = await response.json();
+      
+      await createRefClip(newSessionId, pendingShareUrl, pendingShareMeta);
+      clearPendingShare();
+      setSessionNameInput('');
+      router.replace(`/session/${newSessionId}`);
+    } catch (error) {
+      console.error('Error creating session and adding clip:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to create session',
+        text2: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  };
+
   // Use router.replace inside useEffect — never <Redirect> — to avoid
   // "navigate before mounting Root Layout" errors. Defer by one frame so
   // the navigator container is fully committed before we push a route.
@@ -294,6 +332,48 @@ function RootNavigator() {
     <>
       <Stack screenOptions={{ headerShown: false }} />
       <Toast />
+      
+      {pendingShareUrl && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={clearPendingShare}
+        >
+          <View style={modalStyles.overlay}>
+            <View style={modalStyles.container}>
+              <Text style={modalStyles.title}>Create Session</Text>
+              <Text style={modalStyles.subtitle}>
+                Add {pendingShareMeta?.title || pendingShareUrl} to a new session
+              </Text>
+              
+              <TextInput
+                style={modalStyles.input}
+                placeholder="Session name"
+                value={sessionNameInput}
+                onChangeText={setSessionNameInput}
+                autoFocus={true}
+              />
+              
+              <View style={modalStyles.buttons}>
+                <TouchableOpacity
+                  style={[modalStyles.button, modalStyles.cancelButton]}
+                  onPress={clearPendingShare}
+                >
+                  <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[modalStyles.button, modalStyles.createButton]}
+                  onPress={handleCreateSessionAndAddClip}
+                >
+                  <Text style={modalStyles.createButtonText}>Create & Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </>
   );
 }
@@ -374,6 +454,76 @@ const styles = StyleSheet.create({
   },
   continueButtonText: {
     color: theme.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  container: {
+    backgroundColor: theme.light.ground,
+    borderRadius: theme.borderRadius,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.textPrimary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: theme.light.border,
+    borderRadius: theme.borderRadius,
+    padding: 12,
+    fontSize: 16,
+    color: theme.textPrimary,
+    backgroundColor: theme.light.ground,
+    marginBottom: 20,
+  },
+  buttons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: theme.borderRadius,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.light.border,
+  },
+  createButton: {
+    backgroundColor: theme.light.ref,
+  },
+  cancelButtonText: {
+    color: theme.textSecondary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  createButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },

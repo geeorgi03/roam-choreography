@@ -1,6 +1,5 @@
--- Add REF clip fields to clips table
+-- Add REF clip fields to clips table (excluding clip_type which is added in 20260405000000_clip_trim_lineage.sql)
 ALTER TABLE clips 
-ADD COLUMN url text,
-ADD COLUMN thumbnail_url text,
-ADD COLUMN clip_type text CHECK (clip_type IN ('MINE', 'REF')) DEFAULT 'MINE',
-ADD COLUMN start_ms integer DEFAULT 0;
+ADD COLUMN IF NOT EXISTS url text,
+ADD COLUMN IF NOT EXISTS thumbnail_url text,
+ADD COLUMN IF NOT EXISTS start_ms integer DEFAULT 0;
