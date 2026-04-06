@@ -242,10 +242,10 @@ function WorkbenchTab() {
         </>)}
       
 
-      <react_native_1.View style={styles.sectionStripWrapper} onStartShouldSetResponder={() => true}>
-        {/* Section chips — shown when music analysis has produced sections */}
-        {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (<react_native_1.View style={styles.sectionPillListWrap}>
-            <react_native_1.View onStartShouldSetResponder={() => true}>
+      <react_native_1.View style={styles.sectionStripWrapper}>
+        {/* Section pill zone — absorbs touches to prevent bubbling */}
+        {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (<react_native_1.View style={styles.sectionPillZone} onStartShouldSetResponder={() => true}>
+            <react_native_1.View style={styles.sectionPillListWrap}>
               <react_native_1.ScrollView style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]} contentContainerStyle={styles.sectionPillListContent} showsVerticalScrollIndicator={false}>
                 {musicTrack.sections.map((s) => {
                 const pillContent = (<>
@@ -271,8 +271,8 @@ function WorkbenchTab() {
             {showSectionSwipeHint ? (<react_native_1.Text style={styles.sectionSwipeHint}>← swipe to change section →</react_native_1.Text>) : null}
           </react_native_1.View>) : null}
 
-        {/* Section workspace */}
-        {!sessionMode && (<react_native_1.View style={styles.workspace}>
+        {/* Workspace zone — allows touches to bubble to outer Pressable */}
+        {!sessionMode && (<react_native_1.View style={styles.workspaceZone}>
         <react_native_1.View style={styles.workspaceHeader}>
           <react_native_1.View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
             <react_native_1.Text style={styles.workspaceTitle}>{activeSection}</react_native_1.Text>
@@ -368,7 +368,7 @@ function WorkbenchTab() {
                 </react_native_1.TouchableOpacity>
               </react_native_1.View>))}
           </react_native_1.View>)}
-      </react_native_1.View>)}
+        </react_native_1.View>)}
       </react_native_1.View>
       <react_native_1.TouchableOpacity style={styles.recordFab} activeOpacity={0.85} onPress={() => router.push({
             pathname: './camera',
@@ -757,6 +757,12 @@ const styles = react_native_1.StyleSheet.create({
         color: colors.muted,
     },
     sectionStripWrapper: {
+        flex: 1,
+    },
+    sectionPillZone: {
+    // No special layout needed - semantic wrapper only
+    },
+    workspaceZone: {
         flex: 1,
     },
 });

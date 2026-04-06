@@ -8,7 +8,7 @@ const uploadQueue_1 = require("../services/uploadQueue");
  * Accepts an optional sectionLabel so the upload queue can create a
  * section_clips association once the server clip_id is known.
  */
-async function saveClip(sessionId, fileUri, label, token, sectionLabel, dualPairId) {
+async function saveClip(sessionId, fileUri, label, token, sectionLabel, dualPairId, clipType) {
     try {
         const existing = (0, database_1.getClipsForSession)(sessionId);
         const finalLabel = `Clip ${existing.length + 1}`;
@@ -22,6 +22,7 @@ async function saveClip(sessionId, fileUri, label, token, sectionLabel, dualPair
             recorded_at,
             file_uri: fileUri,
             upload_status: 'local',
+            clip_type: clipType ?? null,
         });
         uploadQueue_1.uploadQueue.enqueue({
             local_id,
@@ -32,6 +33,7 @@ async function saveClip(sessionId, fileUri, label, token, sectionLabel, dualPair
             token,
             section_label: sectionLabel,
             dual_pair_id: dualPairId,
+            clip_type: clipType,
         });
         return { ok: true, local_id };
     }

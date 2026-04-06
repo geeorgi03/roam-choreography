@@ -648,12 +648,16 @@ export default function ClipPlayerScreen() {
           setPositionMillis(message.currentTime * 1000);
           
           // A/B Loop enforcement for YouTube
-          if (loopStartMs !== null && loopEndMs !== null && message.currentTime * 1000 >= loopEndMs) {
+          if (loopStartMs !== null && loopEndMs !== null && message.currentTime * 1000 >= loopEndMs && !loopSeekingRef.current) {
+            loopSeekingRef.current = true;
             webViewRef.current?.injectJavaScript(`
               if (window.player) {
                 window.player.seekTo(${loopStartMs / 1000});
               }
             `);
+            setTimeout(() => {
+              loopSeekingRef.current = false;
+            }, 100);
           }
           break;
         case 'frameCapture':

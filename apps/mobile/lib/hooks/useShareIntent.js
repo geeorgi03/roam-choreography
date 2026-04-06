@@ -18,6 +18,8 @@ function useShareIntent() {
     const exitTimerRef = (0, react_1.useRef)(null);
     const [pendingShareUrl, setPendingShareUrl] = (0, react_1.useState)(null);
     const [pendingShareMeta, setPendingShareMeta] = (0, react_1.useState)(null);
+    const [initialSharedUrl, setInitialSharedUrl] = (0, react_1.useState)(null);
+    const [initialUrlProcessed, setInitialUrlProcessed] = (0, react_1.useState)(false);
     const fetchOEmbedMetadata = async (url) => {
         if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
             return { title: url, thumbnail_url: null };
@@ -44,7 +46,7 @@ function useShareIntent() {
             return { title: url, thumbnail_url: null };
         }
     };
-    const createRefClip = async (sessionId, url, meta) => {
+    const createRefClip = async (sessionId, url, meta, activeSection) => {
         if (!session?.access_token) {
             throw new Error('No auth session');
         }
@@ -70,18 +72,44 @@ function useShareIntent() {
             const errorText = await response.text();
             throw new Error(`Failed to create clip: ${response.status} ${errorText}`);
         }
-        return response.json();
+        const clip = await response.json();
+        // If active section provided, assign clip to that section
+        if (activeSection) {
+            try {
+                const assignResponse = await fetch(`${api_1.API_BASE}/sessions/${sessionId}/assembly/section-clip`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({
+                        clip_id: clip.id,
+                        section_label: activeSection,
+                    }),
+                });
+                if (!assignResponse.ok) {
+                    console.warn('Failed to assign clip to section:', assignResponse.status, await assignResponse.text());
+                }
+            }
+            catch (error) {
+                console.warn('Error assigning clip to section:', error);
+            }
+        }
+        return clip;
     };
-    const handleShareUrl = async (url) => {
+    const handleShareUrl = async (url, activeSection) => {
         try {
             const meta = await fetchOEmbedMetadata(url);
             const activeSessionId = (0, storage_1.getActiveSessionId)();
             if (activeSessionId) {
-                await createRefClip(activeSessionId, url, meta);
+                // Get active section from storage if not provided, using new getActiveSectionId function
+                const currentActiveSection = activeSection || (0, storage_1.getActiveSectionId)() || (0, storage_1.getActiveSection)(activeSessionId) || undefined;
+                await createRefClip(activeSessionId, url, meta, currentActiveSection);
                 react_native_toast_message_1.default.show({
                     type: 'success',
                     text1: 'Clip added to session',
                 });
+                // Only exit app after successful clip creation
                 exitTimerRef.current = setTimeout(() => {
                     try {
                         react_native_1.BackHandler.exitApp();
@@ -153,7 +181,7 @@ function useShareIntent() {
             if (initialUrl) {
                 const sharedUrl = extractSharedUrl(initialUrl);
                 if (sharedUrl) {
-                    await handleShareUrl(sharedUrl);
+                    setInitialSharedUrl(sharedUrl);
                 }
             }
         };
@@ -171,12 +199,20 @@ function useShareIntent() {
             }
         };
     }, []);
+    // Process initial shared URL only when auth is ready
+    (0, react_1.useEffect)(() => {
+        if (initialSharedUrl && !initialUrlProcessed && session?.access_token) {
+            setInitialUrlProcessed(true);
+            handleShareUrl(initialSharedUrl);
+        }
+    }, [initialSharedUrl, initialUrlProcessed, session?.access_token]);
     return {
         pendingShareUrl,
         pendingShareMeta,
         clearPendingShare,
         getPendingShare,
         createRefClip,
+        handleShareUrl,
     };
 }
 exports.useShareIntent = useShareIntent;

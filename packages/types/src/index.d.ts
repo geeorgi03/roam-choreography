@@ -23,6 +23,11 @@ export interface Session {
     user_id: UUID;
     name: string;
     phrase: string | null;
+    quality_target?: {
+        clip_url: string;
+        timestamp_ms: number;
+        source_clip_id: string;
+    } | null;
     created_at: ISODateTime;
 }
 /** ---- Clip (Tech Plan) ---- */
@@ -46,7 +51,7 @@ export interface Clip {
     local_id: string;
     url: string | null;
     thumbnail_url: string | null;
-    clip_type: 'MINE' | 'REF' | null;
+    clip_type: 'MINE' | 'REF' | 'voice_memo' | null;
     start_ms: number | null;
 }
 /** ---- MusicTrack (Tech Plan) ---- */

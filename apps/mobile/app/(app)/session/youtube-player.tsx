@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import YoutubeIframe, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 // Lazy require: a native-module init failure must not prevent route discovery
@@ -111,10 +111,10 @@ export default function YoutubePlayerScreen() {
   const [loopStartSec, setLoopStartSec] = useState<number | null>(null);
   const [loopEndSec, setLoopEndSec] = useState<number | null>(null);
   const [abBarWidth, setAbBarWidth] = useState(0);
-  const [durationSec, setDurationSec] = useState(0);
   const barOriginXRef = useRef<number>(0);
   const loopSeekingRef = useRef<boolean>(false);
   const [speed, setSpeed] = useState(1);
+  const [durationSec, setDurationSec] = useState(0);
 
   // Loupe state
   const [loupeActive, setLoupeActive] = useState(false);
@@ -165,13 +165,19 @@ export default function YoutubePlayerScreen() {
     const poll = async () => {
       try {
         const sec = await playerRef.current?.getCurrentTime();
+        const duration = await playerRef.current?.getDuration();
         if (typeof sec === 'number') {
           setPlaybackPositionSec(sec);
+          
+          // Capture duration when available
+          if (typeof duration === 'number' && duration > 0) {
+            setDurationSec(duration);
+          }
           
           // A/B Loop enforcement for YouTube
           if (loopStartSec !== null && loopEndSec !== null && sec >= loopEndSec && !loopSeekingRef.current) {
             loopSeekingRef.current = true;
-            playerRef.current?.seekTo(loopStartSec);
+            playerRef.current?.seekTo(loopStartSec, true);
             setTimeout(() => {
               loopSeekingRef.current = false;
             }, 100);
@@ -189,7 +195,7 @@ export default function YoutubePlayerScreen() {
         pollIntervalRef.current = null;
       }
     };
-  }, [playerState]);
+  }, [playerState, loopStartSec, loopEndSec]);
 
   useEffect(() => {
     if (!sessionId || !musicTrackId) return;
@@ -594,6 +600,9 @@ export default function YoutubePlayerScreen() {
               styles.abLoopHandleStart,
               {
                 left: (loopStartSec / durationSec) * abBarWidth - 6, // HANDLE_HALF_WIDTH
+                width: 12,
+                height: 20,
+                borderRadius: 2,
               }
             ]}
             {...startHandlePR.panHandlers}
@@ -607,6 +616,9 @@ export default function YoutubePlayerScreen() {
               styles.abLoopHandleEnd,
               {
                 left: (loopEndSec / durationSec) * abBarWidth - 6, // HANDLE_HALF_WIDTH
+                width: 12,
+                height: 20,
+                borderRadius: 2,
               }
             ]}
             {...endHandlePR.panHandlers}
@@ -667,13 +679,13 @@ export default function YoutubePlayerScreen() {
         }}
       >
         {/* A/B Loop region band */}
-        {loopStartSec !== null && loopEndSec !== null && abBarWidth > 0 && musicTrack && (
+        {loopStartSec !== null && loopEndSec !== null && abBarWidth > 0 && durationSec > 0 && (
           <View 
             style={[
               styles.abLoopRegion,
               {
-                left: (loopStartSec / (musicTrack.duration_ms / 1000)) * abBarWidth + 12, // SLIDER_INSET
-                width: ((loopEndSec - loopStartSec) / (musicTrack.duration_ms / 1000)) * abBarWidth,
+                left: (loopStartSec / durationSec) * abBarWidth + 12, // SLIDER_INSET
+                width: ((loopEndSec - loopStartSec) / durationSec) * abBarWidth,
               }
             ]}
             pointerEvents="none"
@@ -683,7 +695,7 @@ export default function YoutubePlayerScreen() {
         <Slider
           style={styles.slider}
           minimumValue={0}
-          maximumValue={musicTrack ? musicTrack.duration_ms / 1000 : 1}
+          maximumValue={durationSec || 1}
           value={playbackPositionSec}
           onSlidingComplete={(value) => {
             playerRef.current?.seekTo(value);
@@ -695,25 +707,31 @@ export default function YoutubePlayerScreen() {
         />
         
         {/* A/B Loop handles */}
-        {loopStartSec !== null && abBarWidth > 0 && musicTrack && (
+        {loopStartSec !== null && abBarWidth > 0 && durationSec > 0 && (
           <View
             style={[
               styles.abLoopHandle,
               styles.abLoopHandleStart,
               {
-                left: (loopStartSec / (musicTrack.duration_ms / 1000)) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                left: (loopStartSec / durationSec) * abBarWidth + 12 - 5, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                width: 12,
+                height: 20,
+                borderRadius: 2,
               }
             ]}
           />
         )}
         
-        {loopEndSec !== null && abBarWidth > 0 && musicTrack && (
+        {loopEndSec !== null && abBarWidth > 0 && durationSec > 0 && (
           <View
             style={[
               styles.abLoopHandle,
               styles.abLoopHandleEnd,
               {
-                left: (loopEndSec / (musicTrack.duration_ms / 1000)) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                left: (loopEndSec / durationSec) * abBarWidth + 12 - 5, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                width: 12,
+                height: 20,
+                borderRadius: 2,
               }
             ]}
           />
@@ -1001,22 +1019,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 15,
     height: 10,
-    backgroundColor: 'rgba(125,185,168,0.3)',
+    backgroundColor: theme.light.amber + '60',
     borderRadius: 2,
   },
   abLoopHandle: {
     position: 'absolute',
-    top: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    top: 10,
+    width: 12,
+    height: 20,
+    borderRadius: 6,
     zIndex: 10,
   },
   abLoopHandleStart: {
-    backgroundColor: theme.accent,
+    backgroundColor: theme.light.amber,
   },
   abLoopHandleEnd: {
-    backgroundColor: theme.accent,
+    backgroundColor: theme.light.amber,
   },
   abLoopClearBtn: {
     alignSelf: 'flex-start',
@@ -1032,5 +1050,47 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
     fontSize: 14,
     fontWeight: '600',
+  },
+  abProgressBar: {
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
+    marginHorizontal: 12,
+    marginVertical: 8,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  abProgressFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    height: '100%',
+    backgroundColor: theme.light.amber,
+    borderRadius: 20,
+  },
+  abLoopControls: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  controlBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: theme.borderRadius,
+    borderWidth: 1,
+    borderColor: theme.light.amber,
+  },
+  controlBtnText: {
+    color: theme.light.amber,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  slider: {
+    width: '100%',
+    height: 40,
   },
 });

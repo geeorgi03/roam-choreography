@@ -7,6 +7,16 @@ export interface SessionContextValue {
     sessionId: string;
     sessionName: string;
     sessionPhrase: string | null;
+    qualityTarget: {
+        clip_url: string;
+        timestamp_ms: number;
+        source_clip_id: string;
+    } | null;
+    setQualityTarget: (qt: {
+        clip_url: string;
+        timestamp_ms: number;
+        source_clip_id: string;
+    } | null) => void;
     setSessionName: (name: string) => void;
     updateSessionMeta: (meta: {
         name?: string;

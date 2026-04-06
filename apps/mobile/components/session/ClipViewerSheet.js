@@ -39,7 +39,7 @@ const LoopChipRow_1 = __importDefault(require("./LoopChipRow"));
 const colors = theme_1.theme.light;
 const nightColors = theme_1.theme.night;
 exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ onClose }, ref) {
-    const { selectedClipForSheet, activeSheetId, loopRegion, activeSection, sectionClips, setSectionClips, sessionId, jumpToSongMap } = (0, SessionContext_1.useSessionContext)();
+    const { selectedClipForSheet, activeSheetId, loopRegion, activeSection, sectionClips, setSectionClips, sessionId, jumpToSongMap, setQualityTarget } = (0, SessionContext_1.useSessionContext)();
     const { session } = (0, useSession_1.useSession)();
     const videoRef = (0, react_1.useRef)(null);
     const positionMsRef = (0, react_1.useRef)(0);
@@ -51,6 +51,7 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
     const [trimStart, setTrimStart] = (0, react_1.useState)(null);
     const [trimEnd, setTrimEnd] = (0, react_1.useState)(null);
     const [isSavingSegment, setIsSavingSegment] = (0, react_1.useState)(false);
+    const [isSavingMoment, setIsSavingMoment] = (0, react_1.useState)(false);
     const [progressBarWidth, setProgressBarWidth] = (0, react_1.useState)(0);
     const [saveSuccess, setSaveSuccess] = (0, react_1.useState)(false);
     // Coordinator useEffect
@@ -78,6 +79,35 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
     };
     const handleSpeedToggle = () => {
         setClipSpeed(prev => prev === 1 ? 0.5 : 1);
+    };
+    const handleSetMoment = async () => {
+        if (!selectedClipForSheet?.mux_playback_id || !session?.access_token)
+            return;
+        setIsSavingMoment(true);
+        try {
+            const clip_url = `https://stream.mux.com/${selectedClipForSheet.mux_playback_id}.m3u8`;
+            const timestamp_ms = positionMsRef.current;
+            const source_clip_id = selectedClipForSheet.server_id;
+            const response = await fetch(`${api_1.API_BASE}/sessions/${sessionId}/quality-target`, {
+                method: 'PATCH',
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ clip_url, timestamp_ms, source_clip_id }),
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setQualityTarget(data.quality_target);
+                onClose();
+            }
+        }
+        catch (error) {
+            console.error('Failed to set quality target:', error);
+        }
+        finally {
+            setIsSavingMoment(false);
+        }
     };
     const handleLoopChipPress = (start) => {
         if (videoRef.current) {
@@ -287,8 +317,8 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
             </react_native_1.Text>
           </react_native_1.TouchableOpacity>
 
-          <react_native_1.TouchableOpacity style={styles.momentButton} onPress={jumpToSongMap}>
-            <react_native_1.Text style={styles.momentButtonText}>the moment →</react_native_1.Text>
+          <react_native_1.TouchableOpacity style={styles.momentButton} onPress={handleSetMoment}>
+            <react_native_1.Text style={styles.momentButtonText}>{isSavingMoment ? 'saving...' : 'the moment →'}</react_native_1.Text>
           </react_native_1.TouchableOpacity>
           
           {/* Trim controls */}

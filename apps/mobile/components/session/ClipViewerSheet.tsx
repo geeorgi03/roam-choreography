@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, PanResponder } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, PanResponder, Alert } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Video, AVPlaybackStatus } from 'expo-av';
 import { SectionClip, Loop } from '@roam/types';
@@ -68,7 +68,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
   };
 
   const handleSetMoment = async () => {
-    if (!selectedClipForSheet?.mux_playback_id || !session?.access_token) return;
+    if (!selectedClipForSheet?.mux_playback_id || !selectedClipForSheet.server_id || !session?.access_token) return;
     
     setIsSavingMoment(true);
     
@@ -90,8 +90,11 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
         const data = await response.json();
         setQualityTarget(data.quality_target);
         onClose();
+      } else {
+        Alert.alert('Save failed', await response.text());
       }
     } catch (error) {
+      Alert.alert('Save failed', 'Clip must be synced first.');
       console.error('Failed to set quality target:', error);
     } finally {
       setIsSavingMoment(false);
@@ -369,7 +372,14 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.momentButton} onPress={handleSetMoment}>
+          <TouchableOpacity 
+            style={[
+              styles.momentButton,
+              (!selectedClipForSheet?.server_id || isSavingMoment) && styles.momentButtonDisabled
+            ]} 
+            onPress={handleSetMoment}
+            disabled={!selectedClipForSheet?.server_id || isSavingMoment}
+          >
             <Text style={styles.momentButtonText}>{isSavingMoment ? 'saving...' : 'the moment →'}</Text>
           </TouchableOpacity>
           
@@ -557,6 +567,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  momentButtonDisabled: {
+    opacity: 0.5,
   },
   momentButtonText: {
     color: colors.amber,

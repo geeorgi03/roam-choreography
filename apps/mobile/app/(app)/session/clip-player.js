@@ -181,6 +181,7 @@ function ClipPlayerScreen() {
     const [durationMillis, setDurationMillis] = (0, react_1.useState)(0);
     const [playing, setPlaying] = (0, react_1.useState)(true);
     const [rate, setRate] = (0, react_1.useState)(1);
+    const [mirrorActive, setMirrorActive] = (0, react_1.useState)(false);
     const [displayClip, setDisplayClip] = (0, react_1.useState)(null);
     const [comments, setComments] = (0, react_1.useState)([]);
     const [feedbackOpen, setFeedbackOpen] = (0, react_1.useState)(false);
@@ -195,6 +196,12 @@ function ClipPlayerScreen() {
     const videoRef = (0, react_1.useRef)(null);
     const tagSheetRef = (0, react_1.useRef)(null);
     const webViewRef = (0, react_1.useRef)(null);
+    // A/B Loop state
+    const [loopStartMs, setLoopStartMs] = (0, react_1.useState)(null);
+    const [loopEndMs, setLoopEndMs] = (0, react_1.useState)(null);
+    const [abBarWidth, setAbBarWidth] = (0, react_1.useState)(0);
+    const loopSeekingRef = (0, react_1.useRef)(false);
+    const barOriginXRef = (0, react_1.useRef)(0);
     const clip = hasSessionContext ? clips[currentIndex] ?? null : null;
     // YouTube detection - prioritize route source_url first, then session clip fallback
     const clipYouTubeId = source_url
@@ -236,6 +243,7 @@ function ClipPlayerScreen() {
             { scale: loupeZoomShared.value },
             { translateX: -(loupeX.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
             { translateY: -(loupeY.value - LOUPE_DIAMETER / 2) * (loupeZoomShared.value - 1) },
+            { scaleX: mirrorActive ? -1 : 1 },
         ],
     }));
     const sourceUrl = source_url || clip?.source_url;
@@ -382,6 +390,12 @@ function ClipPlayerScreen() {
         loupeLastY.current = 0;
         setCapturedFrameDataUrl(null);
     }, [currentIndex]);
+    // Reset mirror on unmount
+    (0, react_1.useEffect)(() => {
+        return () => {
+            setMirrorActive(false);
+        };
+    }, []);
     // Continuous frame capture for YouTube when loupe is active
     (0, react_1.useEffect)(() => {
         if (!loupeActive || !isYouTubeContent || !webViewRef.current)
@@ -414,6 +428,15 @@ function ClipPlayerScreen() {
         if (status.durationMillis)
             setDurationMillis(status.durationMillis);
         setPlaying(status.isPlaying);
+        // A/B Loop enforcement for expo-av
+        if (loopStartMs !== null && loopEndMs !== null && status.positionMillis >= loopEndMs && !loopSeekingRef.current) {
+            loopSeekingRef.current = true;
+            videoRef.current?.setStatusAsync({ positionMillis: loopStartMs }).then(() => {
+                loopSeekingRef.current = false;
+            }).catch(() => {
+                loopSeekingRef.current = false;
+            });
+        }
         // Sync loupe video with main video
         if (loupeVideoRef.current && status.isLoaded) {
             loupeVideoRef.current.setPositionAsync(status.positionMillis).catch(() => { });
@@ -470,24 +493,6 @@ function ClipPlayerScreen() {
             await videoRef.current.setPositionAsync(newPos);
         }
     };
-    const handleSpeedToggle = async () => {
-        if (isYouTubeContent && webViewRef.current) {
-            // YouTube WebView speed control
-            const newRate = rate === 1 ? 0.5 : 1;
-            setRate(newRate);
-            webViewRef.current.injectJavaScript(`
-        if (window.player) {
-          window.player.setPlaybackRate(${newRate});
-        }
-      `);
-        }
-        else if (videoRef.current) {
-            // Regular Video speed control
-            const newRate = rate === 1 ? 0.5 : 1;
-            setRate(newRate);
-            await videoRef.current.setRateAsync(newRate, true);
-        }
-    };
     const handleSliderComplete = async (value) => {
         if (isYouTubeContent && webViewRef.current) {
             // YouTube WebView seek
@@ -501,6 +506,22 @@ function ClipPlayerScreen() {
         else if (videoRef.current) {
             // Regular Video seek
             await videoRef.current.setPositionAsync(value);
+        }
+    };
+    const handleSpeedChange = async (value) => {
+        if (isYouTubeContent && webViewRef.current) {
+            // YouTube WebView speed control
+            setRate(value);
+            webViewRef.current?.injectJavaScript(`
+        if (window.player) {
+          window.player.setPlaybackRate(${value});
+        }
+      `);
+        }
+        else if (videoRef.current) {
+            // Regular Video speed control
+            setRate(value);
+            await videoRef.current.setRateAsync(value, true);
         }
     };
     // Handle WebView messages for YouTube player
@@ -572,6 +593,14 @@ function ClipPlayerScreen() {
                     setYoutubeCurrentTime(message.currentTime);
                     // Update shared position state from YouTube current time
                     setPositionMillis(message.currentTime * 1000);
+                    // A/B Loop enforcement for YouTube
+                    if (loopStartMs !== null && loopEndMs !== null && message.currentTime * 1000 >= loopEndMs) {
+                        webViewRef.current?.injectJavaScript(`
+              if (window.player) {
+                window.player.seekTo(${loopStartMs / 1000});
+              }
+            `);
+                    }
                     break;
                 case 'frameCapture':
                     if (message.dataUrl) {
@@ -736,6 +765,64 @@ function ClipPlayerScreen() {
     const composedGesture = Gesture.Simultaneous(singleFingerPan);
     // Compose loupe gestures (pinch and two-finger pan)
     const loupeGesture = Gesture.Simultaneous(pinchGesture, twoFingerPan);
+    // A/B Loop PanResponder factory
+    const makeHandlePanResponder = (0, react_1.useCallback)((which) => {
+        return react_native_1.PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onPanResponderMove: (_, gestureState) => {
+                if (abBarWidth <= 0 || durationMillis <= 0)
+                    return;
+                const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
+                const ms = ratio * durationMillis;
+                if (which === 'start') {
+                    setLoopStartMs(prev => {
+                        const newVal = ms;
+                        // Enforce start < end
+                        if (loopEndMs !== null && newVal >= loopEndMs) {
+                            return Math.max(0, loopEndMs - 1);
+                        }
+                        return newVal;
+                    });
+                }
+                else {
+                    setLoopEndMs(prev => {
+                        const newVal = ms;
+                        // Enforce end > start
+                        if (loopStartMs !== null && newVal <= loopStartMs) {
+                            return Math.min(durationMillis, loopStartMs + 1);
+                        }
+                        return newVal;
+                    });
+                }
+            },
+            onPanResponderRelease: (_, gestureState) => {
+                if (abBarWidth <= 0 || durationMillis <= 0)
+                    return;
+                const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
+                const ms = ratio * durationMillis;
+                if (which === 'start') {
+                    setLoopStartMs(prev => {
+                        const newVal = ms;
+                        if (loopEndMs !== null && newVal >= loopEndMs) {
+                            return Math.max(0, loopEndMs - 1);
+                        }
+                        return newVal;
+                    });
+                }
+                else {
+                    setLoopEndMs(prev => {
+                        const newVal = ms;
+                        if (loopStartMs !== null && newVal <= loopStartMs) {
+                            return Math.min(durationMillis, loopStartMs + 1);
+                        }
+                        return newVal;
+                    });
+                }
+            },
+        });
+    }, [abBarWidth, durationMillis, loopStartMs, loopEndMs]);
+    const startHandlePR = useMemo(() => makeHandlePanResponder('start'), [makeHandlePanResponder]);
+    const endHandlePR = useMemo(() => makeHandlePanResponder('end'), [makeHandlePanResponder]);
     const handleTagSaved = (updatedClip) => {
         setDisplayClip(updatedClip);
     };
@@ -898,7 +985,9 @@ function ClipPlayerScreen() {
                 const { width, height } = e.nativeEvent.layout;
                 setFrameSize((prev) => prev.width !== width || prev.height !== height ? { width, height } : prev);
             }}>
-              {isYouTubeContent && youtubeVideoId ? (<react_native_webview_1.WebView ref={webViewRef} source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, youtubeVideoId) }} style={react_native_1.StyleSheet.absoluteFill} onMessage={handleYouTubeWebViewMessage} javaScriptEnabled={true} domStorageEnabled={true} allowsInlineMediaPlayback={true} mediaPlaybackRequiresUserAction={false}/>) : (<expo_av_1.Video key={mux_playback_id} ref={videoRef} source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }} style={react_native_1.StyleSheet.absoluteFill} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.CONTAIN} shouldPlay={playing} onPlaybackStatusUpdate={onPlaybackStatusUpdate}/>)}
+              {isYouTubeContent && youtubeVideoId ? (<react_native_webview_1.WebView ref={webViewRef} source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, youtubeVideoId) }} style={react_native_1.StyleSheet.absoluteFill} onMessage={handleYouTubeWebViewMessage} javaScriptEnabled={true} domStorageEnabled={true} allowsInlineMediaPlayback={true} mediaPlaybackRequiresUserAction={false}/>) : (<react_native_1.View style={[react_native_1.StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorActive ? -1 : 1 }] }]}>
+                  <expo_av_1.Video key={mux_playback_id} ref={videoRef} source={{ uri: `https://stream.mux.com/${mux_playback_id}.m3u8` }} style={react_native_1.StyleSheet.absoluteFill} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.CONTAIN} shouldPlay={playing} onPlaybackStatusUpdate={onPlaybackStatusUpdate}/>
+                </react_native_1.View>)}
             {loupeActive && (<react_native_reanimated_1.default.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
                 <react_native_1.View style={styles.loupeMask}>
                   {isYouTubeContent ? (<>
@@ -937,21 +1026,74 @@ function ClipPlayerScreen() {
           </react_native_1.TouchableOpacity>
 
           <react_native_1.View style={styles.controls}>
+          <react_native_1.View style={styles.sliderWrap} onLayout={(e) => {
+                e.currentTarget.measureInWindow((x, _y, width) => {
+                    barOriginXRef.current = x;
+                    setAbBarWidth(width - 24); // Subtract 12px margin on each side
+                });
+            }}>
+            {/* A/B Loop region band */}
+            {loopStartMs !== null && loopEndMs !== null && abBarWidth > 0 && durationMillis > 0 && (<react_native_1.View style={[
+                    styles.abLoopRegion,
+                    {
+                        left: (loopStartMs / durationMillis) * abBarWidth + 12, // SLIDER_INSET
+                        width: ((loopEndMs - loopStartMs) / durationMillis) * abBarWidth,
+                    }
+                ]} pointerEvents="none"/>)}
+            
             <slider_1.default style={styles.slider} minimumValue={0} maximumValue={durationMillis || 1} value={positionMillis} onSlidingComplete={handleSliderComplete} minimumTrackTintColor={theme_1.theme.textPrimary} maximumTrackTintColor={theme_1.theme.textSecondary} thumbTintColor={theme_1.theme.textPrimary}/>
-            <react_native_1.View style={styles.controlsRow}>
-              <react_native_1.TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
-                <react_native_1.Text style={styles.controlBtnText}>−5s</react_native_1.Text>
-              </react_native_1.TouchableOpacity>
-              <react_native_1.TouchableOpacity onPress={handlePlayPause} style={styles.controlBtn}>
-                <react_native_1.Text style={styles.controlBtnText}>
-                  {playing ? 'Pause' : 'Play'}
-                </react_native_1.Text>
-              </react_native_1.TouchableOpacity>
-              <react_native_1.TouchableOpacity onPress={handleSpeedToggle} style={styles.controlBtn}>
-                <react_native_1.Text style={styles.controlBtnText}>{rate}×</react_native_1.Text>
-              </react_native_1.TouchableOpacity>
-            </react_native_1.View>
+            
+            {/* A/B Loop handles */}
+            {loopStartMs !== null && abBarWidth > 0 && durationMillis > 0 && (<react_native_1.View style={[
+                    styles.abLoopHandle,
+                    styles.abLoopHandleStart,
+                    {
+                        left: (loopStartMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                    }
+                ]} {...startHandlePR.panHandlers}/>)}
+            
+            {loopEndMs !== null && abBarWidth > 0 && durationMillis > 0 && (<react_native_1.View style={[
+                    styles.abLoopHandle,
+                    styles.abLoopHandleEnd,
+                    {
+                        left: (loopEndMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                    }
+                ]} {...endHandlePR.panHandlers}/>)}
           </react_native_1.View>
+          <react_native_1.View style={styles.controlsRow}>
+            <react_native_1.TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
+              <react_native_1.Text style={styles.controlBtnText}>−5s</react_native_1.Text>
+            </react_native_1.TouchableOpacity>
+            <react_native_1.TouchableOpacity onPress={handlePlayPause} style={styles.controlBtn}>
+              <react_native_1.Text style={styles.controlBtnText}>
+                {playing ? 'Pause' : 'Play'}
+              </react_native_1.Text>
+            </react_native_1.TouchableOpacity>
+            <react_native_1.View style={styles.speedRow}>
+              <slider_1.default minimumValue={0.25} maximumValue={2} step={0} value={rate} onValueChange={handleSpeedChange} minimumTrackTintColor={theme_1.theme.accent} maximumTrackTintColor={theme_1.theme.textSecondary} thumbTintColor={theme_1.theme.accent} style={styles.speedSlider}/>
+              <react_native_1.Text style={styles.speedLabel}>{rate.toFixed(2)}×</react_native_1.Text>
+            </react_native_1.View>
+            <react_native_1.TouchableOpacity onPress={() => setMirrorActive((v) => !v)} style={[styles.controlBtn, mirrorActive && styles.mirrorBtnActive]}>
+              <react_native_1.Text style={styles.controlBtnText}>↔</react_native_1.Text>
+            </react_native_1.TouchableOpacity>
+            
+            {/* A/B Loop controls */}
+            <react_native_1.TouchableOpacity onPress={() => setLoopStartMs(positionMillis)} style={styles.controlBtn}>
+              <react_native_1.Text style={styles.controlBtnText}>Set A</react_native_1.Text>
+            </react_native_1.TouchableOpacity>
+            <react_native_1.TouchableOpacity onPress={() => setLoopEndMs(positionMillis)} style={styles.controlBtn}>
+              <react_native_1.Text style={styles.controlBtnText}>Set B</react_native_1.Text>
+            </react_native_1.TouchableOpacity>
+          </react_native_1.View>
+          
+          {/* A/B Loop clear button */}
+          {(loopStartMs !== null || loopEndMs !== null) && (<react_native_1.TouchableOpacity onPress={() => {
+                    setLoopStartMs(null);
+                    setLoopEndMs(null);
+                }} style={styles.abLoopClearBtn}>
+              <react_native_1.Text style={styles.abLoopClearBtnText}>✕ Loop</react_native_1.Text>
+            </react_native_1.TouchableOpacity>)}
+        </react_native_1.View>
 
           <react_native_1.View style={styles.tagsRow}>
             {librarySection ? (<react_native_1.View style={styles.contextPill}>
@@ -998,12 +1140,14 @@ function ClipPlayerScreen() {
             const { width, height } = e.nativeEvent.layout;
             setFrameSize((prev) => (prev.width !== width || prev.height !== height ? { width, height } : prev));
         }}>
-            {isYouTubeContent && youtubeVideoId ? (<react_native_webview_1.WebView ref={webViewRef} source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, youtubeVideoId) }} style={react_native_1.StyleSheet.absoluteFill} onMessage={handleYouTubeWebViewMessage} javaScriptEnabled={true} domStorageEnabled={true} allowsInlineMediaPlayback={true} mediaPlaybackRequiresUserAction={false}/>) : (<expo_av_1.Video key={clip.local_id} ref={videoRef} source={{ uri: `https://stream.mux.com/${clip.mux_playback_id}.m3u8` }} style={react_native_1.StyleSheet.absoluteFill} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.CONTAIN} shouldPlay={playing} onPlaybackStatusUpdate={onPlaybackStatusUpdate} onReadyForDisplay={(e) => {
+            {isYouTubeContent && youtubeVideoId ? (<react_native_webview_1.WebView ref={webViewRef} source={{ html: CAPTURE_WEBVIEW_HTML.replace(/VIDEO_ID_PLACEHOLDER/g, youtubeVideoId) }} style={react_native_1.StyleSheet.absoluteFill} onMessage={handleYouTubeWebViewMessage} javaScriptEnabled={true} domStorageEnabled={true} allowsInlineMediaPlayback={true} mediaPlaybackRequiresUserAction={false}/>) : (<react_native_1.View style={[react_native_1.StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorActive ? -1 : 1 }] }]}>
+                <expo_av_1.Video key={clip.local_id} ref={videoRef} source={{ uri: `https://stream.mux.com/${clip.mux_playback_id}.m3u8` }} style={react_native_1.StyleSheet.absoluteFill} useNativeControls={false} resizeMode={expo_av_1.ResizeMode.CONTAIN} shouldPlay={playing} onPlaybackStatusUpdate={onPlaybackStatusUpdate} onReadyForDisplay={(e) => {
                 const ns = e?.naturalSize;
                 if (!ns?.width || !ns?.height)
                     return;
                 setVideoNaturalSize((prev) => prev?.width === ns.width && prev?.height === ns.height ? prev : { width: ns.width, height: ns.height });
-            }}/>)}
+            }}/>
+              </react_native_1.View>)}
           {loupeActive && (<react_native_reanimated_1.default.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
               <react_native_1.View style={styles.loupeMask}>
                 {isYouTubeContent ? (<>
@@ -1092,7 +1236,12 @@ function ClipPlayerScreen() {
           </react_native_1.View>)}
 
         <react_native_1.View style={styles.controls}>
-          <react_native_1.View style={styles.sliderWrap}>
+          <react_native_1.View style={styles.sliderWrap} onLayout={(e) => {
+            e.currentTarget.measureInWindow((x, _y, width) => {
+                barOriginXRef.current = x;
+                setAbBarWidth(width - 24); // Subtract 12px margin on each side
+            });
+        }}>
             {(comments.length > 0 || annotations.length > 0) && durationMillis > 0 && (<react_native_1.View style={styles.commentMarkers} pointerEvents="box-none">
                 {comments.map((c) => {
                 const ratio = c.timecode_ms / durationMillis;
@@ -1109,7 +1258,34 @@ function ClipPlayerScreen() {
                     ]} onPress={() => handleAnnotationMarkerPress(a.timecode_ms)}/>);
             })}
               </react_native_1.View>)}
+            
+            {/* A/B Loop region band */}
+            {loopStartMs !== null && loopEndMs !== null && abBarWidth > 0 && durationMillis > 0 && (<react_native_1.View style={[
+                styles.abLoopRegion,
+                {
+                    left: (loopStartMs / durationMillis) * abBarWidth + 12, // SLIDER_INSET
+                    width: ((loopEndMs - loopStartMs) / durationMillis) * abBarWidth,
+                }
+            ]} pointerEvents="none"/>)}
+            
             <slider_1.default style={styles.slider} minimumValue={0} maximumValue={durationMillis || 1} value={positionMillis} onSlidingComplete={handleSliderComplete} minimumTrackTintColor={theme_1.theme.textPrimary} maximumTrackTintColor={theme_1.theme.textSecondary} thumbTintColor={theme_1.theme.textPrimary}/>
+            
+            {/* A/B Loop handles */}
+            {loopStartMs !== null && abBarWidth > 0 && durationMillis > 0 && (<react_native_1.View style={[
+                styles.abLoopHandle,
+                styles.abLoopHandleStart,
+                {
+                    left: (loopStartMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                }
+            ]} {...startHandlePR.panHandlers}/>)}
+            
+            {loopEndMs !== null && abBarWidth > 0 && durationMillis > 0 && (<react_native_1.View style={[
+                styles.abLoopHandle,
+                styles.abLoopHandleEnd,
+                {
+                    left: (loopEndMs / durationMillis) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                }
+            ]} {...endHandlePR.panHandlers}/>)}
           </react_native_1.View>
           <react_native_1.View style={styles.controlsRow}>
             <react_native_1.TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
@@ -1120,10 +1296,32 @@ function ClipPlayerScreen() {
                 {playing ? 'Pause' : 'Play'}
               </react_native_1.Text>
             </react_native_1.TouchableOpacity>
-            <react_native_1.TouchableOpacity onPress={handleSpeedToggle} style={styles.controlBtn}>
-              <react_native_1.Text style={styles.controlBtnText}>{rate}×</react_native_1.Text>
+            <react_native_1.View style={styles.speedRow}>
+              <slider_1.default minimumValue={0.25} maximumValue={2} step={0} value={rate} onValueChange={handleSpeedChange} minimumTrackTintColor={theme_1.theme.accent} maximumTrackTintColor={theme_1.theme.textSecondary} thumbTintColor={theme_1.theme.accent} style={styles.speedSlider}/>
+              <react_native_1.Text style={styles.speedLabel}>{rate.toFixed(2)}×</react_native_1.Text>
+            </react_native_1.View>
+            <react_native_1.TouchableOpacity onPress={() => setMirrorActive((v) => !v)} style={[styles.controlBtn, mirrorActive && styles.mirrorBtnActive]}>
+              <react_native_1.Text style={styles.controlBtnText}>↔</react_native_1.Text>
             </react_native_1.TouchableOpacity>
+            
+            {/* A/B Loop controls */}
+            {!annotationMode && (<>
+                <react_native_1.TouchableOpacity onPress={() => setLoopStartMs(positionMillis)} style={styles.controlBtn}>
+                  <react_native_1.Text style={styles.controlBtnText}>Set A</react_native_1.Text>
+                </react_native_1.TouchableOpacity>
+                <react_native_1.TouchableOpacity onPress={() => setLoopEndMs(positionMillis)} style={styles.controlBtn}>
+                  <react_native_1.Text style={styles.controlBtnText}>Set B</react_native_1.Text>
+                </react_native_1.TouchableOpacity>
+              </>)}
           </react_native_1.View>
+          
+          {/* A/B Loop clear button */}
+          {(loopStartMs !== null || loopEndMs !== null) && (<react_native_1.TouchableOpacity onPress={() => {
+                setLoopStartMs(null);
+                setLoopEndMs(null);
+            }} style={styles.abLoopClearBtn}>
+              <react_native_1.Text style={styles.abLoopClearBtnText}>✕ Loop</react_native_1.Text>
+            </react_native_1.TouchableOpacity>)}
         </react_native_1.View>
 
         <react_native_1.View style={styles.tagsRow}>
@@ -1218,18 +1416,25 @@ const styles = react_native_1.StyleSheet.create({
     },
     controlsRow: {
         flexDirection: 'row',
-        justifyContent: 'center',
+        alignItems: 'center',
         gap: 24,
         marginTop: 8,
     },
     controlBtn: {
+        minHeight: 44,
         paddingVertical: 8,
         paddingHorizontal: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     controlBtnText: {
         color: theme_1.theme.textPrimary,
         fontSize: 16,
         fontWeight: '600',
+    },
+    mirrorBtnActive: {
+        backgroundColor: theme_1.theme.accent,
+        borderRadius: theme_1.theme.borderRadius,
     },
     tagsRow: {
         position: 'absolute',
@@ -1467,6 +1672,58 @@ const styles = react_native_1.StyleSheet.create({
     loupeRestoreBtnText: {
         color: '#fff',
         fontSize: 20,
+    },
+    speedRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        gap: 8,
+    },
+    speedSlider: {
+        flex: 1,
+        height: 40,
+    },
+    speedLabel: {
+        color: theme_1.theme.textPrimary,
+        fontSize: 14,
+        fontWeight: '600',
+        minWidth: 40,
+        textAlign: 'right',
+    },
+    // A/B Loop styles
+    abLoopRegion: {
+        position: 'absolute',
+        top: 16,
+        height: 4,
+        backgroundColor: theme_1.theme.light.amber + '60', // semi-transparent
+        borderRadius: 2,
+        pointerEvents: 'none',
+    },
+    abLoopHandle: {
+        position: 'absolute',
+        top: 10,
+        width: 12,
+        height: 20,
+        borderRadius: 3,
+        backgroundColor: theme_1.theme.light.amber,
+        zIndex: 5,
+    },
+    abLoopHandleStart: {
+    // Start handle specific styles if needed
+    },
+    abLoopHandleEnd: {
+    // End handle specific styles if needed
+    },
+    abLoopClearBtn: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        marginTop: 8,
+        alignSelf: 'flex-start',
+    },
+    abLoopClearBtnText: {
+        color: theme_1.theme.light.amber,
+        fontSize: 12,
+        fontWeight: '600',
     },
 });
 //# sourceMappingURL=clip-player.js.map

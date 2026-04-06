@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getActiveSessionId = exports.setActiveSessionId = exports.setSessionMode = exports.getSessionMode = exports.setLoupeState = exports.getLoupeState = exports.setTusUrls = exports.getTusUrls = exports.setUploadQueue = exports.getUploadQueue = exports.storage = void 0;
+exports.getActiveSectionId = exports.setActiveSectionId = exports.getActiveSection = exports.setActiveSection = exports.getActiveSessionId = exports.setActiveSessionId = exports.setSessionMode = exports.getSessionMode = exports.setLoupeState = exports.getLoupeState = exports.setTusUrls = exports.getTusUrls = exports.setUploadQueue = exports.getUploadQueue = exports.storage = void 0;
 let storage = null;
 exports.storage = storage;
 try {
@@ -124,6 +124,7 @@ function setSessionMode(sessionId, value) {
 }
 exports.setSessionMode = setSessionMode;
 const ACTIVE_SESSION_ID_KEY = 'active_session_id';
+const ACTIVE_SECTION_PREFIX = 'active_section:';
 function setActiveSessionId(sessionId) {
     if (!storage)
         return;
@@ -136,4 +137,29 @@ function getActiveSessionId() {
     return storage.getString(ACTIVE_SESSION_ID_KEY) ?? null;
 }
 exports.getActiveSessionId = getActiveSessionId;
+function setActiveSection(sessionId, section) {
+    if (!storage)
+        return;
+    storage.set(`${ACTIVE_SECTION_PREFIX}${sessionId}`, section);
+}
+exports.setActiveSection = setActiveSection;
+function getActiveSection(sessionId) {
+    if (!storage)
+        return null;
+    return storage.getString(`${ACTIVE_SECTION_PREFIX}${sessionId}`) ?? null;
+}
+exports.getActiveSection = getActiveSection;
+const ACTIVE_SECTION_ID_KEY = 'active_section_id';
+function setActiveSectionId(sectionId) {
+    if (!storage)
+        return;
+    storage.set(ACTIVE_SECTION_ID_KEY, sectionId);
+}
+exports.setActiveSectionId = setActiveSectionId;
+function getActiveSectionId() {
+    if (!storage)
+        return null;
+    return storage.getString(ACTIVE_SECTION_ID_KEY) ?? null;
+}
+exports.getActiveSectionId = getActiveSectionId;
 //# sourceMappingURL=storage.js.map

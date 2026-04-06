@@ -11,7 +11,8 @@ export declare function useShareIntent(): {
     pendingShareMeta: OEmbedMetadata | null;
     clearPendingShare: () => void;
     getPendingShare: () => PendingShare | null;
-    createRefClip: (sessionId: string, url: string, meta: OEmbedMetadata) => Promise<any>;
+    createRefClip: (sessionId: string, url: string, meta: OEmbedMetadata, activeSection?: string) => Promise<any>;
+    handleShareUrl: (url: string, activeSection?: string) => Promise<void>;
 };
 export {};
 //# sourceMappingURL=useShareIntent.d.ts.map

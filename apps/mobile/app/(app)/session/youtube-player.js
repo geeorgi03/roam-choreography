@@ -27,6 +27,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const react_native_1 = require("react-native");
+const slider_1 = __importDefault(require("@react-native-community/slider"));
 const expo_router_1 = require("expo-router");
 const react_1 = require("react");
 const react_native_youtube_iframe_1 = __importDefault(require("react-native-youtube-iframe"));
@@ -89,9 +90,18 @@ function YoutubePlayerScreen() {
     const [editingSection, setEditingSection] = (0, react_1.useState)(null);
     const [saving, setSaving] = (0, react_1.useState)(false);
     const [playerState, setPlayerState] = (0, react_1.useState)('unstarted');
+    const [mirrorActive, setMirrorActive] = (0, react_1.useState)(false);
     const playerRef = (0, react_1.useRef)(null);
     const pollIntervalRef = (0, react_1.useRef)(null);
     const [frameSize, setFrameSize] = (0, react_1.useState)({ width: 0, height: 0 });
+    // A/B Loop state
+    const [loopStartSec, setLoopStartSec] = (0, react_1.useState)(null);
+    const [loopEndSec, setLoopEndSec] = (0, react_1.useState)(null);
+    const [abBarWidth, setAbBarWidth] = (0, react_1.useState)(0);
+    const [durationSec, setDurationSec] = (0, react_1.useState)(0);
+    const barOriginXRef = (0, react_1.useRef)(0);
+    const loopSeekingRef = (0, react_1.useRef)(false);
+    const [speed, setSpeed] = (0, react_1.useState)(1);
     // Loupe state
     const [loupeActive, setLoupeActive] = (0, react_1.useState)(false);
     const [loupeZoom, setLoupeZoom] = (0, react_1.useState)(2.5);
@@ -137,8 +147,17 @@ function YoutubePlayerScreen() {
         const poll = async () => {
             try {
                 const sec = await playerRef.current?.getCurrentTime();
-                if (typeof sec === 'number')
+                if (typeof sec === 'number') {
                     setPlaybackPositionSec(sec);
+                    // A/B Loop enforcement for YouTube
+                    if (loopStartSec !== null && loopEndSec !== null && sec >= loopEndSec && !loopSeekingRef.current) {
+                        loopSeekingRef.current = true;
+                        playerRef.current?.seekTo(loopStartSec);
+                        setTimeout(() => {
+                            loopSeekingRef.current = false;
+                        }, 100);
+                    }
+                }
             }
             catch {
                 // ignore
@@ -229,6 +248,12 @@ function YoutubePlayerScreen() {
         loupeLastX.current = 0;
         loupeLastY.current = 0;
     }, [videoId]);
+    // Reset mirror on unmount
+    (0, react_1.useEffect)(() => {
+        return () => {
+            setMirrorActive(false);
+        };
+    }, []);
     // Initialize loupe position to center of video container only if no saved state exists
     (0, react_1.useEffect)(() => {
         if (frameSize.width > 0 && frameSize.height > 0) {
@@ -241,6 +266,81 @@ function YoutubePlayerScreen() {
             }
         }
     }, [frameSize, loupePersistKey]);
+    // Capture duration when player becomes ready
+    (0, react_1.useEffect)(() => {
+        if (playerState === 'playing' && durationSec === 0) {
+            const getDuration = async () => {
+                try {
+                    const duration = await playerRef.current?.getDuration();
+                    if (typeof duration === 'number') {
+                        setDurationSec(duration);
+                    }
+                }
+                catch {
+                    // ignore
+                }
+            };
+            getDuration();
+        }
+    }, [playerState, durationSec]);
+    // A/B Loop PanResponder factory
+    const makeHandlePanResponder = useCallback((which) => {
+        return react_native_1.PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onPanResponderMove: (_, gestureState) => {
+                if (abBarWidth <= 0 || durationSec <= 0)
+                    return;
+                const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
+                const sec = ratio * durationSec;
+                if (which === 'start') {
+                    setLoopStartSec(prev => {
+                        const newVal = sec;
+                        // Enforce start < end
+                        if (loopEndSec !== null && newVal >= loopEndSec) {
+                            return Math.max(0, loopEndSec - 0.1);
+                        }
+                        return newVal;
+                    });
+                }
+                else {
+                    setLoopEndSec(prev => {
+                        const newVal = sec;
+                        // Enforce end > start
+                        if (loopStartSec !== null && newVal <= loopStartSec) {
+                            return Math.min(durationSec, loopStartSec + 0.1);
+                        }
+                        return newVal;
+                    });
+                }
+            },
+            onPanResponderRelease: (_, gestureState) => {
+                if (abBarWidth <= 0 || durationSec <= 0)
+                    return;
+                const ratio = Math.max(0, Math.min(1, (gestureState.moveX - barOriginXRef.current) / abBarWidth));
+                const sec = ratio * durationSec;
+                if (which === 'start') {
+                    setLoopStartSec(prev => {
+                        const newVal = sec;
+                        if (loopEndSec !== null && newVal >= loopEndSec) {
+                            return Math.max(0, loopEndSec - 0.1);
+                        }
+                        return newVal;
+                    });
+                }
+                else {
+                    setLoopEndSec(prev => {
+                        const newVal = sec;
+                        if (loopStartSec !== null && newVal <= loopStartSec) {
+                            return Math.min(durationSec, loopStartSec + 0.1);
+                        }
+                        return newVal;
+                    });
+                }
+            },
+        });
+    }, [abBarWidth, durationSec, loopStartSec, loopEndSec]);
+    const startHandlePR = useMemo(() => makeHandlePanResponder('start'), [makeHandlePanResponder]);
+    const endHandlePR = useMemo(() => makeHandlePanResponder('end'), [makeHandlePanResponder]);
     const addSectionAtPlayhead = () => {
         const start_ms = playbackPositionSec * 1000;
         setSections((prev) => [...prev, { label: 'Section', start_ms }]);
@@ -275,6 +375,10 @@ function YoutubePlayerScreen() {
                 console.warn(e);
             setSaving(false);
         }
+    };
+    const handleSpeedChange = (value) => {
+        playerRef.current?.setPlaybackRate(value);
+        setSpeed(value);
     };
     // JS-thread helpers for gesture callbacks
     const activateLoupe = (0, react_native_reanimated_1.runOnJS)((zoom, x, y) => {
@@ -350,9 +454,11 @@ function YoutubePlayerScreen() {
             const { width, height } = e.nativeEvent.layout;
             setFrameSize((prev) => (prev.width !== width || prev.height !== height ? { width, height } : prev));
         }}>
-          <react_native_youtube_iframe_1.default ref={playerRef} height={220} videoId={videoId} onChangeState={(state) => {
+          <react_native_1.View style={[react_native_1.StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorActive ? -1 : 1 }] }]}>
+            <react_native_youtube_iframe_1.default ref={playerRef} height={220} videoId={videoId} onChangeState={(state) => {
             setPlayerState(state);
         }}/>
+          </react_native_1.View>
           {loupeActive && (<react_native_reanimated_1.default.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
               <react_native_1.View style={styles.loupeMask}>
                 {capturedFrame ? (<react_native_1.View style={[styles.loupeOverlay, loupeOverlayAnimatedStyle]}>
@@ -388,6 +494,130 @@ function YoutubePlayerScreen() {
             </react_native_1.TouchableOpacity>)}
         </react_native_1.View>
       </GestureDetector>
+
+      {/* A/B Loop Progress Bar */}
+      <react_native_1.View style={styles.abProgressBar} onLayout={(e) => {
+            e.currentTarget.measureInWindow((x, _y, width) => {
+                barOriginXRef.current = x;
+                setAbBarWidth(width);
+            });
+        }}>
+        {/* Progress fill */}
+        <react_native_1.View style={[
+            styles.abProgressFill,
+            {
+                width: durationSec > 0 ? (playbackPositionSec / durationSec) * 100 : 0,
+            }
+        ]}/>
+        
+        {/* A/B Loop region band */}
+        {loopStartSec !== null && loopEndSec !== null && abBarWidth > 0 && durationSec > 0 && (<react_native_1.View style={[
+                styles.abLoopRegion,
+                {
+                    left: (loopStartSec / durationSec) * abBarWidth,
+                    width: ((loopEndSec - loopStartSec) / durationSec) * abBarWidth,
+                }
+            ]} pointerEvents="none"/>)}
+        
+        {/* A/B Loop handles */}
+        {loopStartSec !== null && abBarWidth > 0 && durationSec > 0 && (<react_native_1.View style={[
+                styles.abLoopHandle,
+                styles.abLoopHandleStart,
+                {
+                    left: (loopStartSec / durationSec) * abBarWidth - 6, // HANDLE_HALF_WIDTH
+                }
+            ]} {...startHandlePR.panHandlers}/>)}
+        
+        {loopEndSec !== null && abBarWidth > 0 && durationSec > 0 && (<react_native_1.View style={[
+                styles.abLoopHandle,
+                styles.abLoopHandleEnd,
+                {
+                    left: (loopEndSec / durationSec) * abBarWidth - 6, // HANDLE_HALF_WIDTH
+                }
+            ]} {...endHandlePR.panHandlers}/>)}
+      </react_native_1.View>
+
+      {/* A/B Loop controls */}
+      <react_native_1.View style={styles.abLoopControls}>
+        <react_native_1.TouchableOpacity onPress={() => setLoopStartSec(playbackPositionSec)} style={styles.controlBtn}>
+          <react_native_1.Text style={styles.controlBtnText}>Set A</react_native_1.Text>
+        </react_native_1.TouchableOpacity>
+        <react_native_1.TouchableOpacity onPress={() => setLoopEndSec(playbackPositionSec)} style={styles.controlBtn}>
+          <react_native_1.Text style={styles.controlBtnText}>Set B</react_native_1.Text>
+        </react_native_1.TouchableOpacity>
+        {(loopStartSec !== null || loopEndSec !== null) && (<react_native_1.TouchableOpacity onPress={() => {
+                setLoopStartSec(null);
+                setLoopEndSec(null);
+            }} style={styles.abLoopClearBtn}>
+            <react_native_1.Text style={styles.abLoopClearBtnText}>✕ Loop</react_native_1.Text>
+          </react_native_1.TouchableOpacity>)}
+      </react_native_1.View>
+
+      <react_native_1.View style={styles.speedRow}>
+        <slider_1.default minimumValue={0.25} maximumValue={2} step={0} value={speed} onValueChange={handleSpeedChange} minimumTrackTintColor={theme_1.theme.accent} maximumTrackTintColor={theme_1.theme.textSecondary} thumbTintColor={theme_1.theme.accent} style={styles.speedSlider}/>
+        <react_native_1.Text style={styles.speedLabel}>{speed.toFixed(2)}×</react_native_1.Text>
+      </react_native_1.View>
+
+      {/* A/B Loop Progress Bar */}
+      <react_native_1.View style={styles.sliderWrap} onLayout={(e) => {
+            e.currentTarget.measureInWindow((x, _y, width) => {
+                barOriginXRef.current = x;
+                setAbBarWidth(width - 24); // Subtract 12px margin on each side
+            });
+        }}>
+        {/* A/B Loop region band */}
+        {loopStartSec !== null && loopEndSec !== null && abBarWidth > 0 && musicTrack && (<react_native_1.View style={[
+                styles.abLoopRegion,
+                {
+                    left: (loopStartSec / (musicTrack.duration_ms / 1000)) * abBarWidth + 12, // SLIDER_INSET
+                    width: ((loopEndSec - loopStartSec) / (musicTrack.duration_ms / 1000)) * abBarWidth,
+                }
+            ]} pointerEvents="none"/>)}
+        
+        <slider_1.default style={styles.slider} minimumValue={0} maximumValue={musicTrack ? musicTrack.duration_ms / 1000 : 1} value={playbackPositionSec} onSlidingComplete={(value) => {
+            playerRef.current?.seekTo(value);
+            setPlaybackPositionSec(value);
+        }} minimumTrackTintColor={theme_1.theme.textPrimary} maximumTrackTintColor={theme_1.theme.textSecondary} thumbTintColor={theme_1.theme.textPrimary}/>
+        
+        {/* A/B Loop handles */}
+        {loopStartSec !== null && abBarWidth > 0 && musicTrack && (<react_native_1.View style={[
+                styles.abLoopHandle,
+                styles.abLoopHandleStart,
+                {
+                    left: (loopStartSec / (musicTrack.duration_ms / 1000)) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                }
+            ]}/>)}
+        
+        {loopEndSec !== null && abBarWidth > 0 && musicTrack && (<react_native_1.View style={[
+                styles.abLoopHandle,
+                styles.abLoopHandleEnd,
+                {
+                    left: (loopEndSec / (musicTrack.duration_ms / 1000)) * abBarWidth + 12 - 6, // SLIDER_INSET - HANDLE_HALF_WIDTH
+                }
+            ]}/>)}
+      </react_native_1.View>
+
+      <react_native_1.View style={styles.videoControlsRow}>
+        <react_native_1.TouchableOpacity onPress={() => setMirrorActive((v) => !v)} style={[styles.videoControlBtn, mirrorActive && styles.mirrorBtnActive]}>
+          <react_native_1.Text style={styles.videoControlBtnText}>↔</react_native_1.Text>
+        </react_native_1.TouchableOpacity>
+        
+        {/* A/B Loop controls */}
+        <react_native_1.TouchableOpacity onPress={() => setLoopStartSec(playbackPositionSec)} style={styles.videoControlBtn}>
+          <react_native_1.Text style={styles.videoControlBtnText}>Set A</react_native_1.Text>
+        </react_native_1.TouchableOpacity>
+        <react_native_1.TouchableOpacity onPress={() => setLoopEndSec(playbackPositionSec)} style={styles.videoControlBtn}>
+          <react_native_1.Text style={styles.videoControlBtnText}>Set B</react_native_1.Text>
+        </react_native_1.TouchableOpacity>
+      </react_native_1.View>
+      
+      {/* A/B Loop clear button */}
+      {(loopStartSec !== null || loopEndSec !== null) && (<react_native_1.TouchableOpacity onPress={() => {
+                setLoopStartSec(null);
+                setLoopEndSec(null);
+            }} style={styles.abLoopClearBtn}>
+          <react_native_1.Text style={styles.abLoopClearBtnText}>✕ Loop</react_native_1.Text>
+        </react_native_1.TouchableOpacity>)}
 
       <react_native_1.View style={styles.sectionsBlock}>
         <react_native_1.Text style={styles.sectionsTitle}>SECTIONS</react_native_1.Text>
@@ -560,6 +790,89 @@ const styles = react_native_1.StyleSheet.create({
     loupeRestoreBtnText: {
         color: '#fff',
         fontSize: 20,
+    },
+    videoControlsRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 24,
+        marginTop: 8,
+        marginBottom: 4,
+    },
+    videoControlBtn: {
+        minWidth: 44,
+        minHeight: 44,
+        paddingVertical: 11,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    videoControlBtnText: {
+        color: theme_1.theme.textPrimary,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    mirrorBtnActive: {
+        backgroundColor: theme_1.theme.accent,
+        borderRadius: theme_1.theme.borderRadius,
+    },
+    speedRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 8,
+        marginBottom: 4,
+    },
+    speedSlider: {
+        flex: 1,
+        height: 40,
+    },
+    speedLabel: {
+        color: theme_1.theme.textPrimary,
+        fontSize: 13,
+        fontWeight: '600',
+        minWidth: 44,
+        textAlign: 'right',
+    },
+    sliderWrap: {
+        width: '100%',
+        position: 'relative',
+        marginTop: 8,
+        marginBottom: 8,
+    },
+    abLoopRegion: {
+        position: 'absolute',
+        top: 15,
+        height: 10,
+        backgroundColor: 'rgba(125,185,168,0.3)',
+        borderRadius: 2,
+    },
+    abLoopHandle: {
+        position: 'absolute',
+        top: 8,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        zIndex: 10,
+    },
+    abLoopHandleStart: {
+        backgroundColor: theme_1.theme.accent,
+    },
+    abLoopHandleEnd: {
+        backgroundColor: theme_1.theme.accent,
+    },
+    abLoopClearBtn: {
+        alignSelf: 'flex-start',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        marginTop: 8,
+        backgroundColor: 'rgba(231,76,60,0.2)',
+        borderRadius: theme_1.theme.borderRadius,
+        borderWidth: 1,
+        borderColor: 'rgba(231,76,60,0.5)',
+    },
+    abLoopClearBtnText: {
+        color: '#e74c3c',
+        fontSize: 14,
+        fontWeight: '600',
     },
 });
 //# sourceMappingURL=youtube-player.js.map

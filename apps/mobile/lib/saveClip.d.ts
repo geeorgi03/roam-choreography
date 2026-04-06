@@ -14,7 +14,7 @@ export type SaveClipResult = {
  * Accepts an optional sectionLabel so the upload queue can create a
  * section_clips association once the server clip_id is known.
  */
-export declare function saveClip(sessionId: string, fileUri: string, label: string, token: string, sectionLabel?: string, dualPairId?: string): Promise<SaveClipResult>;
+export declare function saveClip(sessionId: string, fileUri: string, label: string, token: string, sectionLabel?: string, dualPairId?: string, clipType?: string): Promise<SaveClipResult>;
 /**
  * Persists an inbox clip locally and enqueues for upload.
  * The server will create the inbox clip row on first /clips/upload-url call.

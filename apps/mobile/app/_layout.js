@@ -47,6 +47,7 @@ const useSession_1 = require("../lib/hooks/useSession");
 const useShareIntent_1 = require("../lib/hooks/useShareIntent");
 const theme_1 = require("../lib/theme");
 const devBypassAuth_1 = require("../lib/devBypassAuth");
+const api_1 = require("../lib/api");
 let GestureHandlerRootView = null;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -233,7 +234,7 @@ function RootNavigator() {
         if (!session?.access_token || !pendingShareUrl || !pendingShareMeta)
             return;
         try {
-            const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/sessions`, {
+            const response = await fetch(`${api_1.API_BASE}/sessions`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

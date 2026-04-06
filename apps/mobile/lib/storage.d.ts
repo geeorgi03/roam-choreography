@@ -17,4 +17,8 @@ export declare function getSessionMode(sessionId: string): boolean;
 export declare function setSessionMode(sessionId: string, value: boolean): void;
 export declare function setActiveSessionId(sessionId: string): void;
 export declare function getActiveSessionId(): string | null;
+export declare function setActiveSection(sessionId: string, section: string): void;
+export declare function getActiveSection(sessionId: string): string | null;
+export declare function setActiveSectionId(sectionId: string): void;
+export declare function getActiveSectionId(): string | null;
 //# sourceMappingURL=storage.d.ts.map

@@ -43,8 +43,9 @@ function SessionProvider({ sessionId, children }) {
     // State
     const [sessionName, setSessionName] = (0, react_1.useState)('Session');
     const [sessionPhrase, setSessionPhrase] = (0, react_1.useState)(null);
+    const [qualityTarget, setQualityTarget] = (0, react_1.useState)(null);
     const [activeTab, setActiveTab] = (0, react_1.useState)('workbench');
-    const [activeSection, setActiveSection] = (0, react_1.useState)('Section');
+    const [activeSection, setActiveSectionState] = (0, react_1.useState)('Section');
     const [activeMoment, setActiveMoment] = (0, react_1.useState)(null);
     const [isPlaying, setIsPlaying] = (0, react_1.useState)(false);
     const [playheadMs, setPlayheadMs] = (0, react_1.useState)(0);
@@ -83,10 +84,13 @@ function SessionProvider({ sessionId, children }) {
                 const data = await res.json();
                 const name = data.session?.name;
                 const phrase = data.session?.phrase;
+                const quality_target = data.session?.quality_target;
                 if (name)
                     setSessionName(name);
                 if (phrase !== undefined)
                     setSessionPhrase(phrase ?? null);
+                if (quality_target !== undefined)
+                    setQualityTarget(quality_target ?? null);
             }
             catch {
                 // ignore
@@ -193,6 +197,24 @@ function SessionProvider({ sessionId, children }) {
     (0, react_1.useEffect)(() => {
         setSessionModeState((0, storage_1.getSessionMode)(sessionId));
     }, [sessionId]);
+    // Initialize active section from storage
+    (0, react_1.useEffect)(() => {
+        const storedSection = (0, storage_1.getActiveSection)(sessionId);
+        if (storedSection) {
+            setActiveSectionState(storedSection);
+        }
+    }, [sessionId]);
+    // Wrapper function to persist active section changes
+    const setActiveSection = (0, react_1.useCallback)((section) => {
+        setActiveSectionState(section);
+        (0, storage_1.setActiveSection)(sessionId, section);
+    }, [sessionId]);
+    // Wrapper function to handle tab switches and update active section ID
+    const setActiveTabWithSectionTracking = (0, react_1.useCallback)((tab) => {
+        setActiveTab(tab);
+        // Set active section ID based on tab for share intent
+        (0, storage_1.setActiveSectionId)(tab);
+    }, [setActiveTab]);
     // Handlers
     const handlePlayPause = (0, react_1.useCallback)(() => {
         if (!soundRef.current)
@@ -329,10 +351,12 @@ function SessionProvider({ sessionId, children }) {
         sessionId,
         sessionName,
         sessionPhrase,
+        qualityTarget,
+        setQualityTarget,
         setSessionName,
         updateSessionMeta,
         activeTab,
-        setActiveTab,
+        setActiveTab: setActiveTabWithSectionTracking,
         activeSection,
         setActiveSection,
         activeMoment,

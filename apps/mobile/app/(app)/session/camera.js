@@ -28,32 +28,41 @@ const react_native_1 = require("react-native");
 const expo_router_1 = require("expo-router");
 const expo_camera_1 = require("expo-camera");
 const expo_av_1 = require("expo-av");
+const expo_av_2 = require("expo-av");
+const react_native_gesture_handler_1 = require("react-native-gesture-handler");
 const theme_1 = require("../../../lib/theme");
 const QuickSaveSheet_1 = require("../../../components/QuickSaveSheet");
+const useSession_1 = require("../../../lib/hooks/useSession");
+const saveClip_1 = require("../../../lib/saveClip");
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
 function CameraScreen() {
     const { id: sessionId, sectionName } = (0, expo_router_1.useLocalSearchParams)();
     const router = (0, expo_router_1.useRouter)();
+    const { session } = (0, useSession_1.useSession)();
     const cameraRef = (0, react_1.useRef)(null);
     const [cameraPermission, requestCameraPermission] = (0, expo_camera_1.useCameraPermissions)();
     const [micPermission, requestMicPermission] = (0, expo_camera_1.useMicrophonePermissions)();
+    const [audioPermission, requestAudioPermission] = (0, expo_av_2.useAudioPermissions)();
     const [isRecording, setIsRecording] = (0, react_1.useState)(false);
+    const [isVoiceMemoRecording, setIsVoiceMemoRecording] = (0, react_1.useState)(false);
     const [recordedUri, setRecordedUri] = (0, react_1.useState)(null);
-    const [frontRecordedUri, setFrontRecordedUri] = (0, react_1.useState)(null);
     const [dualPairId, setDualPairId] = (0, react_1.useState)(undefined);
     const [dualEnabled, setDualEnabled] = (0, react_1.useState)(false);
     const [showFallbackNotice, setShowFallbackNotice] = (0, react_1.useState)(false);
     const [showRecordErrorNotice, setShowRecordErrorNotice] = (0, react_1.useState)(false);
+    const [voiceMemoNotice, setVoiceMemoNotice] = (0, react_1.useState)(false);
     const recordingPromiseRef = (0, react_1.useRef)(null);
     const frontRecordingPromiseRef = (0, react_1.useRef)(null);
+    const audioRecordingRef = (0, react_1.useRef)(null);
+    const pulseAnim = (0, react_1.useRef)(new react_native_1.Animated.Value(1)).current;
     const quickSaveRef = (0, react_1.useRef)(null);
     const frontCameraRef = (0, react_1.useRef)(null);
     const fpsFramesRef = (0, react_1.useRef)([]);
     const lowFpsStartRef = (0, react_1.useRef)(null);
     const rafRef = (0, react_1.useRef)(null);
     const fallbackTimerRef = (0, react_1.useRef)(null);
-    const recordErrorTimerRef = (0, react_1.useRef)(null);
+    const voiceMemoTimerRef = (0, react_1.useRef)(null);
     const autoOpenQuickSaveRef = (0, react_1.useRef)(false);
     const dualRequestedAtStartRef = (0, react_1.useRef)(false);
     const didAutoFallbackRef = (0, react_1.useRef)(false);
@@ -62,7 +71,9 @@ function CameraScreen() {
             requestCameraPermission();
         if (!micPermission?.granted)
             requestMicPermission();
-    }, [cameraPermission?.granted, micPermission?.granted, requestCameraPermission, requestMicPermission]);
+        if (!audioPermission?.granted)
+            requestAudioPermission();
+    }, [cameraPermission?.granted, micPermission?.granted, audioPermission?.granted, requestCameraPermission, requestMicPermission, requestAudioPermission]);
     const stopFpsMonitor = (0, react_1.useCallback)(() => {
         if (rafRef.current != null) {
             cancelAnimationFrame(rafRef.current);
@@ -140,6 +151,13 @@ function CameraScreen() {
                 clearTimeout(fallbackTimerRef.current);
             if (recordErrorTimerRef.current)
                 clearTimeout(recordErrorTimerRef.current);
+            if (voiceMemoTimerRef.current)
+                clearTimeout(voiceMemoTimerRef.current);
+            // Cleanup audio recording on unmount
+            if (audioRecordingRef.current) {
+                audioRecordingRef.current.stopAndUnloadAsync().catch(() => { });
+                audioRecordingRef.current = null;
+            }
         };
     }, [stopFpsMonitor]);
     const handleRecordPress = async () => {
@@ -259,6 +277,65 @@ function CameraScreen() {
         didAutoFallbackRef.current = false;
         dualRequestedAtStartRef.current = false;
     };
+    const showVoiceMemoNotice = () => {
+        setVoiceMemoNotice(true);
+        if (voiceMemoTimerRef.current)
+            clearTimeout(voiceMemoTimerRef.current);
+        voiceMemoTimerRef.current = setTimeout(() => {
+            setVoiceMemoNotice(false);
+            voiceMemoTimerRef.current = null;
+        }, 2000);
+    };
+    const handleLongPressStateChange = async (event) => {
+        if (isRecording)
+            return; // Guard against video recording conflicts
+        if (event.nativeEvent.state === react_native_gesture_handler_1.State.ACTIVE) {
+            try {
+                const { recording } = await expo_av_1.Audio.Recording.createAsync(expo_av_1.Audio.RecordingOptionsPresets.HIGH_QUALITY);
+                audioRecordingRef.current = recording;
+                setIsVoiceMemoRecording(true);
+                // Start pulsing animation
+                react_native_1.Animated.loop(react_native_1.Animated.sequence([
+                    react_native_1.Animated.timing(pulseAnim, {
+                        toValue: 0.3,
+                        duration: 600,
+                        useNativeDriver: true,
+                    }),
+                    react_native_1.Animated.timing(pulseAnim, {
+                        toValue: 1,
+                        duration: 600,
+                        useNativeDriver: true,
+                    }),
+                ])).start();
+            }
+            catch (error) {
+                console.error('Failed to start voice memo recording:', error);
+            }
+        }
+        else if (event.nativeEvent.state === react_native_gesture_handler_1.State.END ||
+            event.nativeEvent.state === react_native_gesture_handler_1.State.CANCELLED ||
+            event.nativeEvent.state === react_native_gesture_handler_1.State.FAILED) {
+            if (audioRecordingRef.current) {
+                try {
+                    const recording = audioRecordingRef.current;
+                    await recording.stopAndUnloadAsync();
+                    const uri = recording.getURI();
+                    if (uri && session?.access_token && sessionId) {
+                        await (0, saveClip_1.saveClip)(sessionId, uri, 'Voice Memo', session.access_token, sectionName ?? undefined, undefined, 'voice_memo');
+                        showVoiceMemoNotice();
+                    }
+                }
+                catch (error) {
+                    console.error('Failed to save voice memo:', error);
+                }
+                finally {
+                    audioRecordingRef.current = null;
+                    setIsVoiceMemoRecording(false);
+                    pulseAnim.setValue(1);
+                }
+            }
+        }
+    };
     if (!cameraPermission?.granted) {
         return (<react_native_1.View style={styles.container}>
         <react_native_1.Text style={styles.placeholderText}>Camera permission required</react_native_1.Text>
@@ -314,8 +391,17 @@ function CameraScreen() {
       {showFallbackNotice ? (<react_native_1.View style={styles.fallbackNotice}>
           <react_native_1.Text style={styles.fallbackNoticeText}>⚠ performance low - using single capture</react_native_1.Text>
         </react_native_1.View>) : null}
+      {voiceMemoNotice ? (<react_native_1.View style={styles.fallbackNotice}>
+          <react_native_1.Text style={styles.fallbackNoticeText}>🎤 Voice memo saved</react_native_1.Text>
+        </react_native_1.View>) : null}
       <react_native_1.View style={styles.controls}>
-        <react_native_1.TouchableOpacity style={[styles.recordButton, isRecording && styles.recordButtonActive]} onPress={handleRecordPress} activeOpacity={0.8}/>
+        {isVoiceMemoRecording && (<react_native_1.Animated.View style={[styles.voiceMemoIndicator, { opacity: pulseAnim }]}>
+            <react_native_1.View style={styles.voiceMemoDot}/>
+            <react_native_1.Text style={styles.voiceMemoLabel}>🎤 Recording...</react_native_1.Text>
+          </react_native_1.Animated.View>)}
+        <react_native_gesture_handler_1.LongPressGestureHandler onHandlerStateChange={handleLongPressStateChange} minDurationMs={500}>
+          <react_native_1.TouchableOpacity style={[styles.recordButton, isRecording && styles.recordButtonActive]} onPress={handleRecordPress} activeOpacity={0.8}/>
+        </react_native_gesture_handler_1.LongPressGestureHandler>
       </react_native_1.View>
     </react_native_1.View>);
 }
@@ -464,6 +550,29 @@ const styles = react_native_1.StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         gap: 24,
+    },
+    voiceMemoIndicator: {
+        position: 'absolute',
+        bottom: 130,
+        alignSelf: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xxs,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderRadius: spacing.pill,
+        paddingVertical: spacing.xxs,
+        paddingHorizontal: spacing.xs,
+    },
+    voiceMemoDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: colors.capture,
+    },
+    voiceMemoLabel: {
+        fontSize: theme_1.theme.typography.sizes.xs,
+        color: colors.chrome,
+        fontWeight: '600',
     },
 });
 //# sourceMappingURL=camera.js.map

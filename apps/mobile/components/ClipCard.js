@@ -25,7 +25,9 @@ function ClipCard({ clip, onPress, onLongPress, onRetry, commentCount }) {
     const untagged = !tagged;
     return (<react_native_1.TouchableOpacity style={styles.row} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.8}>
       <react_native_1.View style={styles.thumbWrap}>
-        {showThumbnail ? (<react_native_1.Image source={{
+        {clip.clip_type === 'voice_memo' ? (<react_native_1.View style={styles.voiceMemoThumb}>
+            <react_native_1.Text style={styles.voiceMemoIcon}>🎤</react_native_1.Text>
+          </react_native_1.View>) : showThumbnail ? (<react_native_1.Image source={{
                 uri: `https://image.mux.com/${clip.mux_playback_id}/thumbnail.jpg?time=0`,
             }} style={styles.thumb}/>) : (<react_native_1.View style={styles.thumbPlaceholder}>
             <react_native_1.Text style={styles.thumbIcon}>▶</react_native_1.Text>
@@ -96,6 +98,17 @@ const styles = react_native_1.StyleSheet.create({
     thumbIcon: {
         color: theme_1.theme.textSecondary,
         fontSize: 20,
+    },
+    voiceMemoThumb: {
+        width: 56,
+        height: 56,
+        borderRadius: 6,
+        backgroundColor: theme_1.theme.capture,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    voiceMemoIcon: {
+        fontSize: 24,
     },
     main: {
         flex: 1,

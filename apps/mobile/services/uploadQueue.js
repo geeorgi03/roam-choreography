@@ -170,12 +170,14 @@ class UploadQueueService {
                         recorded_at: item.recorded_at,
                         label: item.label,
                         ...(item.dual_pair_id ? { dual_pair_id: item.dual_pair_id } : {}),
+                        ...(item.clip_type ? { clip_type: item.clip_type } : {}),
                     }
                     : {
                         local_id: item.local_id,
                         recorded_at: item.recorded_at,
                         label: item.label,
                         ...(item.dual_pair_id ? { dual_pair_id: item.dual_pair_id } : {}),
+                        ...(item.clip_type ? { clip_type: item.clip_type } : {}),
                     };
                 const res = await fetch(`${api_1.API_BASE}/clips/upload-url`, {
                     method: 'POST',

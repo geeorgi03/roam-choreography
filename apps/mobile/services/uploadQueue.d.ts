@@ -14,6 +14,7 @@ export interface QueueItem {
     /** When set, a section_clips entry will be created server-side after upload. */
     section_label?: string;
     dual_pair_id?: string;
+    clip_type?: string;
 }
 type UploadQueueStatus = QueueItem['status'] | 'processing';
 export interface UploadQueueEvent {
