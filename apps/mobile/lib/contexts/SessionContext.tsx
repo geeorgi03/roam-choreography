@@ -254,7 +254,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   }, [isOnline, sessionId]);
 
   useEffect(() => {
-    if (!sessionId || !clipSeedDoneRef.current) return;
+    if (!sessionId || !hasSeeded.current) return;
     const localSnap = getClipsForSession(sessionId);
     let clipsToPersist: ClipRow[];
     if (clips.length > 0) {
