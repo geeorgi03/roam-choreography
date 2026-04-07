@@ -66,6 +66,7 @@ import type { MusicTrack, SectionEntry } from '@roam/types';
 import { MMKV } from 'react-native-mmkv';
 
 import { API_BASE } from '../../../lib/api';
+import { enqueue, isNetworkError } from '../../../lib/writeQueue';
 
 // Loupe persistence — key: loupe:${videoId} -> { x, y, zoom }
 const loupeStorage = new MMKV({ id: 'loupe-state' });
@@ -404,6 +405,15 @@ export default function YoutubePlayerScreen() {
       if (!res.ok) throw new Error('Save failed');
       router.back();
     } catch (e) {
+      if (isNetworkError(e)) {
+        enqueue({
+          endpoint: `${API_BASE}/sessions/${sessionId}/music`,
+          method: 'PATCH',
+          body: JSON.stringify({ sections }),
+        });
+        router.back();
+        return;
+      }
       if (__DEV__) console.warn(e);
       setSaving(false);
     }

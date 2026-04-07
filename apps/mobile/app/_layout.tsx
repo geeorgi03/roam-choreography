@@ -10,9 +10,8 @@
  */
 const MINIMAL_BOOT_TEST = false;
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AppState, ActivityIndicator, StyleSheet, View, Text, TextInput, TouchableOpacity, Modal, Linking } from 'react-native';
-import { useEffect } from 'react';
 import { Stack, usePathname, useRootNavigationState, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import Toast from 'react-native-toast-message';
@@ -21,8 +20,9 @@ import { useShareIntent } from '../lib/hooks/useShareIntent';
 import { theme } from '../lib/theme';
 import { getDevBypassAuth } from '../lib/devBypassAuth';
 import { API_BASE } from '../lib/api';
-import { drainQueue, getQueueLength } from '../lib/writeQueue';
+import { drainQueue } from '../lib/writeQueue';
 import OfflineBanner from '../components/OfflineBanner';
+import NetInfo from '@react-native-community/netinfo';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -172,6 +172,17 @@ function RootNavigator() {
   const devBypass = getDevBypassAuth();
   const uploadQueueRef = useRef<{ onAppForeground: () => void } | null>(null);
   const splashHiddenRef = useRef(false);
+  const isDrainingQueueRef = useRef(false);
+
+  const drainIfNotDraining = useCallback(async (token: string) => {
+    if (isDrainingQueueRef.current) return;
+    isDrainingQueueRef.current = true;
+    try {
+      await drainQueue(token);
+    } finally {
+      isDrainingQueueRef.current = false;
+    }
+  }, []);
 
   useEffect(() => {
     console.log('[BOOT] 5. RootNavigator mounted');
@@ -234,8 +245,8 @@ function RootNavigator() {
     const sub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
         uploadQueueRef.current?.onAppForeground();
-        if (getQueueLength() > 0 && session?.access_token) {
-          drainQueue(session.access_token).catch(() => {});
+        if (session?.access_token) {
+          drainIfNotDraining(session.access_token).catch(() => {});
         }
       }
     });
@@ -243,6 +254,17 @@ function RootNavigator() {
       cancelled = true;
       sub.remove();
     };
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (state.isConnected && state.isInternetReachable !== false) {
+        if (session?.access_token) {
+          drainIfNotDraining(session.access_token).catch(() => {});
+        }
+      }
+    });
+    return unsubscribe;
   }, [session?.access_token]);
 
   const navReady = !!useRootNavigationState()?.key;
