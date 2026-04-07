@@ -77,10 +77,11 @@ function useNotePins(sessionId) {
         }
         catch (e) {
             if ((0, writeQueue_1.isNetworkError)(e)) {
-                (0, writeQueue_1.enqueueWrite)({
+                (0, writeQueue_1.enqueue)({
                     endpoint: `${api_1.API_BASE}/sessions/${sessionId}/notes`,
                     method: 'POST',
                     body: JSON.stringify(input),
+                    timestamp: Date.now(),
                 });
                 return null;
             }

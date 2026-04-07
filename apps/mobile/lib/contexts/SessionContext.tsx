@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Audio, type AVPlaybackStatus } from 'expo-av';
-import { ClipRow } from '../database';
+import NetInfo from '@react-native-community/netinfo';
+import { ClipRow, getClipsForSession } from '../database';
 import { FormationData, Moment, QualityData, SectionClip } from '@roam/types';
 import { useClips } from '../hooks/useClips';
 import { useMusicTrackStatus } from '../hooks/useMusicTrackStatus';
@@ -112,9 +113,17 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const [selectedClipForSheet, setSelectedClipForSheet] = useState<ClipRow | null>(null);
   const [sectionClips, setSectionClips] = useState<SectionClip[]>([]);
   const [sessionMode, setSessionModeState] = useState<boolean>(() => getSessionMode(sessionId));
+  const [offlineClips, setOfflineClips] = useState<ClipRow[]>([]);
+  const [isOffline, setIsOffline] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   
   // Refs
   const soundRef = useRef<Audio.Sound | null>(null);
+  /** Disk snapshot of clips from MMKV, read before any cache write (hydration). */
+  const diskClipsSnapshotRef = useRef<ClipRow[]>([]);
+  /** True after seed effect has applied cached clips for the current sessionId (avoids write-before-seed overwrite). */
+  const hasSeeded = useRef(false);
+  const prevIsOnlineRef = useRef<boolean | null>(null);
   const activeSheetIdRef = useRef<string | null>(null);
   const wasPlayingBeforeSheetRef = useRef(false);
   
@@ -189,8 +198,74 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
       });
   }, [sessionId, session?.access_token]);
 
+  useLayoutEffect(() => {
+    hasSeeded.current = false;
+    if (!sessionId) {
+      diskClipsSnapshotRef.current = [];
+      setOfflineClips([]);
+      hasSeeded.current = true;
+      return;
+    }
+    const cached = getCachedSession(sessionId);
+    const diskClips =
+      cached && Array.isArray(cached.clips) ? (cached.clips as ClipRow[]) : [];
+    diskClipsSnapshotRef.current = diskClips;
+    setOfflineClips(diskClips.length > 0 ? diskClips : []);
+    hasSeeded.current = true;
+  }, [sessionId]);
+
   useEffect(() => {
-    if (!sessionId) return;
+    let cancelled = false;
+    void NetInfo.fetch().then((state) => {
+      if (!cancelled) {
+        setIsOffline(!state.isConnected);
+        setIsOnline(state.isConnected === true && state.isInternetReachable !== false);
+      }
+    });
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOffline(!state.isConnected);
+      setIsOnline(state.isConnected === true && state.isInternetReachable !== false);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const prev = prevIsOnlineRef.current;
+    prevIsOnlineRef.current = isOnline;
+    if (isOnline && prev === false) {
+      setOfflineClips([]);
+    }
+  }, [isOnline]);
+
+  useEffect(() => {
+    if (!isOffline && clips.length > 0) {
+      setOfflineClips([]);
+    }
+  }, [isOffline, clips.length]);
+
+  useEffect(() => {
+    if (isOnline || !sessionId) return;
+    const cached = getCachedSession(sessionId);
+    const disk = cached && Array.isArray(cached.clips) ? (cached.clips as ClipRow[]) : [];
+    setOfflineClips(disk);
+  }, [isOnline, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || !clipSeedDoneRef.current) return;
+    const localSnap = getClipsForSession(sessionId);
+    let clipsToPersist: ClipRow[];
+    if (clips.length > 0) {
+      clipsToPersist = clips;
+    } else if (localSnap.length > 0) {
+      clipsToPersist = localSnap;
+    } else if (!isOnline && diskClipsSnapshotRef.current.length > 0) {
+      clipsToPersist = diskClipsSnapshotRef.current;
+    } else {
+      clipsToPersist = [];
+    }
     cacheSession(sessionId, {
       session: {
         name: sessionName,
@@ -198,10 +273,11 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
         quality_target: qualityTarget,
       },
       sections: sectionClips,
-      clips: [],
+      clips: clipsToPersist,
       cachedAt: Date.now(),
     });
-  }, [sessionId, sessionName, sessionPhrase, qualityTarget, sectionClips]);
+    diskClipsSnapshotRef.current = clipsToPersist;
+  }, [sessionId, sessionName, sessionPhrase, qualityTarget, sectionClips, clips, isOnline]);
 
   useEffect(() => {
     const path = musicTrack?.storage_path;
@@ -515,7 +591,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setSessionMode,
     
     // Hooks data
-    clips,
+    clips: isOffline && clips.length === 0 ? offlineClips : clips,
     retryClip,
     musicTrack,
     isAnalysing,

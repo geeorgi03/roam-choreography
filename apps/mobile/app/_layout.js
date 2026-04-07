@@ -39,7 +39,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const MINIMAL_BOOT_TEST = false;
 const react_1 = __importStar(require("react"));
 const react_native_1 = require("react-native");
-const react_2 = require("react");
 const expo_router_1 = require("expo-router");
 const SplashScreen = __importStar(require("expo-splash-screen"));
 const react_native_toast_message_1 = __importDefault(require("react-native-toast-message"));
@@ -48,8 +47,9 @@ const useShareIntent_1 = require("../lib/hooks/useShareIntent");
 const theme_1 = require("../lib/theme");
 const devBypassAuth_1 = require("../lib/devBypassAuth");
 const api_1 = require("../lib/api");
-const OfflineBanner_1 = __importDefault(require("../components/OfflineBanner"));
 const writeQueue_1 = require("../lib/writeQueue");
+const OfflineBanner_1 = __importDefault(require("../components/OfflineBanner"));
+const netinfo_1 = __importDefault(require("@react-native-community/netinfo"));
 let GestureHandlerRootView = null;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -118,7 +118,7 @@ function SafeFirstFrame({ children }) {
     const [showRealApp, setShowRealApp] = (0, react_1.useState)(false);
     const [initTimedOut, setInitTimedOut] = (0, react_1.useState)(false);
     const readyRef = (0, react_1.useRef)(false);
-    (0, react_2.useEffect)(() => {
+    (0, react_1.useEffect)(() => {
         console.log('[BOOT] 3. SafeFirstFrame mounted, hiding splash');
         SplashScreen.hideAsync().catch(() => { });
         const minShow = setTimeout(() => {
@@ -163,10 +163,22 @@ function RootNavigator() {
     const devBypass = (0, devBypassAuth_1.getDevBypassAuth)();
     const uploadQueueRef = (0, react_1.useRef)(null);
     const splashHiddenRef = (0, react_1.useRef)(false);
-    (0, react_2.useEffect)(() => {
+    const isDrainingQueueRef = (0, react_1.useRef)(false);
+    const drainIfNotDraining = (0, react_1.useCallback)(async (token) => {
+        if (isDrainingQueueRef.current)
+            return;
+        isDrainingQueueRef.current = true;
+        try {
+            await (0, writeQueue_1.drainQueue)(token);
+        }
+        finally {
+            isDrainingQueueRef.current = false;
+        }
+    }, []);
+    (0, react_1.useEffect)(() => {
         console.log('[BOOT] 5. RootNavigator mounted');
     }, []);
-    (0, react_2.useEffect)(() => {
+    (0, react_1.useEffect)(() => {
         const t = setTimeout(() => {
             if (splashHiddenRef.current)
                 return;
@@ -175,7 +187,7 @@ function RootNavigator() {
         }, SPLASH_MAX_VISIBLE_MS);
         return () => clearTimeout(t);
     }, []);
-    (0, react_2.useEffect)(() => {
+    (0, react_1.useEffect)(() => {
         const t = setTimeout(() => {
             if (loading && !skipToAuth) {
                 console.warn('[BOOT] boot hung >5s (session still loading)');
@@ -184,18 +196,18 @@ function RootNavigator() {
         return () => clearTimeout(t);
     }, [loading, skipToAuth]);
     const readyToHide = !loading || error != null || skipToAuth;
-    (0, react_2.useEffect)(() => {
+    (0, react_1.useEffect)(() => {
         if (!readyToHide || splashHiddenRef.current)
             return;
         splashHiddenRef.current = true;
         SplashScreen.hideAsync().catch(() => { });
     }, [readyToHide]);
-    (0, react_2.useEffect)(() => {
+    (0, react_1.useEffect)(() => {
         const t = setTimeout(() => setShowSkipOption(true), 3000);
         return () => clearTimeout(t);
     }, []);
     // Handle auth deep link (email confirmation, magic link)
-    (0, react_2.useEffect)(() => {
+    (0, react_1.useEffect)(() => {
         const handleUrl = async (url) => {
             if (!url || !url.includes('auth/callback'))
                 return;
@@ -211,7 +223,7 @@ function RootNavigator() {
         const sub = react_native_1.Linking.addEventListener('url', ({ url }) => handleUrl(url));
         return () => sub.remove();
     }, []);
-    (0, react_2.useEffect)(() => {
+    (0, react_1.useEffect)(() => {
         let cancelled = false;
         import('../services/uploadQueue')
             .then(({ uploadQueue }) => {
@@ -225,8 +237,8 @@ function RootNavigator() {
         const sub = react_native_1.AppState.addEventListener('change', (nextState) => {
             if (nextState === 'active') {
                 uploadQueueRef.current?.onAppForeground();
-                if ((0, writeQueue_1.getQueueLength)() > 0 && session?.access_token) {
-                    (0, writeQueue_1.drainQueue)(session.access_token).catch(() => { });
+                if (session?.access_token) {
+                    drainIfNotDraining(session.access_token).catch(() => { });
                 }
             }
         });
@@ -234,6 +246,16 @@ function RootNavigator() {
             cancelled = true;
             sub.remove();
         };
+    }, [session?.access_token]);
+    (0, react_1.useEffect)(() => {
+        const unsubscribe = netinfo_1.default.addEventListener((state) => {
+            if (state.isConnected && state.isInternetReachable !== false) {
+                if (session?.access_token) {
+                    drainIfNotDraining(session.access_token).catch(() => { });
+                }
+            }
+        });
+        return unsubscribe;
     }, [session?.access_token]);
     const navReady = !!(0, expo_router_1.useRootNavigationState)()?.key;
     const handleCreateSessionAndAddClip = async () => {
@@ -271,7 +293,7 @@ function RootNavigator() {
     // Use router.replace inside useEffect — never <Redirect> — to avoid
     // "navigate before mounting Root Layout" errors. Defer by one frame so
     // the navigator container is fully committed before we push a route.
-    (0, react_2.useEffect)(() => {
+    (0, react_1.useEffect)(() => {
         if (!navReady || loading)
             return;
         if (error && !ignoreSessionError)
@@ -312,9 +334,9 @@ function RootNavigator() {
       </react_native_1.View>);
     }
     return (<>
-      <OfflineBanner_1.default />
       <expo_router_1.Stack screenOptions={{ headerShown: false }}/>
       <react_native_toast_message_1.default />
+      <OfflineBanner_1.default />
       
       {pendingShareUrl && (<react_native_1.Modal visible={true} transparent={true} animationType="fade" onRequestClose={clearPendingShare}>
           <react_native_1.View style={modalStyles.overlay}>

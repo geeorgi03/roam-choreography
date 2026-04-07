@@ -355,15 +355,6 @@ function SessionProvider({ sessionId, children }) {
                 body: JSON.stringify(meta),
             });
             if (!res.ok) {
-                const error = new Error(`Failed to update session meta: ${res.status}`);
-                if ((0, writeQueue_1.isNetworkError)(error)) {
-                    (0, writeQueue_1.enqueueWrite)({
-                        endpoint: `${api_1.API_BASE}/sessions/${sessionId}`,
-                        method: 'PATCH',
-                        body: JSON.stringify(meta),
-                    });
-                    return;
-                }
                 setSessionName(snapshotName);
                 setSessionPhrase(snapshotPhrase);
                 return;
@@ -378,10 +369,11 @@ function SessionProvider({ sessionId, children }) {
         }
         catch (error) {
             if ((0, writeQueue_1.isNetworkError)(error)) {
-                (0, writeQueue_1.enqueueWrite)({
+                (0, writeQueue_1.enqueue)({
                     endpoint: `${api_1.API_BASE}/sessions/${sessionId}`,
                     method: 'PATCH',
                     body: JSON.stringify(meta),
+                    timestamp: Date.now(),
                 });
                 return;
             }

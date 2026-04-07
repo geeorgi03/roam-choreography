@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCachedSession = exports.cacheSession = exports.getCachedSessionIndex = void 0;
+exports.getCachedSession = exports.getCachedSessionList = exports.cacheSessionList = exports.cacheSession = exports.getCachedSessionIndex = void 0;
 let sessionCacheStorage = null;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -12,6 +12,7 @@ catch (e) {
 }
 const SESSION_CACHE_INDEX_KEY = 'session-cache:index';
 const SESSION_CACHE_KEY_PREFIX = 'session-cache:';
+const SESSION_LIST_KEY = 'session-cache:list';
 const MAX_CACHED_SESSIONS = 5;
 function getCacheKey(sessionId) {
     return `${SESSION_CACHE_KEY_PREFIX}${sessionId}`;
@@ -58,6 +59,36 @@ function cacheSession(sessionId, payload) {
     }
 }
 exports.cacheSession = cacheSession;
+function cacheSessionList(sessions) {
+    if (!sessionCacheStorage)
+        return;
+    const limited = sessions.slice(0, MAX_CACHED_SESSIONS);
+    sessionCacheStorage.set(SESSION_LIST_KEY, JSON.stringify(limited));
+}
+exports.cacheSessionList = cacheSessionList;
+function getCachedSessionList() {
+    if (!sessionCacheStorage)
+        return [];
+    const raw = sessionCacheStorage.getString(SESSION_LIST_KEY);
+    if (!raw)
+        return [];
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed))
+            return [];
+        return parsed.filter((item) => {
+            return (typeof item === 'object' &&
+                item !== null &&
+                typeof item.id === 'string' &&
+                typeof item.name === 'string' &&
+                typeof item.created_at === 'string');
+        });
+    }
+    catch {
+        return [];
+    }
+}
+exports.getCachedSessionList = getCachedSessionList;
 function getCachedSession(sessionId) {
     if (!sessionCacheStorage || !sessionId)
         return null;

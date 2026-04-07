@@ -39,6 +39,7 @@ const CaptureSheet_1 = require("../../../components/CaptureSheet");
 const ClipShareSheet_1 = require("../../../components/ClipShareSheet");
 const NotePinSheet_1 = require("../../../components/NotePinSheet");
 const ClipViewerSheet_1 = require("../../../components/session/ClipViewerSheet");
+const OfflineBanner_1 = require("../../../components/session/OfflineBanner");
 const theme_1 = require("../../../lib/theme");
 const storage_1 = require("../../../lib/storage");
 const colors = theme_1.theme.light;
@@ -157,6 +158,7 @@ function SessionShellContent() {
             !clip.notes);
     }).length;
     return (<react_native_1.View style={styles.container}>
+      <OfflineBanner_1.OfflineBanner />
       <FeelingStrip_1.FeelingStrip />
       <SessionTabBar_1.SessionTabBar />
       

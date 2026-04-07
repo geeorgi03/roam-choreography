@@ -62,6 +62,7 @@ const useSession_1 = require("../../../lib/hooks/useSession");
 const supabase_1 = require("../../../lib/supabase");
 const react_native_mmkv_1 = require("react-native-mmkv");
 const api_1 = require("../../../lib/api");
+const writeQueue_1 = require("../../../lib/writeQueue");
 // Loupe persistence — key: loupe:${videoId} -> { x, y, zoom }
 const loupeStorage = new react_native_mmkv_1.MMKV({ id: 'loupe-state' });
 // Loupe constants
@@ -373,6 +374,15 @@ function YoutubePlayerScreen() {
             router.back();
         }
         catch (e) {
+            if ((0, writeQueue_1.isNetworkError)(e)) {
+                (0, writeQueue_1.enqueue)({
+                    endpoint: `${api_1.API_BASE}/sessions/${sessionId}/music`,
+                    method: 'PATCH',
+                    body: JSON.stringify({ sections }),
+                });
+                router.back();
+                return;
+            }
             if (__DEV__)
                 console.warn(e);
             setSaving(false);
@@ -496,64 +506,6 @@ function YoutubePlayerScreen() {
             </react_native_1.TouchableOpacity>)}
         </react_native_1.View>
       </GestureDetector>
-
-      {/* A/B Loop Progress Bar */}
-      <react_native_1.View style={styles.abProgressBar} onLayout={(e) => {
-            e.currentTarget.measureInWindow((x, _y, width) => {
-                barOriginXRef.current = x;
-                setAbBarWidth(width);
-            });
-        }}>
-        {/* Progress fill */}
-        <react_native_1.View style={[
-            styles.abProgressFill,
-            {
-                width: durationSec > 0 ? (playbackPositionSec / durationSec) * 100 : 0,
-            }
-        ]}/>
-        
-        {/* A/B Loop region band */}
-        {loopStartSec !== null && loopEndSec !== null && abBarWidth > 0 && durationSec > 0 && (<react_native_1.View style={[
-                styles.abLoopRegion,
-                {
-                    left: (loopStartSec / durationSec) * abBarWidth,
-                    width: ((loopEndSec - loopStartSec) / durationSec) * abBarWidth,
-                }
-            ]} pointerEvents="none"/>)}
-        
-        {/* A/B Loop handles */}
-        {loopStartSec !== null && abBarWidth > 0 && durationSec > 0 && (<react_native_1.View style={[
-                styles.abLoopHandle,
-                styles.abLoopHandleStart,
-                {
-                    left: (loopStartSec / durationSec) * abBarWidth - AB_LOOP_HANDLE_HALF, // HANDLE_HALF_WIDTH
-                }
-            ]} {...startHandlePR.panHandlers}/>)}
-        
-        {loopEndSec !== null && abBarWidth > 0 && durationSec > 0 && (<react_native_1.View style={[
-                styles.abLoopHandle,
-                styles.abLoopHandleEnd,
-                {
-                    left: (loopEndSec / durationSec) * abBarWidth - AB_LOOP_HANDLE_HALF, // HANDLE_HALF_WIDTH
-                }
-            ]} {...endHandlePR.panHandlers}/>)}
-      </react_native_1.View>
-
-      {/* A/B Loop controls */}
-      <react_native_1.View style={styles.abLoopControls}>
-        <react_native_1.TouchableOpacity onPress={() => setLoopStartSec(playbackPositionSec)} style={styles.controlBtn}>
-          <react_native_1.Text style={styles.controlBtnText}>Set A</react_native_1.Text>
-        </react_native_1.TouchableOpacity>
-        <react_native_1.TouchableOpacity onPress={() => setLoopEndSec(playbackPositionSec)} style={styles.controlBtn}>
-          <react_native_1.Text style={styles.controlBtnText}>Set B</react_native_1.Text>
-        </react_native_1.TouchableOpacity>
-        {(loopStartSec !== null || loopEndSec !== null) && (<react_native_1.TouchableOpacity onPress={() => {
-                setLoopStartSec(null);
-                setLoopEndSec(null);
-            }} style={styles.abLoopClearBtn}>
-            <react_native_1.Text style={styles.abLoopClearBtnText}>✕ Loop</react_native_1.Text>
-          </react_native_1.TouchableOpacity>)}
-      </react_native_1.View>
 
       <react_native_1.View style={styles.speedRow}>
         <slider_1.default minimumValue={0.25} maximumValue={2} step={0} value={speed} onValueChange={handleSpeedChange} minimumTrackTintColor={theme_1.theme.accent} maximumTrackTintColor={theme_1.theme.textSecondary} thumbTintColor={theme_1.theme.accent} style={styles.speedSlider}/>
@@ -877,44 +829,6 @@ const styles = react_native_1.StyleSheet.create({
     },
     abLoopClearBtnText: {
         color: '#e74c3c',
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    abProgressBar: {
-        height: 40,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 20,
-        marginHorizontal: 12,
-        marginVertical: 8,
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    abProgressFill: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        height: '100%',
-        backgroundColor: theme_1.theme.light.amber,
-        borderRadius: 20,
-    },
-    abLoopControls: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 12,
-        marginTop: 8,
-        marginBottom: 8,
-    },
-    controlBtn: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: theme_1.theme.borderRadius,
-        borderWidth: 1,
-        borderColor: theme_1.theme.light.amber,
-    },
-    controlBtnText: {
-        color: theme_1.theme.light.amber,
         fontSize: 14,
         fontWeight: '600',
     },

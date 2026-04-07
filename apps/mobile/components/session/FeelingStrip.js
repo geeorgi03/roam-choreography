@@ -29,6 +29,20 @@ const react_native_1 = require("react-native");
 const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const theme_1 = require("../../lib/theme");
 const colors = theme_1.theme.light;
+/** `clip_url` on the session is the Mux playback id; legacy rows may store an HLS URL. */
+function qualityTargetThumbnailUri(clipUrl, timestampMs) {
+    const trimmed = clipUrl.trim();
+    const timeSec = Math.max(0, timestampMs / 1000);
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        const streamMatch = trimmed.match(/stream\.mux\.com\/([^/?#]+)/i);
+        if (streamMatch) {
+            const id = streamMatch[1].replace(/\.m3u8$/i, '');
+            return `https://image.mux.com/${id}/thumbnail.jpg?time=${timeSec}`;
+        }
+        return trimmed;
+    }
+    return `https://image.mux.com/${trimmed}/thumbnail.jpg?time=${timeSec}`;
+}
 const phraseBaseStyle = {
     fontFamily: theme_1.theme.typography.displayFamily,
     fontStyle: 'italic',
@@ -72,7 +86,9 @@ function FeelingStrip() {
             </react_native_1.TouchableOpacity>)}
         </react_native_1.View>
         {qualityTarget && (<react_native_1.View style={styles.qualityTargetRow}>
-            <react_native_1.Image style={styles.qualityTargetThumb} source={{ uri: qualityTarget.clip_url }}/>
+            <react_native_1.Image style={styles.qualityTargetThumb} source={{
+                uri: qualityTargetThumbnailUri(qualityTarget.clip_url, qualityTarget.timestamp_ms),
+            }}/>
             <react_native_1.Text style={styles.qualityTargetLabel}>what I'm reaching for</react_native_1.Text>
           </react_native_1.View>)}
       </react_native_1.View>

@@ -276,7 +276,7 @@ class UploadQueueService {
     /** Best-effort: register a clip with a section after its server ID is known. */
     async _createSectionAssignment(clipId, sessionId, sectionLabel, token) {
         try {
-            await fetch(`${api_1.API_BASE}/sessions/${sessionId}/assembly/section-clip`, {
+            const res = await fetch(`${api_1.API_BASE}/sessions/${sessionId}/assembly/section-clip`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -284,13 +284,22 @@ class UploadQueueService {
                 },
                 body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
             });
-        }
-        catch (error) {
-            if ((0, writeQueue_1.isNetworkError)(error)) {
-                (0, writeQueue_1.enqueueWrite)({
+            if (!res.ok) {
+                (0, writeQueue_1.enqueue)({
                     endpoint: `${api_1.API_BASE}/sessions/${sessionId}/assembly/section-clip`,
                     method: 'POST',
                     body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
+                    timestamp: Date.now(),
+                });
+            }
+        }
+        catch (error) {
+            if ((0, writeQueue_1.isNetworkError)(error)) {
+                (0, writeQueue_1.enqueue)({
+                    endpoint: `${api_1.API_BASE}/sessions/${sessionId}/assembly/section-clip`,
+                    method: 'POST',
+                    body: JSON.stringify({ clip_id: clipId, section_label: sectionLabel }),
+                    timestamp: Date.now(),
                 });
             }
         }

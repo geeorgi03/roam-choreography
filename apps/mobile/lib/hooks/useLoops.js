@@ -110,7 +110,7 @@ function useLoops(sessionId, sourceUrl) {
         }
         catch (error) {
             if ((0, writeQueue_1.isNetworkError)(error)) {
-                (0, writeQueue_1.enqueueWrite)({
+                (0, writeQueue_1.enqueue)({
                     endpoint: `${api_1.API_BASE}/sessions/${sessionId}/loops`,
                     method: 'POST',
                     body: JSON.stringify({
@@ -120,6 +120,7 @@ function useLoops(sessionId, sourceUrl) {
                         color,
                         name: `loop ${loops.length + 1}`,
                     }),
+                    timestamp: Date.now(),
                 });
                 return optimisticLoop;
             }

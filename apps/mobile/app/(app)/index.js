@@ -18,6 +18,16 @@ const homeStorage = new react_native_mmkv_1.MMKV({ id: 'home-state' });
 const LAST_SESSION_KEY = 'last_session_id';
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
+function mapCachedToSession(cached) {
+    return {
+        id: cached.id,
+        name: cached.name,
+        created_at: new Date(cached.created_at).toISOString(),
+        user_id: '',
+        phrase: null,
+        quality_target: null,
+    };
+}
 function HomeScreen() {
     const { session } = (0, useSession_1.useSession)();
     const createSheetRef = (0, react_1.useRef)(null);
@@ -48,8 +58,7 @@ function HomeScreen() {
         }
         const netState = await netinfo_1.default.fetch();
         if (!netState.isConnected) {
-            const cached = (0, sessionCache_1.getCachedSessionList)();
-            setSessions(cached);
+            setSessions((0, sessionCache_1.getCachedSessionList)().map(mapCachedToSession));
             setLoading(false);
             return;
         }
@@ -105,8 +114,8 @@ function HomeScreen() {
         }
         catch {
             // API unreachable, timeout, or network error
-            const cached = (0, sessionCache_1.getCachedSessionList)();
-            setSessions((cached.length ? cached : []));
+            const cachedSessions = (0, sessionCache_1.getCachedSessionList)().map(mapCachedToSession);
+            setSessions(cachedSessions.length > 0 ? cachedSessions : []);
         }
         finally {
             clearTimeout(timeoutId);

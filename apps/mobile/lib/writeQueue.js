@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.drainQueue = exports.getQueueLength = exports.enqueueWrite = exports.isNetworkError = void 0;
+exports.drainQueue = exports.getQueueLength = exports.enqueueWrite = exports.enqueue = exports.isNetworkError = void 0;
 const expo_crypto_1 = require("expo-crypto");
 let writeQueueStorage = null;
 try {
@@ -38,18 +38,19 @@ function isNetworkError(error) {
     return message.includes('network') || message.includes('fetch') || message.includes('net::');
 }
 exports.isNetworkError = isNetworkError;
-function enqueueWrite(write) {
+function enqueue(write) {
     const queue = getQueue();
     queue.push({
         id: (0, expo_crypto_1.randomUUID)(),
         endpoint: write.endpoint,
         method: write.method,
         body: write.body,
-        timestamp: Date.now(),
+        timestamp: typeof write.timestamp === 'number' ? write.timestamp : Date.now(),
     });
     setQueue(queue);
 }
-exports.enqueueWrite = enqueueWrite;
+exports.enqueue = enqueue;
+exports.enqueueWrite = enqueue;
 function getQueueLength() {
     return getQueue().length;
 }

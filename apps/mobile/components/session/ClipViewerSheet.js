@@ -35,6 +35,7 @@ const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const useSession_1 = require("../../lib/hooks/useSession");
 const theme_1 = require("../../lib/theme");
 const api_1 = require("../../lib/api");
+const react_native_toast_message_1 = __importDefault(require("react-native-toast-message"));
 const LoopChipRow_1 = __importDefault(require("./LoopChipRow"));
 const colors = theme_1.theme.light;
 const nightColors = theme_1.theme.night;
@@ -85,7 +86,7 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
             return;
         setIsSavingMoment(true);
         try {
-            const clip_url = `https://stream.mux.com/${selectedClipForSheet.mux_playback_id}.m3u8`;
+            const clip_url = selectedClipForSheet.mux_playback_id;
             const timestamp_ms = positionMsRef.current;
             const source_clip_id = selectedClipForSheet.server_id;
             const response = await fetch(`${api_1.API_BASE}/sessions/${sessionId}/quality-target`, {
@@ -99,6 +100,11 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
             if (response.ok) {
                 const data = await response.json();
                 setQualityTarget(data.quality_target);
+                react_native_toast_message_1.default.show({
+                    type: 'success',
+                    text1: 'Saved as your moment',
+                    visibilityTime: 2000,
+                });
                 onClose();
             }
             else {
