@@ -8,6 +8,7 @@ import { useSession } from '../../lib/hooks/useSession';
 import { theme } from '../../lib/theme';
 import { supabase } from '../../lib/supabase';
 import { API_BASE } from '../../lib/api';
+import Toast from 'react-native-toast-message';
 import LoopChipRow from './LoopChipRow';
 
 const colors = theme.light;
@@ -89,6 +90,11 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       if (response.ok) {
         const data = await response.json();
         setQualityTarget(data.quality_target);
+        Toast.show({
+          type: 'success',
+          text1: 'Saved as your moment',
+          visibilityTime: 2000,
+        });
         onClose();
       } else {
         Alert.alert('Save failed', await response.text());

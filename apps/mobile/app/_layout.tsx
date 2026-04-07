@@ -22,6 +22,7 @@ import { theme } from '../lib/theme';
 import { getDevBypassAuth } from '../lib/devBypassAuth';
 import { API_BASE } from '../lib/api';
 import { drainQueue, getQueueLength } from '../lib/writeQueue';
+import OfflineBanner from '../components/OfflineBanner';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -339,6 +340,7 @@ function RootNavigator() {
     <>
       <Stack screenOptions={{ headerShown: false }} />
       <Toast />
+      <OfflineBanner />
       
       {pendingShareUrl && (
         <Modal
