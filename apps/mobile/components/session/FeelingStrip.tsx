@@ -4,6 +4,25 @@ import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
 
 const colors = theme.light;
+
+/** `clip_url` on the session is the Mux playback id; legacy rows may store an HLS URL. */
+function qualityTargetThumbnailUri(
+  clipUrl: string,
+  timestampMs: number
+): string {
+  const trimmed = clipUrl.trim();
+  const timeSec = Math.max(0, timestampMs / 1000);
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    const streamMatch = trimmed.match(/stream\.mux\.com\/([^/?#]+)/i);
+    if (streamMatch) {
+      const id = streamMatch[1].replace(/\.m3u8$/i, '');
+      return `https://image.mux.com/${id}/thumbnail.jpg?time=${timeSec}`;
+    }
+    return trimmed;
+  }
+  return `https://image.mux.com/${trimmed}/thumbnail.jpg?time=${timeSec}`;
+}
+
 const phraseBaseStyle = {
   fontFamily: theme.typography.displayFamily,
   fontStyle: 'italic' as const,
@@ -79,7 +98,12 @@ export function FeelingStrip() {
         </View>
         {qualityTarget && (
           <View style={styles.qualityTargetRow}>
-            <Image style={styles.qualityTargetThumb} source={{ uri: qualityTarget.clip_url }} />
+            <Image
+              style={styles.qualityTargetThumb}
+              source={{
+                uri: qualityTargetThumbnailUri(qualityTarget.clip_url, qualityTarget.timestamp_ms),
+              }}
+            />
             <Text style={styles.qualityTargetLabel}>what I'm reaching for</Text>
           </View>
         )}

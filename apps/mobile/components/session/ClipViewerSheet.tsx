@@ -74,7 +74,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     setIsSavingMoment(true);
     
     try {
-      const clip_url = `https://stream.mux.com/${selectedClipForSheet.mux_playback_id}.m3u8`;
+      const clip_url = selectedClipForSheet.mux_playback_id;
       const timestamp_ms = positionMsRef.current;
       const source_clip_id = selectedClipForSheet.server_id;
       
