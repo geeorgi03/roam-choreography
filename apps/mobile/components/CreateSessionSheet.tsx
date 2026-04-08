@@ -115,7 +115,7 @@ export function CreateSessionSheet({
         <TextInput
           style={styles.input}
           placeholder="Session name"
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor={theme.light.muted}
           value={name}
           onChangeText={setName}
           editable={!loading}
@@ -127,7 +127,7 @@ export function CreateSessionSheet({
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color={theme.textPrimary} size="small" />
+            <ActivityIndicator color={theme.light.chrome} size="small" />
           ) : (
             <Text style={styles.buttonText}>Start session</Text>
           )}
@@ -139,10 +139,10 @@ export function CreateSessionSheet({
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: theme.background,
+    backgroundColor: theme.light.ground,
   },
   handle: {
-    backgroundColor: theme.textSecondary,
+    backgroundColor: theme.light.inactive,
   },
   content: {
     padding: 20,
@@ -151,18 +151,18 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: theme.textPrimary,
+    color: theme.light.active,
     marginBottom: 12,
   },
   input: {
-    backgroundColor: '#222',
+    backgroundColor: theme.light.chrome,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: theme.light.border,
     borderRadius: theme.borderRadius,
     paddingVertical: 14,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: theme.textPrimary,
+    color: theme.light.active,
     marginBottom: 12,
   },
   errorText: {
@@ -171,9 +171,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   button: {
-    backgroundColor: theme.accent,
+    backgroundColor: theme.light.mine,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: theme.light.border,
     borderRadius: theme.borderRadius,
     paddingVertical: 14,
     alignItems: 'center',
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: theme.textPrimary,
+    color: theme.light.chrome,
     fontSize: 16,
     fontWeight: '600',
   },

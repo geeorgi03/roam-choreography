@@ -50,13 +50,14 @@ exports.saveClip = saveClip;
  * Persists an inbox clip locally and enqueues for upload.
  * The server will create the inbox clip row on first /clips/upload-url call.
  */
-async function saveInboxClip(fileUri, label, token) {
+async function saveInboxClip(fileUri, label, token, dualPairId) {
     try {
         const local_id = crypto.randomUUID();
         const recorded_at = new Date().toISOString();
         (0, database_1.insertClip)({
             local_id,
             session_id: null,
+            dual_pair_id: dualPairId ?? null,
             label,
             recorded_at,
             file_uri: fileUri,
@@ -69,6 +70,7 @@ async function saveInboxClip(fileUri, label, token) {
             label,
             recorded_at,
             token,
+            dual_pair_id: dualPairId,
         });
         return { ok: true, local_id };
     }

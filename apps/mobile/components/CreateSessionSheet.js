@@ -109,10 +109,10 @@ function CreateSessionSheet({ bottomSheetRef, onCreated, onPaywallRequired, }) {
     return (<bottom_sheet_1.default ref={bottomSheetRef} index={-1} snapPoints={['40%']} enablePanDownToClose backgroundStyle={styles.sheet} handleIndicatorStyle={styles.handle}>
       <react_native_1.View style={styles.content}>
         <react_native_1.Text style={styles.title}>New session</react_native_1.Text>
-        <react_native_1.TextInput style={styles.input} placeholder="Session name" placeholderTextColor={theme_1.theme.textSecondary} value={name} onChangeText={setName} editable={!loading}/>
+        <react_native_1.TextInput style={styles.input} placeholder="Session name" placeholderTextColor={theme_1.theme.light.muted} value={name} onChangeText={setName} editable={!loading}/>
         {error ? <react_native_1.Text style={styles.errorText}>{error}</react_native_1.Text> : null}
         <react_native_1.TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleCreate} disabled={loading}>
-          {loading ? (<react_native_1.ActivityIndicator color={theme_1.theme.textPrimary} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Start session</react_native_1.Text>)}
+          {loading ? (<react_native_1.ActivityIndicator color={theme_1.theme.light.chrome} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Start session</react_native_1.Text>)}
         </react_native_1.TouchableOpacity>
       </react_native_1.View>
     </bottom_sheet_1.default>);
@@ -120,10 +120,10 @@ function CreateSessionSheet({ bottomSheetRef, onCreated, onPaywallRequired, }) {
 exports.CreateSessionSheet = CreateSessionSheet;
 const styles = react_native_1.StyleSheet.create({
     sheet: {
-        backgroundColor: theme_1.theme.background,
+        backgroundColor: theme_1.theme.light.ground,
     },
     handle: {
-        backgroundColor: theme_1.theme.textSecondary,
+        backgroundColor: theme_1.theme.light.inactive,
     },
     content: {
         padding: 20,
@@ -132,18 +132,18 @@ const styles = react_native_1.StyleSheet.create({
     title: {
         fontSize: 18,
         fontWeight: '700',
-        color: theme_1.theme.textPrimary,
+        color: theme_1.theme.light.active,
         marginBottom: 12,
     },
     input: {
-        backgroundColor: '#222',
+        backgroundColor: theme_1.theme.light.chrome,
         borderWidth: 1,
-        borderColor: theme_1.theme.textSecondary,
+        borderColor: theme_1.theme.light.border,
         borderRadius: theme_1.theme.borderRadius,
         paddingVertical: 14,
         paddingHorizontal: 16,
         fontSize: 16,
-        color: theme_1.theme.textPrimary,
+        color: theme_1.theme.light.active,
         marginBottom: 12,
     },
     errorText: {
@@ -152,9 +152,9 @@ const styles = react_native_1.StyleSheet.create({
         marginBottom: 8,
     },
     button: {
-        backgroundColor: theme_1.theme.accent,
+        backgroundColor: theme_1.theme.light.mine,
         borderWidth: 1,
-        borderColor: theme_1.theme.textSecondary,
+        borderColor: theme_1.theme.light.border,
         borderRadius: theme_1.theme.borderRadius,
         paddingVertical: 14,
         alignItems: 'center',
@@ -163,7 +163,7 @@ const styles = react_native_1.StyleSheet.create({
         opacity: 0.6,
     },
     buttonText: {
-        color: theme_1.theme.textPrimary,
+        color: theme_1.theme.light.chrome,
         fontSize: 16,
         fontWeight: '600',
     },

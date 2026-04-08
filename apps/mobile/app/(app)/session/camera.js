@@ -33,6 +33,7 @@ const theme_1 = require("../../../lib/theme");
 const QuickSaveSheet_1 = require("../../../components/QuickSaveSheet");
 const useSession_1 = require("../../../lib/hooks/useSession");
 const saveClip_1 = require("../../../lib/saveClip");
+const supabase_1 = require("../../../lib/supabase");
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
 function CameraScreen() {
@@ -51,6 +52,9 @@ function CameraScreen() {
     const [showFallbackNotice, setShowFallbackNotice] = (0, react_1.useState)(false);
     const [showRecordErrorNotice, setShowRecordErrorNotice] = (0, react_1.useState)(false);
     const [voiceMemoNotice, setVoiceMemoNotice] = (0, react_1.useState)(false);
+    const [facing, setFacing] = (0, react_1.useState)('back');
+    const [flashMode, setFlashMode] = (0, react_1.useState)('off');
+    const [sessionName, setSessionName] = (0, react_1.useState)(null);
     const recordingPromiseRef = (0, react_1.useRef)(null);
     const frontRecordingPromiseRef = (0, react_1.useRef)(null);
     const audioRecordingRef = (0, react_1.useRef)(null);
@@ -74,6 +78,41 @@ function CameraScreen() {
         if (!micPermission?.granted)
             requestMicPermission();
     }, [cameraPermission?.granted, micPermission?.granted, requestCameraPermission, requestMicPermission]);
+    (0, react_1.useEffect)(() => {
+        const id = typeof sessionId === 'string' ? sessionId : null;
+        if (!id) {
+            setSessionName(null);
+            return;
+        }
+        let cancelled = false;
+        void (async () => {
+            try {
+                if (!supabase_1.supabase)
+                    return;
+                const { data } = await supabase_1.supabase
+                    .from('sessions')
+                    .select('name')
+                    .eq('id', id)
+                    .single();
+                const name = data?.name?.trim() ?? null;
+                if (!cancelled) {
+                    setSessionName(name);
+                }
+            }
+            catch {
+                if (!cancelled)
+                    setSessionName(null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [sessionId]);
+    (0, react_1.useEffect)(() => {
+        if (dualEnabled && facing !== 'back') {
+            setFacing('back');
+        }
+    }, [dualEnabled, facing]);
     const stopFpsMonitor = (0, react_1.useCallback)(() => {
         if (rafRef.current != null) {
             cancelAnimationFrame(rafRef.current);
@@ -257,12 +296,12 @@ function CameraScreen() {
                         const nextDualPairId = crypto.randomUUID();
                         setDualPairId(nextDualPairId);
                         setFrontRecordedUri(frontResult.uri);
-                        autoOpenQuickSaveRef.current = true;
                     }
                     else {
                         setDualPairId(undefined);
                         setFrontRecordedUri(null);
                     }
+                    autoOpenQuickSaveRef.current = true;
                     setRecordedUri(mainResult.uri);
                 }
                 else {
@@ -284,6 +323,20 @@ function CameraScreen() {
         didAutoFallbackRef.current = false;
         dualRequestedAtStartRef.current = false;
     };
+    const handleFlipPress = () => {
+        if (dualEnabled || isRecording)
+            return;
+        setFacing((prev) => (prev === 'back' ? 'front' : 'back'));
+    };
+    const handleFlashPress = () => {
+        setFlashMode((prev) => {
+            if (prev === 'off')
+                return 'on';
+            if (prev === 'on')
+                return 'auto';
+            return 'off';
+        });
+    };
     const showVoiceMemoNotice = () => {
         setVoiceMemoNotice(true);
         if (voiceMemoTimerRef.current)
@@ -293,6 +346,7 @@ function CameraScreen() {
             voiceMemoTimerRef.current = null;
         }, 2000);
     };
+    const isFlipDisabled = dualEnabled || isRecording;
     const handleLongPressStateChange = async (event) => {
         if (isRecording)
             return; // Guard against video recording conflicts
@@ -359,7 +413,7 @@ function CameraScreen() {
         return (<react_native_1.View style={styles.container}>
         <react_native_1.Text style={styles.placeholderText}>Camera permission required</react_native_1.Text>
         <react_native_1.TouchableOpacity style={styles.button} onPress={requestCameraPermission}>
-          <react_native_1.Text style={styles.buttonText}>Grant permission</react_native_1.Text>
+          <react_native_1.Text style={styles.outlineButtonText}>Grant permission</react_native_1.Text>
         </react_native_1.TouchableOpacity>
       </react_native_1.View>);
     }
@@ -368,10 +422,10 @@ function CameraScreen() {
         <expo_av_1.Video source={{ uri: recordedUri }} style={react_native_1.StyleSheet.absoluteFill} useNativeControls={false} shouldPlay isLooping resizeMode={expo_av_1.ResizeMode.CONTAIN}/>
         <react_native_1.View style={styles.previewControls}>
           <react_native_1.TouchableOpacity style={styles.outlineButton} onPress={handleRetake}>
-            <react_native_1.Text style={styles.buttonText}>Retake</react_native_1.Text>
+            <react_native_1.Text style={styles.outlineButtonText}>Retake</react_native_1.Text>
           </react_native_1.TouchableOpacity>
           <react_native_1.TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
-            <react_native_1.Text style={styles.buttonText}>Save</react_native_1.Text>
+            <react_native_1.Text style={styles.primaryButtonText}>Save</react_native_1.Text>
           </react_native_1.TouchableOpacity>
         </react_native_1.View>
         <QuickSaveSheet_1.QuickSaveSheet bottomSheetRef={quickSaveRef} videoUri={recordedUri} secondaryVideoUri={frontRecordedUri} dualPairId={dualPairId} sessionId={typeof sessionId === 'string' ? sessionId : null} sectionName={typeof sectionName === 'string' ? sectionName : null} onDone={(next) => {
@@ -389,10 +443,19 @@ function CameraScreen() {
         <react_native_1.TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <react_native_1.Text style={styles.backButtonText}>Back</react_native_1.Text>
         </react_native_1.TouchableOpacity>
+        <react_native_1.View style={styles.sessionLabelWrap}>
+          <react_native_1.Text style={styles.sessionLabel}>{sessionName ?? (sessionId ? '…' : 'Session')}</react_native_1.Text>
+          {sectionName ? <react_native_1.Text style={styles.sectionLabel}>{sectionName}</react_native_1.Text> : null}
+        </react_native_1.View>
         <react_native_1.TouchableOpacity style={[styles.dualChip, dualEnabled && styles.dualChipActive]} onPress={() => {
             if (dualEnabled && isRecording)
                 stopFpsMonitor();
-            setDualEnabled((prev) => !prev);
+            setDualEnabled((prev) => {
+                const nextDualEnabled = !prev;
+                if (nextDualEnabled)
+                    setFacing('back');
+                return nextDualEnabled;
+            });
         }} activeOpacity={0.85}>
           <react_native_1.Text style={[styles.dualChipText, dualEnabled && styles.dualChipTextActive]}>
             dual-screen
@@ -400,7 +463,7 @@ function CameraScreen() {
           <react_native_1.Text style={styles.betaBadge}>beta</react_native_1.Text>
         </react_native_1.TouchableOpacity>
       </react_native_1.View>
-      <expo_camera_1.CameraView ref={cameraRef} style={react_native_1.StyleSheet.absoluteFill} mode="video" facing="back"/>
+      <expo_camera_1.CameraView ref={cameraRef} style={react_native_1.StyleSheet.absoluteFill} mode="video" facing={dualEnabled ? 'back' : facing} flash={flashMode}/>
       {dualEnabled ? (<react_native_1.View style={styles.pipContainer}>
           <expo_camera_1.CameraView ref={frontCameraRef} style={react_native_1.StyleSheet.absoluteFill} mode="video" facing="front"/>
         </react_native_1.View>) : null}
@@ -413,19 +476,32 @@ function CameraScreen() {
       {voiceMemoNotice ? (<react_native_1.View style={styles.fallbackNotice}>
           <react_native_1.Text style={styles.fallbackNoticeText}>🎤 Voice memo saved</react_native_1.Text>
         </react_native_1.View>) : null}
+      <react_native_1.View style={styles.controlsRow}>
+        <react_native_1.TouchableOpacity style={[styles.controlBtn, isFlipDisabled && styles.controlBtnDisabled]} onPress={handleFlipPress} activeOpacity={isFlipDisabled ? 1 : 0.85} disabled={isFlipDisabled}>
+          <react_native_1.Text style={[styles.controlBtnIcon, isFlipDisabled && styles.controlBtnIconDisabled]}>🔄</react_native_1.Text>
+        </react_native_1.TouchableOpacity>
+        <react_native_1.TouchableOpacity style={styles.controlBtn} onPress={handleFlashPress} activeOpacity={0.85}>
+          <react_native_1.Text style={styles.controlBtnIcon}>⚡</react_native_1.Text>
+        </react_native_1.TouchableOpacity>
+      </react_native_1.View>
       <react_native_1.View style={styles.controls}>
         {isVoiceMemoRecording && (<react_native_1.Animated.View style={[styles.voiceMemoIndicator, { opacity: pulseAnim }]}>
             <react_native_1.View style={styles.voiceMemoDot}/>
             <react_native_1.Text style={styles.voiceMemoLabel}>🎤 Recording...</react_native_1.Text>
           </react_native_1.Animated.View>)}
         <react_native_gesture_handler_1.LongPressGestureHandler onHandlerStateChange={handleLongPressStateChange} minDurationMs={500}>
-          <react_native_1.TouchableOpacity style={[styles.recordButton, isRecording && styles.recordButtonActive]} onPress={handleRecordPress} activeOpacity={0.8}/>
+          <react_native_1.TouchableOpacity style={[styles.recordButton, isRecording && styles.recordButtonActive]} onPress={handleRecordPress} activeOpacity={0.8}>
+            <react_native_1.View style={isRecording ? styles.recordButtonStopIcon : styles.recordButtonIcon}/>
+          </react_native_1.TouchableOpacity>
         </react_native_gesture_handler_1.LongPressGestureHandler>
       </react_native_1.View>
     </react_native_1.View>);
 }
 exports.default = CameraScreen;
 const t = theme_1.theme.light;
+const overlayDark = 'rgba(58,52,45,0.82)';
+const overlayDarkSoft = 'rgba(58,52,45,0.75)';
+const RECORD_RING = 'rgba(255,255,255,0.5)';
 const styles = react_native_1.StyleSheet.create({
     container: {
         flex: 1,
@@ -449,10 +525,10 @@ const styles = react_native_1.StyleSheet.create({
     primaryButton: {
         paddingVertical: 14,
         paddingHorizontal: 24,
-        backgroundColor: colors.active,
+        backgroundColor: t.capture,
         borderRadius: spacing.radiusMd,
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: t.capture,
     },
     outlineButton: {
         paddingVertical: 14,
@@ -462,10 +538,15 @@ const styles = react_native_1.StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
     },
-    buttonText: {
+    outlineButtonText: {
         fontSize: 16,
         fontWeight: '600',
-        color: colors.active,
+        color: t.active,
+    },
+    primaryButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: t.chrome,
     },
     controls: {
         position: 'absolute',
@@ -479,11 +560,12 @@ const styles = react_native_1.StyleSheet.create({
         top: 0,
         left: 0,
         right: 0,
-        height: 48,
+        height: 56,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: spacing.md,
+        backgroundColor: t.ground,
         zIndex: 10,
     },
     backButton: {
@@ -494,6 +576,23 @@ const styles = react_native_1.StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: colors.active,
+    },
+    sessionLabelWrap: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: spacing.sm,
+    },
+    sessionLabel: {
+        color: t.active,
+        fontSize: theme_1.theme.typography.sizes.sm,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+    sectionLabel: {
+        color: t.muted,
+        fontSize: theme_1.theme.typography.sizes.xs,
+        textAlign: 'center',
     },
     dualChip: {
         borderWidth: 0.5,
@@ -539,7 +638,7 @@ const styles = react_native_1.StyleSheet.create({
         position: 'absolute',
         bottom: 110,
         alignSelf: 'center',
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        backgroundColor: overlayDark,
         borderWidth: 0.5,
         borderColor: colors.border,
         borderRadius: 6,
@@ -554,12 +653,57 @@ const styles = react_native_1.StyleSheet.create({
         width: 72,
         height: 72,
         borderRadius: 36,
-        backgroundColor: colors.chrome,
+        backgroundColor: t.capture,
         borderWidth: 4,
-        borderColor: 'rgba(255,255,255,0.6)',
+        borderColor: RECORD_RING,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     recordButtonActive: {
-        backgroundColor: colors.capture,
+        backgroundColor: t.capture,
+        borderColor: t.active,
+        borderWidth: 2,
+    },
+    recordButtonIcon: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: t.chrome,
+    },
+    recordButtonStopIcon: {
+        width: 22,
+        height: 22,
+        borderRadius: 4,
+        backgroundColor: t.chrome,
+    },
+    controlsRow: {
+        position: 'absolute',
+        bottom: 130,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 32,
+    },
+    controlBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: t.chrome,
+        borderWidth: 1,
+        borderColor: t.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    controlBtnDisabled: {
+        opacity: 0.45,
+    },
+    controlBtnIcon: {
+        fontSize: 18,
+        color: t.active,
+    },
+    controlBtnIconDisabled: {
+        color: t.inactive,
     },
     previewControls: {
         position: 'absolute',
@@ -577,7 +721,7 @@ const styles = react_native_1.StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.xxs,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        backgroundColor: overlayDarkSoft,
         borderRadius: spacing.pill,
         paddingVertical: spacing.xxs,
         paddingHorizontal: spacing.xs,

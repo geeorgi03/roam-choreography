@@ -216,7 +216,7 @@ export function QuickSaveSheet({
       }}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Saved</Text>
+        <Text style={styles.title}>Save clip</Text>
 
         {mode === 'saved' ? (
           <>
@@ -226,7 +226,7 @@ export function QuickSaveSheet({
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={theme.textPrimary} size="small" />
+                <ActivityIndicator color={theme.light.active} size="small" />
               ) : (
                 <Text style={styles.secondaryBtnText}>Later</Text>
               )}

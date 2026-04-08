@@ -80,7 +80,13 @@ function VoiceNoteRow({ noteId, audioStoragePath, isActive, onRequestPlay, onPla
             setIsLoading(true);
             try {
                 const uri = await resolveAudioUri(audioStoragePath);
-                if (!uri || cancelled || !mountedRef.current)
+                if (!uri) {
+                    if (!cancelled && mountedRef.current) {
+                        onPlaybackEnded(noteId);
+                    }
+                    return;
+                }
+                if (cancelled || !mountedRef.current)
                     return;
                 await stopPlayback();
                 const { sound } = await expo_av_1.Audio.Sound.createAsync({ uri }, { shouldPlay: true }, (status) => {

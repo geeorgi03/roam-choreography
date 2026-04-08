@@ -544,6 +544,9 @@ export default function CameraScreen() {
 }
 
 const t = theme.light;
+const overlayDark = 'rgba(58,52,45,0.82)' as const;
+const overlayDarkSoft = 'rgba(58,52,45,0.75)' as const;
+const RECORD_RING = 'rgba(255,255,255,0.5)' as const;
 
 const styles = StyleSheet.create({
   container: {
@@ -681,7 +684,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 110,
     alignSelf: 'center',
-    backgroundColor: 'rgba(58,52,45,0.82)',
+    backgroundColor: overlayDark,
     borderWidth: 0.5,
     borderColor: colors.border,
     borderRadius: 6,
@@ -698,7 +701,7 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     backgroundColor: t.capture,
     borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: RECORD_RING,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -732,7 +735,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: t.chrome,
     borderWidth: 1,
     borderColor: t.border,
     alignItems: 'center',
@@ -764,7 +767,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xxs,
-    backgroundColor: 'rgba(58,52,45,0.75)',
+    backgroundColor: overlayDarkSoft,
     borderRadius: spacing.pill,
     paddingVertical: spacing.xxs,
     paddingHorizontal: spacing.xs,

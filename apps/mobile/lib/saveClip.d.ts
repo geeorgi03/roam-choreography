@@ -19,5 +19,5 @@ export declare function saveClip(sessionId: string, fileUri: string, label: stri
  * Persists an inbox clip locally and enqueues for upload.
  * The server will create the inbox clip row on first /clips/upload-url call.
  */
-export declare function saveInboxClip(fileUri: string, label: string, token: string): Promise<SaveClipResult>;
+export declare function saveInboxClip(fileUri: string, label: string, token: string, dualPairId?: string): Promise<SaveClipResult>;
 //# sourceMappingURL=saveClip.d.ts.map
