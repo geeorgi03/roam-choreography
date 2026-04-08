@@ -80,11 +80,11 @@ function FeelingStrip() {
     };
     const handleExportPdf = async () => {
         if (!session?.access_token) {
-            react_native_1.Alert.alert('Export failed', 'You need to be signed in to export this PDF.');
+            react_native_1.Alert.alert(t('feelingStrip.exportFailedTitle'), t('feelingStrip.exportSignInRequired'));
             return;
         }
         if (!FileSystem.cacheDirectory) {
-            react_native_1.Alert.alert('Export failed', 'No cache directory available on this device.');
+            react_native_1.Alert.alert(t('feelingStrip.exportFailedTitle'), t('feelingStrip.exportNoCacheDir'));
             return;
         }
         try {
@@ -92,7 +92,7 @@ function FeelingStrip() {
                 headers: { Authorization: `Bearer ${session.access_token}` },
             });
             if (!response.ok) {
-                let message = 'Unable to export PDF.';
+                let message = t('feelingStrip.exportUnable');
                 try {
                     const err = (await response.json());
                     if (err?.error)
@@ -101,7 +101,7 @@ function FeelingStrip() {
                 catch {
                     // Keep default error message when response is not JSON.
                 }
-                react_native_1.Alert.alert('Export failed', message);
+                react_native_1.Alert.alert(t('feelingStrip.exportFailedTitle'), message);
                 return;
             }
             const arrayBuffer = await response.arrayBuffer();
@@ -112,23 +112,23 @@ function FeelingStrip() {
             });
             const canShare = await Sharing.isAvailableAsync();
             if (!canShare) {
-                react_native_1.Alert.alert('Export complete', `PDF saved at ${filePath}`);
+                react_native_1.Alert.alert(t('feelingStrip.exportCompleteTitle'), t('feelingStrip.exportSavedAt').replace('{path}', filePath));
                 return;
             }
             await Sharing.shareAsync(filePath, {
                 mimeType: 'application/pdf',
-                dialogTitle: 'Export Session PDF',
+                dialogTitle: t('feelingStrip.exportDialogTitle'),
             });
         }
         catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            react_native_1.Alert.alert('Export failed', message);
+            const message = error instanceof Error ? error.message : t('feelingStrip.exportUnknownError');
+            react_native_1.Alert.alert(t('feelingStrip.exportFailedTitle'), message);
         }
     };
     const handleOverflowMenu = () => {
         if (react_native_1.Platform.OS === 'ios') {
             react_native_1.ActionSheetIOS.showActionSheetWithOptions({
-                options: ['Export PDF', 'Cancel'],
+                options: [t('feelingStrip.exportPdfAction'), t('feelingStrip.cancelAction')],
                 cancelButtonIndex: 1,
             }, (buttonIndex) => {
                 if (buttonIndex === 0)
@@ -136,14 +136,14 @@ function FeelingStrip() {
             });
             return;
         }
-        react_native_1.Alert.alert('More actions', undefined, [
+        react_native_1.Alert.alert(t('feelingStrip.moreActionsTitle'), undefined, [
             {
-                text: 'Export PDF',
+                text: t('feelingStrip.exportPdfAction'),
                 onPress: () => {
                     void handleExportPdf();
                 },
             },
-            { text: 'Cancel', style: 'cancel' },
+            { text: t('feelingStrip.cancelAction'), style: 'cancel' },
         ]);
     };
     return (<react_native_1.View style={styles.container}>

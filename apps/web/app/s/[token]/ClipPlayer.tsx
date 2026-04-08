@@ -123,7 +123,7 @@ export function ClipPlayer({
       <button
         type="button"
         onClick={() => setExpanded(true)}
-        className="rounded-lg overflow-hidden bg-roam-chrome text-left w-full aspect-video flex flex-col"
+        className="rounded-lg overflow-hidden bg-roam-chrome border border-roam-border text-left w-full aspect-video flex flex-col"
       >
         <img
           src={thumbnailUrl}
@@ -150,7 +150,7 @@ export function ClipPlayer({
   }
 
   return (
-    <div className="rounded-lg overflow-hidden bg-black w-full space-y-4">
+    <div className="rounded-lg overflow-hidden bg-roam-chrome border border-roam-border w-full space-y-4">
       <div className="aspect-video">
         <MuxPlayer
           playbackId={playbackId}

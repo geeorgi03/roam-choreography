@@ -5,6 +5,7 @@ const react_native_1 = require("react-native");
 const theme_1 = require("../../lib/theme");
 const ClipCard_1 = require("../../components/ClipCard");
 const useSession_1 = require("../../lib/hooks/useSession");
+const useNotePins_1 = require("../../lib/hooks/useNotePins");
 const ClipViewerSheetStandalone_1 = require("../../components/session/ClipViewerSheetStandalone");
 const i18n_1 = require("../../lib/i18n");
 const api_1 = require("../../lib/api");
@@ -25,6 +26,7 @@ function LibraryScreen() {
     const [filterSegment, setFilterSegment] = (0, react_1.useState)('All');
     const clipSheetRef = (0, react_1.useRef)(null);
     const debounceTimer = (0, react_1.useRef)(null);
+    const { notes: selectedSessionNotes } = (0, useNotePins_1.useNotePins)(selectedClip?.session_id ?? null);
     (0, react_1.useEffect)(() => {
         if (debounceTimer.current)
             clearTimeout(debounceTimer.current);
@@ -112,6 +114,8 @@ function LibraryScreen() {
             upload_status: 'ready',
             upload_progress: 0,
             mux_playback_id: clip.mux_playback_id ?? null,
+            parent_clip_id: clip.parent_clip_id ?? null,
+            triggered_by_note_id: clip.triggered_by_note_id ?? null,
             move_name: clip.move_name ?? null,
             style: clip.style ?? null,
             energy: clip.energy ?? null,
@@ -166,6 +170,7 @@ function LibraryScreen() {
             return mineType;
         });
     }, [clips, filterSegment, currentUserId]);
+    const allClipRows = (0, react_1.useMemo)(() => clips.map(toClipRow), [clips]);
     return (<react_native_1.View style={styles.container}>
       <react_native_1.FlatList data={filteredClips} keyExtractor={(item) => item.local_id ?? item.id} contentContainerStyle={filteredClips.length === 0 ? styles.emptyList : styles.listContent} ListHeaderComponent={<react_native_1.View style={styles.header}>
             <react_native_1.View style={styles.searchRow}>
@@ -206,7 +211,7 @@ function LibraryScreen() {
               </react_native_1.TouchableOpacity>
             </react_native_1.View>) : (<react_native_1.View style={{ height: 24 }}/>)}/>
       
-      <ClipViewerSheetStandalone_1.ClipViewerSheetStandalone ref={clipSheetRef} clip={selectedClip} sessionId={selectedClip?.session_id ?? null} onClose={closeClipViewer}/>
+      <ClipViewerSheetStandalone_1.ClipViewerSheetStandalone ref={clipSheetRef} clip={selectedClip} sessionId={selectedClip?.session_id ?? null} onClose={closeClipViewer} allClips={allClipRows} allNotes={selectedSessionNotes} onOpenClip={setSelectedClip}/>
     </react_native_1.View>);
 }
 exports.default = LibraryScreen;

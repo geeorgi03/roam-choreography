@@ -160,6 +160,9 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
 
   const isClipInSession = selectedClipForSheet.server_id && 
     sectionClips.some(sc => sc.clip_id === selectedClipForSheet.server_id && sc.section_label === activeSection);
+  const canGiveFeedback =
+    Boolean(selectedClipForSheet.server_id) &&
+    (selectedClipForSheet.clip_type === 'REF' || selectedClipForSheet.clip_type === 'MINE');
   
   // Determine if this is a MINE clip (can trim)
   const isMineClip = (selectedClipForSheet.clip_type === 'MINE' || selectedClipForSheet.clip_type == null) && selectedClipForSheet.mux_playback_id;
@@ -489,16 +492,14 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
               </>
             )}
 
-            <TouchableOpacity
-              style={[
-                styles.feedbackButton,
-                !selectedClipForSheet.server_id && styles.momentButtonDisabled,
-              ]}
-              onPress={() => feedbackSheetRef.current?.expand()}
-              disabled={!selectedClipForSheet.server_id}
-            >
-              <Text style={styles.feedbackButtonText}>Give feedback</Text>
-            </TouchableOpacity>
+            {canGiveFeedback && (
+              <TouchableOpacity
+                style={styles.feedbackButton}
+                onPress={() => feedbackSheetRef.current?.expand()}
+              >
+                <Text style={styles.feedbackButtonText}>Give feedback</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </BottomSheet>

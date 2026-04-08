@@ -13,6 +13,14 @@ function formatSectionTime(startMs: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function formatMomentTime(startMs: number): string {
+  const clampedMs = Number.isFinite(startMs) ? Math.max(0, startMs) : 0;
+  const totalSec = Math.floor(clampedMs / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 function youtubeEmbedUrl(sourceUrl: string | null): string | null {
   if (!sourceUrl) return null;
   try {
@@ -69,6 +77,12 @@ export default async function SharedSessionPage({
   }
 
   const sections = (music_track?.sections ?? null) as SectionEntry[] | null;
+  const qualityTarget = session.quality_target ?? null;
+  const qualityTargetClipLabel = qualityTarget?.source_clip_id
+    ? clips.find((clip) => clip.id === qualityTarget.source_clip_id)?.move_name ??
+      clips.find((clip) => clip.id === qualityTarget.source_clip_id)?.label ??
+      null
+    : null;
   const youtubeEmbed = music_track?.source_type === 'youtube'
     ? youtubeEmbedUrl(music_track.source_url)
     : null;
@@ -77,6 +91,15 @@ export default async function SharedSessionPage({
     <div className="min-h-screen bg-roam-ground text-roam-active">
       <header className="p-4 border-b border-roam-border">
         <h1 className="text-xl font-bold font-serif">{session.name}</h1>
+        {session.phrase ? (
+          <p className="text-roam-active text-sm mt-1 italic">"{session.phrase}"</p>
+        ) : null}
+        {qualityTarget ? (
+          <p className="text-roam-muted text-sm mt-1">
+            Quality target: {formatMomentTime(qualityTarget.timestamp_ms)}
+            {qualityTargetClipLabel ? ` from ${qualityTargetClipLabel}` : ''}
+          </p>
+        ) : null}
         <p className="text-roam-muted text-sm mt-1">
           {new Date(session.created_at).toLocaleDateString('en-US', {
             month: 'long',
@@ -97,7 +120,7 @@ export default async function SharedSessionPage({
                   {sections?.map((section, i) => (
                     <span
                       key={i}
-                      className="text-xs px-2 py-1 rounded-full bg-roam-chrome border border-roam-border text-roam-active"
+                      className="text-xs px-2 py-1 rounded-full bg-roam-border text-roam-active"
                     >
                       {section.label} · {formatSectionTime(section.start_ms)}
                     </span>
@@ -125,7 +148,7 @@ export default async function SharedSessionPage({
                   {sections.map((section, i) => (
                     <span
                       key={i}
-                      className="text-xs px-2 py-1 rounded-full bg-roam-chrome border border-roam-border text-roam-active"
+                      className="text-xs px-2 py-1 rounded-full bg-roam-border text-roam-active"
                     >
                       {section.label} · {formatSectionTime(section.start_ms)}
                     </span>

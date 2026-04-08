@@ -61,13 +61,17 @@ function isReferenceClip(clip) {
 function WorkbenchTab() {
     const { t } = (0, i18n_1.useTranslation)();
     const router = (0, expo_router_1.useRouter)();
-    const { sessionId, activeSection, activeMoment, jumpToSongMap, setActiveSection, playheadMs, durationMs, musicUrl, loopRegion, clips, musicTrack, isAnalysing, notes, createNote, deleteNote, inboxCount, sectionClips, retryClip, soundRef, handlePlayPause, handleSeekBack, handleSeekForward, handleLoopToggle, activeSheetId, openSheet, closeSheet, selectedClipForSheet, setSelectedClipForSheet, openClipSheet, refreshCount, sessionMode, setSessionMode, } = (0, SessionContext_1.useSessionContext)();
+    const { sessionId, activeSection, activeMoment, jumpToSongMap, setActiveSection, playheadMs, durationMs, musicUrl, loopRegion, setLoopRegion, setLoopOpenAt, clips, musicTrack, isAnalysing, notes, createNote, deleteNote, inboxCount, sectionClips, retryClip, soundRef, handlePlayPause, handleSeekBack, handleSeekForward, handleLoopToggle, activeSheetId, openSheet, closeSheet, selectedClipForSheet, setSelectedClipForSheet, openClipSheet, refreshCount, sessionMode, setSessionMode, } = (0, SessionContext_1.useSessionContext)();
     // ── Session metadata ─────────────────────────────────────────────────────
     const [showSectionSwipeHint, setShowSectionSwipeHint] = (0, react_1.useState)(true);
     const [workspaceTab, setWorkspaceTab] = (0, react_1.useState)('ideas');
     const { height: windowHeight } = (0, react_native_1.useWindowDimensions)();
     const waveformWidth = (0, react_1.useRef)(0);
     const [waveformWidthPx, setWaveformWidthPx] = (0, react_1.useState)(0);
+    const [dragStartX, setDragStartX] = (0, react_1.useState)(null);
+    const [dragCurrentX, setDragCurrentX] = (0, react_1.useState)(null);
+    const dragStartXRef = (0, react_1.useRef)(null);
+    const dragCurrentXRef = (0, react_1.useRef)(null);
     const [notePinTimecodeMs, setNotePinTimecodeMs] = (0, react_1.useState)(null);
     const [activeVoiceNoteId, setActiveVoiceNoteId] = (0, react_1.useState)(null);
     const handleVoiceNotePlaybackEnded = (0, react_1.useCallback)((noteId) => {
@@ -152,16 +156,77 @@ function WorkbenchTab() {
             }
         },
     }), [handleSectionSwipe]);
+    const waveformDragPan = (0, react_1.useMemo)(() => react_native_1.PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt) => {
+            const x = evt.nativeEvent.locationX;
+            dragStartXRef.current = x;
+            dragCurrentXRef.current = x;
+            setDragStartX(x);
+            setDragCurrentX(x);
+        },
+        onPanResponderMove: (evt) => {
+            const x = evt.nativeEvent.locationX;
+            dragCurrentXRef.current = x;
+            setDragCurrentX(x);
+        },
+        onPanResponderRelease: (evt) => {
+            const releaseX = evt.nativeEvent.locationX;
+            if (Number.isFinite(releaseX)) {
+                dragCurrentXRef.current = releaseX;
+                setDragCurrentX(releaseX);
+            }
+            const startX = dragStartXRef.current;
+            const currentX = dragCurrentXRef.current;
+            if (startX === null ||
+                currentX === null ||
+                waveformWidthPx <= 0 ||
+                timelineDurationMs <= 0) {
+                dragStartXRef.current = null;
+                dragCurrentXRef.current = null;
+                setDragStartX(null);
+                setDragCurrentX(null);
+                return;
+            }
+            const distance = Math.abs(currentX - startX);
+            const threshold = waveformWidthPx * 0.1;
+            if (distance < threshold) {
+                const fraction = Math.max(0, Math.min(1, startX / waveformWidthPx));
+                const targetMs = fraction * timelineDurationMs;
+                setNotePinTimecodeMs(targetMs);
+                soundRef.current?.setPositionAsync(targetMs).catch(() => { });
+                dragStartXRef.current = null;
+                dragCurrentXRef.current = null;
+                setDragStartX(null);
+                setDragCurrentX(null);
+                return;
+            }
+            const startFrac = Math.max(0, Math.min(1, Math.min(startX, currentX) / waveformWidthPx));
+            const endFrac = Math.max(0, Math.min(1, Math.max(startX, currentX) / waveformWidthPx));
+            setLoopRegion({
+                start: startFrac * timelineDurationMs,
+                end: endFrac * timelineDurationMs,
+            });
+            setLoopOpenAt(null);
+            dragStartXRef.current = null;
+            dragCurrentXRef.current = null;
+            setDragStartX(null);
+            setDragCurrentX(null);
+        },
+        onPanResponderTerminate: () => {
+            dragStartXRef.current = null;
+            dragCurrentXRef.current = null;
+            setDragStartX(null);
+            setDragCurrentX(null);
+        },
+    }), [
+        waveformWidthPx,
+        timelineDurationMs,
+        setLoopRegion,
+        setLoopOpenAt,
+        soundRef,
+    ]);
     // ── Note handlers ────────────────────────────────────────────────────────
-    const handleWaveformTap = (0, react_1.useCallback)((event) => {
-        const width = waveformWidth.current;
-        if (width <= 0 || timelineDurationMs <= 0)
-            return;
-        const fraction = Math.max(0, Math.min(1, event.nativeEvent.locationX / width));
-        const targetMs = fraction * timelineDurationMs;
-        setNotePinTimecodeMs(targetMs);
-        soundRef.current?.setPositionAsync(targetMs).catch(() => { });
-    }, [timelineDurationMs, soundRef]);
     const handleOpenNotePin = (0, react_1.useCallback)((timecodeMs = playheadMs) => {
         setNotePinTimecodeMs(timecodeMs);
         openSheet('note-pin');
@@ -200,7 +265,7 @@ function WorkbenchTab() {
                     waveformWidth.current = measuredWidth;
                     setWaveformWidthPx(measuredWidth);
                 }}>
-              <react_native_1.TouchableOpacity style={styles.waveformTapArea} activeOpacity={1} onPress={handleWaveformTap}>
+              <react_native_1.View style={styles.waveformTapArea} {...waveformDragPan.panHandlers}>
                 <react_native_1.View style={[styles.waveformBarsRow, { width: waveformContentWidth }]}>
                   {waveformBars.map((bar) => {
                     const barFraction = bar.index / WAVEFORM_BAR_COUNT;
@@ -218,7 +283,15 @@ function WorkbenchTab() {
                         ]}/>);
                 })}
                 </react_native_1.View>
-              </react_native_1.TouchableOpacity>
+                {dragStartX !== null && dragCurrentX !== null ? (<react_native_1.View style={[
+                        styles.waveformDragBand,
+                        {
+                            left: Math.min(dragStartX, dragCurrentX),
+                            width: Math.abs(dragCurrentX - dragStartX),
+                            backgroundColor: 'rgba(232, 168, 124, 0.30)',
+                        },
+                    ]}/>) : null}
+              </react_native_1.View>
               {loopRegion ? (<>
                   <react_native_1.View style={[
                         styles.waveformLoopEdge,
@@ -367,10 +440,10 @@ function WorkbenchTab() {
                                     : styles.clipTypeBadgeTextMine,
                         ]}>
                             {item.clip_type === 'voice_memo'
-                            ? 'VOICE'
+                            ? t('workbench.clipBadgeVoice')
                             : isReferenceClip(item)
-                                ? 'REF'
-                                : 'MINE'}
+                                ? t('workbench.clipBadgeRef')
+                                : t('workbench.clipBadgeMine')}
                           </react_native_1.Text>
                         </react_native_1.View>
                         {item.upload_status === 'failed' ? (<react_native_1.TouchableOpacity style={styles.retryPill} onPress={() => retryClip(item.local_id)}>
@@ -478,6 +551,12 @@ const styles = react_native_1.StyleSheet.create({
         alignItems: 'center',
         gap: WAVEFORM_BAR_GAP,
         height: '100%',
+    },
+    waveformDragBand: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        pointerEvents: 'none',
     },
     waveformBar: {
         borderRadius: 2,

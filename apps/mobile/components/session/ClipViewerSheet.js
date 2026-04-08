@@ -37,12 +37,15 @@ const theme_1 = require("../../lib/theme");
 const api_1 = require("../../lib/api");
 const react_native_toast_message_1 = __importDefault(require("react-native-toast-message"));
 const LoopChipRow_1 = __importDefault(require("./LoopChipRow"));
+const FeedbackSheet_1 = require("../FeedbackSheet");
 const colors = theme_1.theme.light;
 const nightColors = theme_1.theme.night;
 exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ onClose }, ref) {
     const { selectedClipForSheet, activeSheetId, loopRegion, activeSection, sectionClips, setSectionClips, sessionId, jumpToSongMap, setQualityTarget, clips, notes, openClipSheet, setSelectedClipForSheet, } = (0, SessionContext_1.useSessionContext)();
     const { session } = (0, useSession_1.useSession)();
     const videoRef = (0, react_1.useRef)(null);
+    const feedbackSheetRef = (0, react_1.useRef)(null);
+    const feedbackSheetHandleRef = (0, react_1.useRef)(null);
     const positionMsRef = (0, react_1.useRef)(0);
     const [clipSpeed, setClipSpeed] = (0, react_1.useState)(1);
     const [playheadFraction, setPlayheadFraction] = (0, react_1.useState)(0);
@@ -141,8 +144,18 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
             videoRef.current.setPositionAsync(start);
         }
     };
+    const handleFeedbackSheetClose = () => {
+        feedbackSheetRef.current?.close();
+    };
+    const handleClipViewerClose = () => {
+        feedbackSheetHandleRef.current?.reset();
+        feedbackSheetRef.current?.close();
+        onClose();
+    };
     const isClipInSession = selectedClipForSheet.server_id &&
         sectionClips.some(sc => sc.clip_id === selectedClipForSheet.server_id && sc.section_label === activeSection);
+    const canGiveFeedback = Boolean(selectedClipForSheet.server_id) &&
+        (selectedClipForSheet.clip_type === 'REF' || selectedClipForSheet.clip_type === 'MINE');
     // Determine if this is a MINE clip (can trim)
     const isMineClip = (selectedClipForSheet.clip_type === 'MINE' || selectedClipForSheet.clip_type == null) && selectedClipForSheet.mux_playback_id;
     const handleSaveToSession = async () => {
@@ -258,7 +271,8 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
         : selectedClipForSheet.clip_type === 'MINE'
             ? { label: 'MINE', backgroundColor: '#e8a87c' }
             : null;
-    return (<bottom_sheet_1.default ref={ref} index={-1} snapPoints={['50%', '85%']} enablePanDownToClose onClose={onClose}>
+    return (<>
+      <bottom_sheet_1.default ref={ref} index={-1} snapPoints={['50%', '85%']} enablePanDownToClose onClose={handleClipViewerClose}>
       {/* Dark zone */}
       <react_native_1.View style={styles.darkZone}>
         {/* Header */}
@@ -334,7 +348,7 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
       </react_native_1.View>
 
       {/* Light zone */}
-      <react_native_1.View style={styles.lightZone}>
+        <react_native_1.View style={styles.lightZone}>
         {(parentClip || inspiredNote) && (<react_native_1.View style={styles.lineageContainer}>
             {parentClip && (<react_native_1.TouchableOpacity style={styles.parentClipRow} onPress={handleOpenParentClip}>
                 <react_native_1.Text style={styles.parentClipText}>
@@ -351,7 +365,7 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
         <LoopChipRow_1.default sessionId={sessionId} sourceUrl={selectedClipForSheet?.mux_playback_id ? `https://stream.mux.com/${selectedClipForSheet.mux_playback_id}` : null} currentPositionMs={positionMsRef.current} onSeek={handleLoopChipPress} onActiveLoopChange={setActiveLoop}/>
 
         {/* Save row */}
-        <react_native_1.View style={styles.saveRow}>
+          <react_native_1.View style={styles.saveRow}>
           <react_native_1.TouchableOpacity style={[
             styles.saveButton,
             isClipInSession && styles.saveButtonDisabled
@@ -372,21 +386,27 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
           </react_native_1.TouchableOpacity>
           
           {/* Trim controls */}
-          {isMineClip && (<>
-              {trimStart === null && trimEnd === null ? (<react_native_1.TouchableOpacity style={styles.setTrimButton} onPress={handleInitializeTrim}>
-                  <react_native_1.Text style={styles.setTrimButtonText}>set trim</react_native_1.Text>
-                </react_native_1.TouchableOpacity>) : (<react_native_1.TouchableOpacity style={[
+            {isMineClip && (<>
+                {trimStart === null && trimEnd === null ? (<react_native_1.TouchableOpacity style={styles.setTrimButton} onPress={handleInitializeTrim}>
+                    <react_native_1.Text style={styles.setTrimButtonText}>set trim</react_native_1.Text>
+                  </react_native_1.TouchableOpacity>) : (<react_native_1.TouchableOpacity style={[
                     styles.saveSegmentButton,
                     isSavingSegment && styles.saveSegmentButtonDisabled
                 ]} onPress={handleSaveSegment} disabled={isSavingSegment}>
-                  <react_native_1.Text style={styles.saveSegmentButtonText}>
-                    {saveSuccess ? 'saved ✓' : (isSavingSegment ? 'saving...' : 'save segment')}
-                  </react_native_1.Text>
-                </react_native_1.TouchableOpacity>)}
-            </>)}
+                    <react_native_1.Text style={styles.saveSegmentButtonText}>
+                      {saveSuccess ? 'saved ✓' : (isSavingSegment ? 'saving...' : 'save segment')}
+                    </react_native_1.Text>
+                  </react_native_1.TouchableOpacity>)}
+              </>)}
+
+            {canGiveFeedback && (<react_native_1.TouchableOpacity style={styles.feedbackButton} onPress={() => feedbackSheetRef.current?.expand()}>
+                <react_native_1.Text style={styles.feedbackButtonText}>Give feedback</react_native_1.Text>
+              </react_native_1.TouchableOpacity>)}
+          </react_native_1.View>
         </react_native_1.View>
-      </react_native_1.View>
-    </bottom_sheet_1.default>);
+      </bottom_sheet_1.default>
+      <FeedbackSheet_1.FeedbackSheet ref={feedbackSheetHandleRef} bottomSheetRef={feedbackSheetRef} sessionId={sessionId} clipId={selectedClipForSheet.server_id ?? ''} onClose={handleFeedbackSheetClose}/>
+    </>);
 });
 const styles = react_native_1.StyleSheet.create({
     darkZone: {
@@ -589,6 +609,18 @@ const styles = react_native_1.StyleSheet.create({
         color: colors.amber,
         fontSize: 14,
         fontStyle: 'italic',
+        fontWeight: '600',
+    },
+    feedbackButton: {
+        borderWidth: 1,
+        borderColor: colors.mine,
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    feedbackButtonText: {
+        color: colors.mine,
+        fontSize: 14,
         fontWeight: '600',
     },
     trimHandle: {

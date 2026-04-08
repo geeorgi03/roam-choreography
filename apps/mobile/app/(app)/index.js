@@ -209,8 +209,10 @@ function HomeScreen() {
                 <react_native_1.View style={styles.cardMeta}>
                   <react_native_1.Text style={styles.cardMetaText}>
                     {(item.clip_count ?? 0) === 0 && (item.section_count ?? 0) === 0
-                    ? 'No clips yet'
-                    : `${item.section_count ?? 0} sections · ${item.clip_count ?? 0} clips`}
+                    ? t('home.cardNoClips')
+                    : t('home.cardCounts')
+                        .replace('{sections}', String(item.section_count ?? 0))
+                        .replace('{clips}', String(item.clip_count ?? 0))}
                   </react_native_1.Text>
                   <react_native_1.Text style={[styles.cardMetaText, { flex: 1, textAlign: 'right' }]}>
                     {formatDate(item.created_at)}

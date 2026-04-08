@@ -146,7 +146,9 @@ function ProfileScreen() {
             return;
         }
         (0, api_1.setApiBaseOverride)(trimmed || null);
-        react_native_1.Alert.alert(trimmed ? t('profile.apiUrlUpdated') : t('profile.apiUrlReset'), trimmed ? `API calls will now use:\n${trimmed}` : `${t('profile.devResetMsg')}: ${api_1.API_BASE}`);
+        react_native_1.Alert.alert(trimmed ? t('profile.apiUrlUpdated') : t('profile.apiUrlReset'), trimmed
+            ? t('profile.apiCallsNowUse').replace('{url}', trimmed)
+            : t('profile.apiUrlResetBody').replace('{url}', api_1.API_BASE));
     };
     if (loading) {
         return (<react_native_1.View style={styles.container}>
@@ -187,7 +189,7 @@ function ProfileScreen() {
             {t('profile.devCurrent')}
             {api_1.API_BASE}
           </react_native_1.Text>
-          <react_native_1.TextInput style={styles.devInput} value={apiUrlInput} onChangeText={setApiUrlInput} placeholder="https://your-api.railway.app" placeholderTextColor={theme_1.theme.light.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url"/>
+          <react_native_1.TextInput style={styles.devInput} value={apiUrlInput} onChangeText={setApiUrlInput} placeholder={t('profile.devApiBaseUrlPlaceholder')} placeholderTextColor={theme_1.theme.light.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url"/>
           <react_native_1.View style={styles.devButtonRow}>
             <react_native_1.TouchableOpacity style={styles.devButton} onPress={handleSaveApiUrl}>
               <react_native_1.Text style={styles.devButtonText}>{t('profile.devSave')}</react_native_1.Text>

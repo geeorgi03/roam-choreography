@@ -5,6 +5,14 @@ import { ClipPlayer } from '../../s/[token]/ClipPlayer';
 
 export const dynamic = 'force-dynamic';
 
+function formatMomentTime(startMs: number): string {
+  const clampedMs = Number.isFinite(startMs) ? Math.max(0, startMs) : 0;
+  const totalSec = Math.floor(clampedMs / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 export default async function SharedClipPage({
   params,
 }: {
@@ -28,11 +36,22 @@ export default async function SharedClipPage({
   });
   const status = (fr as { status?: string } | null)?.status;
   const feedbackOpen = status === 'open';
+  const qualityTarget = session.quality_target ?? null;
+  const isQualityTargetClip = qualityTarget?.source_clip_id === clip.id;
 
   return (
     <div className="min-h-screen bg-roam-ground text-roam-active">
       <header className="p-4 border-b border-roam-border">
         <h1 className="text-xl font-bold font-serif">{clip.move_name ?? clip.label ?? 'Clip'}</h1>
+        {session.phrase ? (
+          <p className="text-roam-active text-sm mt-1 italic">"{session.phrase}"</p>
+        ) : null}
+        {qualityTarget ? (
+          <p className="text-roam-muted text-sm mt-1">
+            Quality target: {formatMomentTime(qualityTarget.timestamp_ms)}
+            {isQualityTargetClip ? ' from this clip' : ''}
+          </p>
+        ) : null}
         <p className="text-roam-muted text-sm mt-1">{session?.name ?? 'Session'}</p>
       </header>
 
