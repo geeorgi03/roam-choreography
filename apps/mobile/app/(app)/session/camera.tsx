@@ -13,6 +13,7 @@ import { LongPressGestureHandler, State, type HandlerStateChangeEvent, type Long
 import { theme } from '../../../lib/theme';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { QuickSaveSheet } from '../../../components/QuickSaveSheet';
+import { CreateSessionSheet } from '../../../components/CreateSessionSheet';
 import { useSession } from '../../../lib/hooks/useSession';
 import { saveClip } from '../../../lib/saveClip';
 
@@ -35,6 +36,8 @@ export default function CameraScreen() {
   const [showFallbackNotice, setShowFallbackNotice] = useState(false);
   const [showRecordErrorNotice, setShowRecordErrorNotice] = useState(false);
   const [voiceMemoNotice, setVoiceMemoNotice] = useState(false);
+  const [facing, setFacing] = useState<'back' | 'front'>('back');
+  const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const frontRecordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const audioRecordingRef = useRef<Audio.Recording | null>(null);
@@ -42,6 +45,7 @@ export default function CameraScreen() {
   const didConsumeLongPressRef = useRef(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const quickSaveRef = useRef<BottomSheet | null>(null);
+  const createSessionSheetRef = useRef<BottomSheet | null>(null);
   const frontCameraRef = useRef<CameraView>(null);
   const fpsFramesRef = useRef<number[]>([]);
   const lowFpsStartRef = useRef<number | null>(null);
@@ -237,11 +241,11 @@ export default function CameraScreen() {
             const nextDualPairId = crypto.randomUUID();
             setDualPairId(nextDualPairId);
             setFrontRecordedUri(frontResult.uri);
-            autoOpenQuickSaveRef.current = true;
           } else {
             setDualPairId(undefined);
             setFrontRecordedUri(null);
           }
+          autoOpenQuickSaveRef.current = true;
           setRecordedUri(mainResult.uri);
         } else {
           setDualPairId(undefined);
@@ -262,6 +266,18 @@ export default function CameraScreen() {
     setDualPairId(undefined);
     didAutoFallbackRef.current = false;
     dualRequestedAtStartRef.current = false;
+  };
+
+  const handleFlipPress = () => {
+    setFacing((prev) => (prev === 'back' ? 'front' : 'back'));
+  };
+
+  const handleFlashPress = () => {
+    setFlashMode((prev) => {
+      if (prev === 'off') return 'on';
+      if (prev === 'on') return 'auto';
+      return 'off';
+    });
   };
 
   const showVoiceMemoNotice = () => {
@@ -355,7 +371,7 @@ export default function CameraScreen() {
       <View style={styles.container}>
         <Text style={styles.placeholderText}>Camera permission required</Text>
         <TouchableOpacity style={styles.button} onPress={requestCameraPermission}>
-          <Text style={styles.buttonText}>Grant permission</Text>
+          <Text style={styles.outlineButtonText}>Grant permission</Text>
         </TouchableOpacity>
       </View>
     );
@@ -374,10 +390,10 @@ export default function CameraScreen() {
         />
         <View style={styles.previewControls}>
           <TouchableOpacity style={styles.outlineButton} onPress={handleRetake}>
-            <Text style={styles.buttonText}>Retake</Text>
+            <Text style={styles.outlineButtonText}>Retake</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
-            <Text style={styles.buttonText}>Save</Text>
+            <Text style={styles.primaryButtonText}>Save</Text>
           </TouchableOpacity>
         </View>
         <QuickSaveSheet
@@ -387,12 +403,31 @@ export default function CameraScreen() {
           dualPairId={dualPairId}
           sessionId={typeof sessionId === 'string' ? sessionId : null}
           sectionName={typeof sectionName === 'string' ? sectionName : null}
+          onNewSession={() => {
+            createSessionSheetRef.current?.snapToIndex(0);
+          }}
           onDone={(next) => {
             if (next?.navigateTo) {
               router.replace(next.navigateTo);
             } else {
               router.back();
             }
+          }}
+        />
+        <CreateSessionSheet
+          bottomSheetRef={createSessionSheetRef}
+          onCreated={(newSession) => {
+            if (!session?.access_token || !recordedUri) return;
+            void saveClip(
+              newSession.id,
+              recordedUri,
+              'Clip',
+              session.access_token,
+              typeof sectionName === 'string' ? sectionName : undefined,
+              dualPairId
+            ).finally(() => {
+              router.replace(`/session/${newSession.id}`);
+            });
           }}
         />
       </View>
@@ -405,6 +440,10 @@ export default function CameraScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
+        <View style={styles.sessionLabelWrap}>
+          <Text style={styles.sessionLabel}>{session?.name ?? 'Session'}</Text>
+          {sectionName ? <Text style={styles.sectionLabel}>{sectionName}</Text> : null}
+        </View>
         <TouchableOpacity
           style={[styles.dualChip, dualEnabled && styles.dualChipActive]}
           onPress={() => {
@@ -423,7 +462,8 @@ export default function CameraScreen() {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         mode="video"
-        facing="back"
+        facing={facing}
+        flash={flashMode}
       />
       {dualEnabled ? (
         <View style={styles.pipContainer}>
@@ -445,6 +485,14 @@ export default function CameraScreen() {
           <Text style={styles.fallbackNoticeText}>🎤 Voice memo saved</Text>
         </View>
       ) : null}
+      <View style={styles.controlsRow}>
+        <TouchableOpacity style={styles.controlBtn} onPress={handleFlipPress} activeOpacity={0.85}>
+          <Text style={styles.controlBtnIcon}>🔄</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.controlBtn} onPress={handleFlashPress} activeOpacity={0.85}>
+          <Text style={styles.controlBtnIcon}>⚡</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.controls}>
         {isVoiceMemoRecording && (
           <Animated.View style={[styles.voiceMemoIndicator, { opacity: pulseAnim }]}>
@@ -489,10 +537,10 @@ const styles = StyleSheet.create({
   primaryButton: {
     paddingVertical: 14,
     paddingHorizontal: 24,
-    backgroundColor: colors.active,
+    backgroundColor: t.capture,
     borderRadius: spacing.radiusMd,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: t.capture,
   },
   outlineButton: {
     paddingVertical: 14,
@@ -502,10 +550,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  buttonText: {
+  outlineButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.active,
+    color: t.active,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: t.chrome,
   },
   controls: {
     position: 'absolute',
@@ -519,11 +572,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 48,
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
+    backgroundColor: t.ground,
     zIndex: 10,
   },
   backButton: {
@@ -534,6 +588,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: colors.active,
+  },
+  sessionLabelWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  sessionLabel: {
+    color: t.active,
+    fontSize: theme.typography.sizes.sm,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  sectionLabel: {
+    color: t.muted,
+    fontSize: theme.typography.sizes.xs,
+    textAlign: 'center',
   },
   dualChip: {
     borderWidth: 0.5,
@@ -579,7 +650,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 110,
     alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(58,52,45,0.82)',
     borderWidth: 0.5,
     borderColor: colors.border,
     borderRadius: 6,
@@ -594,12 +665,37 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.chrome,
+    backgroundColor: t.capture,
     borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.6)',
+    borderColor: 'rgba(255,255,255,0.5)',
   },
   recordButtonActive: {
-    backgroundColor: colors.capture,
+    backgroundColor: t.capture,
+    borderColor: t.active,
+    borderWidth: 2,
+  },
+  controlsRow: {
+    position: 'absolute',
+    bottom: 130,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 32,
+  },
+  controlBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderWidth: 1,
+    borderColor: t.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlBtnIcon: {
+    fontSize: 18,
+    color: t.active,
   },
   previewControls: {
     position: 'absolute',
@@ -617,7 +713,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xxs,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(58,52,45,0.75)',
     borderRadius: spacing.pill,
     paddingVertical: spacing.xxs,
     paddingHorizontal: spacing.xs,

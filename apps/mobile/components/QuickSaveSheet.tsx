@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -15,7 +15,7 @@ import { API_BASE } from '../lib/api';
 import { saveClip, saveInboxClip } from '../lib/saveClip';
 import type { Session as SessionType } from '@roam/types';
 
-type Mode = 'saved' | 'new-session' | 'picker';
+type Mode = 'saved' | 'picker';
 
 export interface QuickSaveSheetProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
@@ -24,17 +24,8 @@ export interface QuickSaveSheetProps {
   dualPairId?: string;
   sessionId?: string | null;
   sectionName?: string | null;
+  onNewSession?: () => void;
   onDone: (next?: { navigateTo?: string }) => void;
-}
-
-async function parseJsonSafe(res: Response): Promise<{ parsed: unknown; raw: string }> {
-  const raw = await res.text();
-  if (!raw) return { parsed: null, raw: '' };
-  try {
-    return { parsed: JSON.parse(raw), raw };
-  } catch {
-    return { parsed: null, raw };
-  }
 }
 
 export function QuickSaveSheet({
@@ -44,6 +35,7 @@ export function QuickSaveSheet({
   dualPairId,
   sessionId,
   sectionName,
+  onNewSession,
   onDone,
 }: QuickSaveSheetProps) {
   const snapPoints = useMemo(() => ['55%'], []);
@@ -51,7 +43,6 @@ export function QuickSaveSheet({
   const [mode, setMode] = useState<Mode>('saved');
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<SessionType[]>([]);
-  const [name, setName] = useState('');
   const didLoadSessionsRef = useRef(false);
 
   const loadSessions = useCallback(async () => {
@@ -184,37 +175,6 @@ export function QuickSaveSheet({
     }
   }, [videoUri, session?.access_token, bottomSheetRef, onDone]);
 
-  const createSession = useCallback(async () => {
-    if (!session?.access_token) return null;
-    setLoading(true);
-    try {
-      const trimmed = name.trim() || new Date().toLocaleDateString();
-      let res = await fetch(`${API_BASE}/sessions/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      if (res.status === 404) {
-        res = await fetch(`${API_BASE}/sessions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ name: trimmed }),
-        });
-      }
-      const { parsed } = await parseJsonSafe(res);
-      if (!res.ok) return null;
-      return parsed as SessionType;
-    } finally {
-      setLoading(false);
-    }
-  }, [name, session?.access_token]);
-
   const primaryExistingLabel =
     sessionId && sectionName ? `Save to ${sectionName}` : 'Existing →';
 
@@ -249,7 +209,7 @@ export function QuickSaveSheet({
 
             <TouchableOpacity
               style={styles.secondaryBtn}
-              onPress={() => setMode('new-session')}
+              onPress={() => onNewSession?.()}
               disabled={loading}
             >
               <Text style={styles.secondaryBtnText}>+ New session</Text>
@@ -271,44 +231,10 @@ export function QuickSaveSheet({
           </>
         ) : null}
 
-        {mode === 'new-session' ? (
-          <>
-            <TextInput
-              style={styles.input}
-              placeholder="Session name"
-              placeholderTextColor={theme.textSecondary}
-              value={name}
-              onChangeText={setName}
-              editable={!loading}
-            />
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={async () => {
-                const s = await createSession();
-                if (!s?.id) {
-                  Toast.show({ type: 'error', text1: 'Could not create session' });
-                  return;
-                }
-                await saveToSession(s.id);
-              }}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#0b0b0f" size="small" />
-              ) : (
-                <Text style={styles.primaryBtnText}>Create & save</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.linkBtn} onPress={() => setMode('saved')} disabled={loading}>
-              <Text style={styles.linkText}>Back</Text>
-            </TouchableOpacity>
-          </>
-        ) : null}
-
         {mode === 'picker' ? (
           <>
             <Text style={styles.subTitle}>Choose a session</Text>
-            <View style={styles.list}>
+            <ScrollView style={styles.listScroll} contentContainerStyle={styles.list}>
               {sessions.map((s) => (
                 <TouchableOpacity
                   key={s.id}
@@ -322,7 +248,7 @@ export function QuickSaveSheet({
                   <Text style={styles.chev}>→</Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
             <TouchableOpacity style={styles.linkBtn} onPress={() => setMode('saved')} disabled={loading}>
               <Text style={styles.linkText}>Back</Text>
             </TouchableOpacity>
@@ -334,38 +260,30 @@ export function QuickSaveSheet({
 }
 
 const styles = StyleSheet.create({
-  sheet: { backgroundColor: theme.background },
-  handle: { backgroundColor: theme.textSecondary },
+  sheet: { backgroundColor: theme.light.ground },
+  handle: { backgroundColor: theme.light.inactive },
   content: { padding: 20, paddingBottom: 40, gap: 10 },
-  title: { color: theme.textPrimary, fontSize: 18, fontWeight: '800', marginBottom: 4 },
-  subTitle: { color: theme.textSecondary, fontSize: 13, marginBottom: 6 },
-  input: {
-    backgroundColor: '#1B1B22',
-    borderWidth: 1,
-    borderColor: '#2A2A32',
-    borderRadius: theme.borderRadius,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    color: theme.textPrimary,
-  },
+  title: { color: theme.light.active, fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  subTitle: { color: theme.light.muted, fontSize: 13, marginBottom: 6 },
   primaryBtn: {
-    backgroundColor: '#C8F135',
+    backgroundColor: theme.light.mine,
     borderRadius: theme.borderRadius,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  primaryBtnText: { color: '#0b0b0f', fontSize: 16, fontWeight: '800' },
+  primaryBtnText: { color: theme.light.chrome, fontSize: 16, fontWeight: '800' },
   secondaryBtn: {
-    backgroundColor: '#222',
+    backgroundColor: theme.light.chrome,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: theme.light.border,
     borderRadius: theme.borderRadius,
     paddingVertical: 14,
     alignItems: 'center',
   },
-  secondaryBtnText: { color: theme.textPrimary, fontSize: 16, fontWeight: '700' },
+  secondaryBtnText: { color: theme.light.active, fontSize: 16, fontWeight: '700' },
   linkBtn: { paddingVertical: 10, alignItems: 'center' },
-  linkText: { color: '#4ECDC4', fontWeight: '800' },
+  linkText: { color: theme.light.mine, fontWeight: '800' },
+  listScroll: { maxHeight: 240 },
   list: { gap: 10 },
   sessionRow: {
     flexDirection: 'row',
@@ -375,10 +293,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: theme.borderRadius,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
-    backgroundColor: '#222',
+    borderColor: theme.light.border,
+    backgroundColor: theme.light.chrome,
   },
-  sessionText: { color: theme.textPrimary, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
-  chev: { color: theme.textSecondary, fontSize: 18 },
+  sessionText: { color: theme.light.active, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
+  chev: { color: theme.light.muted, fontSize: 18 },
 });
 
