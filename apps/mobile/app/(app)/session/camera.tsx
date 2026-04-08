@@ -418,16 +418,32 @@ export default function CameraScreen() {
           bottomSheetRef={createSessionSheetRef}
           onCreated={(newSession) => {
             if (!session?.access_token || !recordedUri) return;
-            void saveClip(
-              newSession.id,
-              recordedUri,
-              'Clip',
-              session.access_token,
-              typeof sectionName === 'string' ? sectionName : undefined,
-              dualPairId
-            ).finally(() => {
+            void (async () => {
+              const section = typeof sectionName === 'string' ? sectionName : undefined;
+              const primaryResult = await saveClip(
+                newSession.id,
+                recordedUri,
+                'Clip',
+                session.access_token,
+                section,
+                dualPairId
+              );
+              if (!primaryResult.ok) return;
+
+              if (dualPairId && frontRecordedUri) {
+                const secondaryResult = await saveClip(
+                  newSession.id,
+                  frontRecordedUri,
+                  'Clip',
+                  session.access_token,
+                  section,
+                  dualPairId
+                );
+                if (!secondaryResult.ok) return;
+              }
+
               router.replace(`/session/${newSession.id}`);
-            });
+            })();
           }}
         />
       </View>

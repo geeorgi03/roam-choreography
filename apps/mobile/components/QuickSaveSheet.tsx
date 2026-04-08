@@ -11,9 +11,9 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import Toast from 'react-native-toast-message';
 import { theme } from '../lib/theme';
 import { useSession } from '../lib/hooks/useSession';
-import { API_BASE } from '../lib/api';
 import { saveClip, saveInboxClip } from '../lib/saveClip';
 import type { Session as SessionType } from '@roam/types';
+import { CreateSessionSheet } from './CreateSessionSheet';
 
 type Mode = 'saved' | 'picker';
 
@@ -24,7 +24,6 @@ export interface QuickSaveSheetProps {
   dualPairId?: string;
   sessionId?: string | null;
   sectionName?: string | null;
-  onNewSession?: () => void;
   onDone: (next?: { navigateTo?: string }) => void;
 }
 
@@ -44,6 +43,7 @@ export function QuickSaveSheet({
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<SessionType[]>([]);
   const didLoadSessionsRef = useRef(false);
+  const createSessionSheetRef = useRef<BottomSheet | null>(null);
 
   const loadSessions = useCallback(async () => {
     if (!session?.access_token) return;
@@ -154,15 +154,41 @@ export function QuickSaveSheet({
     if (!session?.access_token) return false;
     setLoading(true);
     try {
-      const r = await saveInboxClip(videoUri, 'Clip', session.access_token);
-      if (!r.ok) {
-        if (r.reason === 'plan_limit_reached') {
+      const primaryResult = await saveInboxClip(
+        videoUri,
+        'Clip',
+        session.access_token,
+        dualPairId
+      );
+      if (!primaryResult.ok) {
+        if (primaryResult.reason === 'plan_limit_reached') {
           Toast.show({ type: 'error', text1: 'Upload limit reached' });
         } else {
-          Toast.show({ type: 'error', text1: 'Could not save to Inbox', text2: r.message });
+          Toast.show({ type: 'error', text1: 'Could not save to Inbox', text2: primaryResult.message });
         }
         return false;
       }
+
+      if (dualPairId && secondaryVideoUri) {
+        const secondaryResult = await saveInboxClip(
+          secondaryVideoUri,
+          'Clip',
+          session.access_token,
+          dualPairId
+        );
+        if (!secondaryResult.ok) {
+          Toast.show({
+            type: 'error',
+            text1: 'Could not save both clips to Inbox',
+            text2:
+              secondaryResult.reason === 'plan_limit_reached'
+                ? 'Upload limit reached'
+                : secondaryResult.message,
+          });
+          return false;
+        }
+      }
+
       Toast.show({ type: 'success', text1: 'Saved to Inbox' });
       bottomSheetRef.current?.close();
       onDone({ navigateTo: '/inbox' });
@@ -173,10 +199,9 @@ export function QuickSaveSheet({
     } finally {
       setLoading(false);
     }
-  }, [videoUri, session?.access_token, bottomSheetRef, onDone]);
+  }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone]);
 
-  const primaryExistingLabel =
-    sessionId && sectionName ? `Save to ${sectionName}` : 'Existing →';
+  const canSaveToCurrentSection = Boolean(sessionId && sectionName);
 
   return (
     <BottomSheet
@@ -209,7 +234,7 @@ export function QuickSaveSheet({
 
             <TouchableOpacity
               style={styles.secondaryBtn}
-              onPress={() => onNewSession?.()}
+              onPress={() => createSessionSheetRef.current?.snapToIndex(0)}
               disabled={loading}
             >
               <Text style={styles.secondaryBtnText}>+ New session</Text>
@@ -218,16 +243,24 @@ export function QuickSaveSheet({
             <TouchableOpacity
               style={styles.primaryBtn}
               onPress={() => {
-                if (sessionId && sectionName) {
-                  void saveToSectionSession();
-                  return;
-                }
                 setMode('picker');
               }}
               disabled={loading}
             >
-              <Text style={styles.primaryBtnText}>{primaryExistingLabel}</Text>
+              <Text style={styles.primaryBtnText}>Existing →</Text>
             </TouchableOpacity>
+
+            {canSaveToCurrentSection ? (
+              <TouchableOpacity
+                style={styles.secondaryBtn}
+                onPress={() => {
+                  void saveToSectionSession();
+                }}
+                disabled={loading}
+              >
+                <Text style={styles.secondaryBtnText}>{`Save to ${sectionName}`}</Text>
+              </TouchableOpacity>
+            ) : null}
           </>
         ) : null}
 
@@ -255,6 +288,48 @@ export function QuickSaveSheet({
           </>
         ) : null}
       </View>
+      <CreateSessionSheet
+        bottomSheetRef={createSessionSheetRef}
+        onCreated={(newSession) => {
+          if (!session?.access_token || !videoUri) return;
+          setLoading(true);
+          void (async () => {
+            try {
+              const primaryResult = await saveClip(
+                newSession.id,
+                videoUri,
+                'Clip',
+                session.access_token,
+                undefined,
+                dualPairId
+              );
+              if (!primaryResult.ok) {
+                Toast.show({ type: 'error', text1: 'Could not save clip' });
+                return;
+              }
+              if (dualPairId && secondaryVideoUri) {
+                const secondaryResult = await saveClip(
+                  newSession.id,
+                  secondaryVideoUri,
+                  'Clip',
+                  session.access_token,
+                  undefined,
+                  dualPairId
+                );
+                if (!secondaryResult.ok) {
+                  Toast.show({ type: 'error', text1: 'Could not save clip' });
+                  return;
+                }
+              }
+              Toast.show({ type: 'success', text1: 'Saved' });
+              bottomSheetRef.current?.close();
+              onDone({ navigateTo: `/session/${newSession.id}` });
+            } finally {
+              setLoading(false);
+            }
+          })();
+        }}
+      />
     </BottomSheet>
   );
 }

@@ -67,7 +67,8 @@ export async function saveClip(
 export async function saveInboxClip(
   fileUri: string,
   label: string,
-  token: string
+  token: string,
+  dualPairId?: string
 ): Promise<SaveClipResult> {
   try {
     const local_id = crypto.randomUUID();
@@ -76,6 +77,7 @@ export async function saveInboxClip(
     insertClip({
       local_id,
       session_id: null,
+      dual_pair_id: dualPairId ?? null,
       label,
       recorded_at,
       file_uri: fileUri,
@@ -89,6 +91,7 @@ export async function saveInboxClip(
       label,
       recorded_at,
       token,
+      dual_pair_id: dualPairId,
     });
 
     return { ok: true, local_id };
