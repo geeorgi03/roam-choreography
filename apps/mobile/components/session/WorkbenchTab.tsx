@@ -627,42 +627,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ground,
     position: 'relative',
   },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 24,
-    paddingHorizontal: 32,
-  },
-  emptyStatePrompt: {
-    color: colors.muted,
-    fontSize: 15,
-    textAlign: 'center',
-  },
-  emptyStateActions: {
-    flexDirection: 'row',
-    gap: 16,
-    alignItems: 'center',
-  },
-  emptyStateAddVideoBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: colors.active,
-    borderRadius: spacing.pill,
-  },
-  emptyStateAddVideoBtnText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  emptyStateFab: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.capture,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   waveformContainer: {
     height: 80,
   },
