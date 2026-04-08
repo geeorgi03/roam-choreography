@@ -32,6 +32,7 @@ const expo_router_1 = require("expo-router");
 const react_native_toast_message_1 = __importDefault(require("react-native-toast-message"));
 const theme_1 = require("../../lib/theme");
 const useInbox_1 = require("../../lib/hooks/useInbox");
+const InboxCountContext_1 = require("../../lib/contexts/InboxCountContext");
 const AssignPickerSheet_1 = require("../../components/AssignPickerSheet");
 const CreateSessionSheet_1 = require("../../components/CreateSessionSheet");
 function timeAgo(iso) {
@@ -54,6 +55,7 @@ function InboxScreen() {
     const router = (0, expo_router_1.useRouter)();
     const { sessionId: originSessionId, sectionName: originSectionName } = (0, expo_router_1.useLocalSearchParams)();
     const { clips, loading, staleClips, assignClip, deleteClip, refresh } = (0, useInbox_1.useInbox)();
+    const { refreshCount } = (0, InboxCountContext_1.useInboxCount)();
     const assignSheetRef = (0, react_1.useRef)(null);
     const createSheetRef = (0, react_1.useRef)(null);
     const [selectedClip, setSelectedClip] = (0, react_1.useState)(null);
@@ -72,8 +74,10 @@ function InboxScreen() {
         if (!selectedClip)
             return false;
         const ok = await assignClip(selectedClip.id, s.id);
-        if (ok)
+        if (ok) {
             react_native_toast_message_1.default.show({ type: 'success', text1: `Added to ${s.name}` });
+            refreshCount().catch(() => { });
+        }
         return ok;
     };
     const renderItem = ({ item }) => {
@@ -111,6 +115,7 @@ function InboxScreen() {
                             type: 'success',
                             text1: `Added to ${sectionContext.sectionName}`,
                         });
+                        refreshCount().catch(() => { });
                         router.replace({
                             pathname: `/session/${sectionContext.sessionId}`,
                             params: { sectionName: sectionContext.sectionName },
@@ -124,8 +129,11 @@ function InboxScreen() {
           </react_native_1.TouchableOpacity>
           <react_native_1.TouchableOpacity style={[styles.actionBtn, styles.deleteBtn]} onPress={async () => {
                 const ok = await deleteClip(item.id);
-                if (!ok)
+                if (!ok) {
                     react_native_toast_message_1.default.show({ type: 'error', text1: 'Failed to delete' });
+                    return;
+                }
+                refreshCount().catch(() => { });
             }}>
             <react_native_1.Text style={styles.actionText}>🗑</react_native_1.Text>
           </react_native_1.TouchableOpacity>
@@ -134,7 +142,6 @@ function InboxScreen() {
     };
     return (<react_native_1.View style={styles.container}>
       <react_native_1.View style={styles.header}>
-        <react_native_1.View style={styles.handle}/>
         <react_native_1.View style={styles.headerRow}>
           <react_native_1.Text style={styles.headerTitle}>
             {sectionContext ? `Pick for ${sectionContext.sectionName}` : 'Inbox'}
@@ -153,12 +160,15 @@ function InboxScreen() {
 
       {sectionContext ? (<react_native_1.View style={styles.nudge}>
           <react_native_1.Text style={styles.nudgeText}>
-            Picking for <react_native_1.Text style={{ color: theme_1.theme.textPrimary, fontWeight: '800' }}>{sectionContext.sectionName}</react_native_1.Text>
+            Picking for{' '}
+            <react_native_1.Text style={{ color: theme_1.theme.light.active, fontWeight: '800' }}>
+              {sectionContext.sectionName}
+            </react_native_1.Text>
           </react_native_1.Text>
         </react_native_1.View>) : null}
 
       {loading ? (<react_native_1.View style={styles.center}>
-          <react_native_1.ActivityIndicator color={theme_1.theme.textPrimary}/>
+          <react_native_1.ActivityIndicator color={theme_1.theme.light.active}/>
         </react_native_1.View>) : clips.length === 0 ? (<react_native_1.View style={styles.empty}>
           <react_native_1.Text style={styles.emptyIcon}>📥</react_native_1.Text>
           <react_native_1.Text style={styles.emptyTitle}>Nothing here</react_native_1.Text>
@@ -170,44 +180,40 @@ function InboxScreen() {
             react_native_toast_message_1.default.show({ type: 'success', text1: 'Session created' });
             if (!selectedClip)
                 return;
-            assignClip(selectedClip.id, s.id).catch(() => { });
+            assignClip(selectedClip.id, s.id)
+                .then((ok) => {
+                if (ok)
+                    refreshCount().catch(() => { });
+            })
+                .catch(() => { });
         }}/>
     </react_native_1.View>);
 }
 exports.default = InboxScreen;
 const styles = react_native_1.StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme_1.theme.background },
+    container: { flex: 1, backgroundColor: theme_1.theme.light.ground },
     header: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 8 },
-    handle: {
-        alignSelf: 'center',
-        width: 48,
-        height: 5,
-        borderRadius: 3,
-        backgroundColor: theme_1.theme.textSecondary,
-        marginBottom: 10,
-        opacity: 0.6,
-    },
     headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    headerTitle: { fontSize: 22, fontWeight: '800', color: theme_1.theme.textPrimary },
+    headerTitle: { fontSize: 22, fontWeight: '800', color: theme_1.theme.light.active },
     badge: {
-        backgroundColor: '#222',
+        backgroundColor: theme_1.theme.light.chrome,
         borderWidth: 1,
-        borderColor: theme_1.theme.textSecondary,
+        borderColor: theme_1.theme.light.border,
         borderRadius: 999,
         paddingHorizontal: 10,
         paddingVertical: 4,
     },
-    badgeText: { color: theme_1.theme.textPrimary, fontWeight: '700' },
+    badgeText: { color: theme_1.theme.light.active, fontWeight: '700' },
     nudge: {
         marginHorizontal: 16,
         marginBottom: 10,
         padding: 12,
         borderRadius: theme_1.theme.borderRadius,
         borderWidth: 1,
-        borderColor: '#2A2A32',
-        backgroundColor: '#1B1B22',
+        borderColor: theme_1.theme.light.border,
+        backgroundColor: theme_1.theme.light.chrome,
     },
-    nudgeText: { color: theme_1.theme.textSecondary, fontSize: 14 },
+    nudgeText: { color: theme_1.theme.light.muted, fontSize: 14 },
     listContent: { padding: 16, paddingTop: 8, gap: 10 },
     row: {
         flexDirection: 'row',
@@ -217,31 +223,31 @@ const styles = react_native_1.StyleSheet.create({
         padding: 12,
         borderRadius: theme_1.theme.borderRadius,
         borderWidth: 1,
-        borderColor: '#2A2A32',
-        backgroundColor: '#1B1B22',
+        borderColor: theme_1.theme.light.border,
+        backgroundColor: theme_1.theme.light.chrome,
     },
     rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
     typeIcon: { fontSize: 18 },
-    rowTitle: { color: theme_1.theme.textPrimary, fontSize: 15, fontWeight: '700' },
-    rowMeta: { color: theme_1.theme.textSecondary, fontSize: 12, marginTop: 2 },
+    rowTitle: { color: theme_1.theme.light.active, fontSize: 15, fontWeight: '700' },
+    rowMeta: { color: theme_1.theme.light.muted, fontSize: 12, marginTop: 2 },
     actions: { flexDirection: 'row', gap: 8 },
     actionBtn: {
         width: 36,
         height: 36,
         borderRadius: 10,
         borderWidth: 1,
-        borderColor: theme_1.theme.textSecondary,
-        backgroundColor: '#222',
+        borderColor: theme_1.theme.light.border,
+        backgroundColor: theme_1.theme.light.chrome,
         alignItems: 'center',
         justifyContent: 'center',
     },
     actionBtnDisabled: { opacity: 0.4 },
-    deleteBtn: { borderColor: '#e57373' },
-    actionText: { color: theme_1.theme.textPrimary, fontSize: 14 },
+    deleteBtn: { borderColor: theme_1.theme.light.capture },
+    actionText: { color: theme_1.theme.light.active, fontSize: 14 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
     emptyIcon: { fontSize: 42, marginBottom: 12 },
-    emptyTitle: { color: theme_1.theme.textPrimary, fontSize: 18, fontWeight: '800', marginBottom: 8 },
-    emptySub: { color: theme_1.theme.textSecondary, fontSize: 14, textAlign: 'center' },
+    emptyTitle: { color: theme_1.theme.light.active, fontSize: 18, fontWeight: '800', marginBottom: 8 },
+    emptySub: { color: theme_1.theme.light.muted, fontSize: 14, textAlign: 'center' },
 });
 //# sourceMappingURL=inbox.js.map

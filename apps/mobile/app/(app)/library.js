@@ -9,12 +9,10 @@ const ClipViewerSheetStandalone_1 = require("../../components/session/ClipViewer
 const api_1 = require("../../lib/api");
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
-const STYLES = ['Hip-hop', 'Contemporary', 'Ballet', 'Jazz', 'Fusion', 'Other'];
-const ENERGY_LEVELS = ['Low', 'Medium', 'High', 'Explosive'];
-const DIFFICULTY_LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
 function LibraryScreen() {
     const { session } = (0, useSession_1.useSession)();
     const token = session?.access_token ?? null;
+    const currentUserId = session?.user?.id ?? null;
     const [clips, setClips] = (0, react_1.useState)([]);
     const [nextCursor, setNextCursor] = (0, react_1.useState)(null);
     const [loading, setLoading] = (0, react_1.useState)(true);
@@ -22,11 +20,7 @@ function LibraryScreen() {
     const [selectedClip, setSelectedClip] = (0, react_1.useState)(null);
     const [q, setQ] = (0, react_1.useState)('');
     const [debouncedQ, setDebouncedQ] = (0, react_1.useState)('');
-    const [filterStyle, setFilterStyle] = (0, react_1.useState)(null);
-    const [filterEnergy, setFilterEnergy] = (0, react_1.useState)(null);
-    const [filterDifficulty, setFilterDifficulty] = (0, react_1.useState)(null);
-    const [bpmMin, setBpmMin] = (0, react_1.useState)('');
-    const [bpmMax, setBpmMax] = (0, react_1.useState)('');
+    const [filterSegment, setFilterSegment] = (0, react_1.useState)('All');
     const clipSheetRef = (0, react_1.useRef)(null);
     const debounceTimer = (0, react_1.useRef)(null);
     (0, react_1.useEffect)(() => {
@@ -49,16 +43,6 @@ function LibraryScreen() {
         params.set('limit', '20');
         if (debouncedQ.trim())
             params.set('q', debouncedQ.trim());
-        if (filterStyle)
-            params.set('style', filterStyle);
-        if (filterEnergy)
-            params.set('energy', filterEnergy);
-        if (filterDifficulty)
-            params.set('difficulty', filterDifficulty);
-        if (bpmMin.trim())
-            params.set('bpm_min', bpmMin.trim());
-        if (bpmMax.trim())
-            params.set('bpm_max', bpmMax.trim());
         if (cursor)
             params.set('cursor', cursor);
         const res = await fetch(`${api_1.API_BASE}/library?${params.toString()}`, {
@@ -74,7 +58,7 @@ function LibraryScreen() {
             setClips((prev) => [...prev, ...incoming]);
         else
             setClips(incoming);
-    }, [token, debouncedQ, filterStyle, filterEnergy, filterDifficulty, bpmMin, bpmMax]);
+    }, [token, debouncedQ]);
     (0, react_1.useEffect)(() => {
         let alive = true;
         (async () => {
@@ -160,66 +144,51 @@ function LibraryScreen() {
         setSelectedClip(null);
         clipSheetRef.current?.close();
     };
-    const anyFilter = !!debouncedQ.trim() ||
-        !!filterStyle ||
-        !!filterEnergy ||
-        !!filterDifficulty ||
-        !!bpmMin.trim() ||
-        !!bpmMax.trim();
+    const filteredClips = (0, react_1.useMemo)(() => {
+        // Segment rules: REF is by `clip_type`; MINE is `clip_type` ('MINE' or null); Shared is "other users" by `user_id`.
+        if (filterSegment === 'All')
+            return clips;
+        if (filterSegment === 'REF') {
+            return clips.filter((item) => item.clip_type === 'REF');
+        }
+        if (filterSegment === 'Shared') {
+            return clips.filter((item) => {
+                const userId = item.user_id ?? null;
+                return !!currentUserId && !!userId && userId !== currentUserId;
+            });
+        }
+        // 'MINE'
+        return clips.filter((item) => {
+            const clipType = item.clip_type ?? null;
+            const mineType = clipType === 'MINE' || clipType === null;
+            return mineType;
+        });
+    }, [clips, filterSegment, currentUserId]);
     return (<react_native_1.View style={styles.container}>
-      <react_native_1.FlatList data={clips} keyExtractor={(item) => item.local_id ?? item.id} contentContainerStyle={clips.length === 0 ? styles.emptyList : styles.listContent} ListHeaderComponent={<react_native_1.View style={styles.header}>
+      <react_native_1.FlatList data={filteredClips} keyExtractor={(item) => item.local_id ?? item.id} contentContainerStyle={filteredClips.length === 0 ? styles.emptyList : styles.listContent} ListHeaderComponent={<react_native_1.View style={styles.header}>
             <react_native_1.View style={styles.searchRow}>
               <react_native_1.Text style={styles.searchIcon}>🔍</react_native_1.Text>
               <react_native_1.TextInput style={styles.searchInput} placeholder="Search clips…" placeholderTextColor={colors.muted} value={q} onChangeText={setQ} autoCapitalize="none" autoCorrect={false}/>
             </react_native_1.View>
 
-            <react_native_1.ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
-              {STYLES.map((option) => (<react_native_1.TouchableOpacity key={option} style={[styles.chip, filterStyle === option && styles.chipSelected]} onPress={() => setFilterStyle((prev) => (prev === option ? null : option))} activeOpacity={0.8}>
-                  <react_native_1.Text style={[
-                    styles.chipText,
-                    filterStyle === option && styles.chipTextSelected,
-                ]}>
-                    {option}
-                  </react_native_1.Text>
-                </react_native_1.TouchableOpacity>))}
-
-              {ENERGY_LEVELS.map((option) => (<react_native_1.TouchableOpacity key={option} style={[styles.chip, filterEnergy === option && styles.chipSelected]} onPress={() => setFilterEnergy((prev) => (prev === option ? null : option))} activeOpacity={0.8}>
-                  <react_native_1.Text style={[
-                    styles.chipText,
-                    filterEnergy === option && styles.chipTextSelected,
-                ]}>
-                    {option}
-                  </react_native_1.Text>
-                </react_native_1.TouchableOpacity>))}
-
-              {DIFFICULTY_LEVELS.map((option) => (<react_native_1.TouchableOpacity key={option} style={[
-                    styles.chip,
-                    filterDifficulty === option && styles.chipSelected,
-                ]} onPress={() => setFilterDifficulty((prev) => (prev === option ? null : option))} activeOpacity={0.8}>
-                  <react_native_1.Text style={[
-                    styles.chipText,
-                    filterDifficulty === option && styles.chipTextSelected,
-                ]}>
-                    {option}
-                  </react_native_1.Text>
-                </react_native_1.TouchableOpacity>))}
-            </react_native_1.ScrollView>
-
-            <react_native_1.View style={styles.bpmRow}>
-              <react_native_1.Text style={styles.bpmLabel}>BPM:</react_native_1.Text>
-              <react_native_1.TextInput style={styles.bpmInput} placeholder="min" placeholderTextColor={colors.muted} value={bpmMin} onChangeText={setBpmMin} keyboardType="numeric"/>
-              <react_native_1.Text style={styles.bpmDash}>–</react_native_1.Text>
-              <react_native_1.TextInput style={styles.bpmInput} placeholder="max" placeholderTextColor={colors.muted} value={bpmMax} onChangeText={setBpmMax} keyboardType="numeric"/>
+            <react_native_1.View style={styles.segmented}>
+              {['All', 'REF', 'MINE', 'Shared'].map((seg) => {
+                const active = filterSegment === seg;
+                return (<react_native_1.TouchableOpacity key={seg} style={[styles.segment, active && styles.segmentActive]} onPress={() => setFilterSegment(seg)} activeOpacity={0.85}>
+                    <react_native_1.Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                      {seg}
+                    </react_native_1.Text>
+                  </react_native_1.TouchableOpacity>);
+            })}
             </react_native_1.View>
           </react_native_1.View>} ListEmptyComponent={loading ? (<react_native_1.View style={styles.center}>
               <react_native_1.ActivityIndicator color={colors.active}/>
-            </react_native_1.View>) : anyFilter ? (<react_native_1.View style={styles.center}>
-              <react_native_1.Text style={styles.icon}>📦</react_native_1.Text>
-              <react_native_1.Text style={styles.title}>No clips match your search</react_native_1.Text>
-            </react_native_1.View>) : (<react_native_1.View style={styles.center}>
-              <react_native_1.Text style={styles.icon}>📦</react_native_1.Text>
-              <react_native_1.Text style={styles.title}>No tagged clips yet</react_native_1.Text>
-              <react_native_1.Text style={styles.subtitle}>Start tagging to build your library</react_native_1.Text>
+            </react_native_1.View>) : (<react_native_1.View style={styles.emptyWarm}>
+              <react_native_1.Text style={styles.emptyIcon}>📂</react_native_1.Text>
+              <react_native_1.Text style={styles.emptyTitle}>No clips yet</react_native_1.Text>
+              <react_native_1.TouchableOpacity style={styles.emptyCta} onPress={() => { }} activeOpacity={0.85}>
+                <react_native_1.Text style={styles.emptyCtaText}>Start recording</react_native_1.Text>
+              </react_native_1.TouchableOpacity>
             </react_native_1.View>)} renderItem={({ item }) => {
             const clipRow = toClipRow(item);
             return (<ClipCard_1.ClipCard clip={clipRow} onPress={() => openClipSheet(item)} onLongPress={() => { }}/>);
@@ -264,54 +233,31 @@ const styles = react_native_1.StyleSheet.create({
         color: colors.active,
         fontSize: 16,
     },
-    filtersRow: {
-        paddingTop: 10,
-        paddingBottom: 6,
-        gap: 10,
-    },
-    chip: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: spacing.radiusMd,
-        backgroundColor: colors.chrome,
+    segmented: {
+        marginTop: 10,
+        flexDirection: 'row',
         borderWidth: 1,
         borderColor: colors.border,
+        borderRadius: spacing.radiusMd,
+        overflow: 'hidden',
     },
-    chipSelected: {
+    segment: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.chrome,
+    },
+    segmentActive: {
         backgroundColor: colors.mine,
     },
-    chipText: {
-        color: colors.muted,
+    segmentText: {
         fontSize: 13,
-        fontWeight: '600',
-    },
-    chipTextSelected: {
-        color: colors.active,
-    },
-    bpmRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        paddingTop: 8,
-    },
-    bpmLabel: {
+        fontWeight: '700',
         color: colors.muted,
-        fontSize: 13,
-        fontWeight: '600',
     },
-    bpmInput: {
-        width: 80,
-        backgroundColor: colors.chrome,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: spacing.radiusMd,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
+    segmentTextActive: {
         color: colors.active,
-    },
-    bpmDash: {
-        color: colors.muted,
-        fontSize: 16,
     },
     listContent: {
         paddingBottom: 24,
@@ -326,21 +272,35 @@ const styles = react_native_1.StyleSheet.create({
         paddingVertical: 48,
         paddingHorizontal: 24,
     },
-    icon: {
+    emptyWarm: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 48,
+        paddingHorizontal: 24,
+        backgroundColor: colors.amberBg,
+    },
+    emptyIcon: {
         fontSize: 48,
         marginBottom: 12,
     },
-    title: {
-        fontSize: 18,
-        fontWeight: '700',
+    emptyTitle: {
+        fontFamily: theme_1.theme.typography.displayFamily,
+        fontSize: 20,
         color: colors.active,
-        marginBottom: 8,
+        marginBottom: 14,
         textAlign: 'center',
     },
-    subtitle: {
+    emptyCta: {
+        backgroundColor: colors.mine,
+        borderRadius: spacing.radiusMd,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
+    emptyCtaText: {
+        color: colors.chrome,
         fontSize: 14,
-        color: colors.muted,
-        textAlign: 'center',
+        fontWeight: '800',
     },
     footer: {
         paddingHorizontal: 16,

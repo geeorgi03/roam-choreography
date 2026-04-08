@@ -52,7 +52,7 @@ const styles = react_native_1.StyleSheet.create({
     },
     card: {
         flex: 1,
-        backgroundColor: '#222',
+        backgroundColor: theme_1.theme.light.border,
         borderWidth: 1,
         borderColor: theme_1.theme.textSecondary,
         borderRadius: theme_1.theme.borderRadius,

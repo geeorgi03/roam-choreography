@@ -27,7 +27,9 @@ exports.FeelingStrip = void 0;
 const react_1 = __importStar(require("react"));
 const react_native_1 = require("react-native");
 const SessionContext_1 = require("../../lib/contexts/SessionContext");
+const InboxCountContext_1 = require("../../lib/contexts/InboxCountContext");
 const theme_1 = require("../../lib/theme");
+const expo_router_1 = require("expo-router");
 const colors = theme_1.theme.light;
 /** `clip_url` on the session is the Mux playback id; legacy rows may store an HLS URL. */
 function qualityTargetThumbnailUri(clipUrl, timestampMs) {
@@ -50,6 +52,7 @@ const phraseBaseStyle = {
 };
 function FeelingStrip() {
     const { sessionName, sessionPhrase, updateSessionMeta, openSheet, qualityTarget } = (0, SessionContext_1.useSessionContext)();
+    const { count } = (0, InboxCountContext_1.useInboxCount)();
     const [phrase, setPhrase] = (0, react_1.useState)('');
     const [phraseEditing, setPhraseEditing] = (0, react_1.useState)(false);
     const [nameEditing, setNameEditing] = (0, react_1.useState)(false);
@@ -93,6 +96,14 @@ function FeelingStrip() {
           </react_native_1.View>)}
       </react_native_1.View>
       <react_native_1.View style={styles.iconRow}>
+        <react_native_1.TouchableOpacity style={styles.iconButton} onPress={() => expo_router_1.router.push('/(app)/inbox')} activeOpacity={0.8}>
+          <react_native_1.View style={{ position: 'relative' }}>
+            <react_native_1.Text style={styles.iconText}>🔔</react_native_1.Text>
+            {count > 0 && (<react_native_1.View style={styles.inboxBadge}>
+                <react_native_1.Text style={styles.inboxBadgeText}>{count}</react_native_1.Text>
+              </react_native_1.View>)}
+          </react_native_1.View>
+        </react_native_1.TouchableOpacity>
         <react_native_1.TouchableOpacity style={styles.iconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
           <react_native_1.Text style={styles.iconText}>↗</react_native_1.Text>
         </react_native_1.TouchableOpacity>
@@ -158,6 +169,23 @@ const styles = react_native_1.StyleSheet.create({
     iconText: {
         fontSize: 14,
         color: colors.muted,
+    },
+    inboxBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        minWidth: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: colors.capture,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 2,
+    },
+    inboxBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 9,
+        fontWeight: '700',
     },
 });
 //# sourceMappingURL=FeelingStrip.js.map

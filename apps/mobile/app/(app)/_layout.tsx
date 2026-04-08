@@ -97,14 +97,6 @@ export default function AppStackLayout() {
         }}
       />
       <Tabs.Screen
-        name="session/beat-grid"
-        options={{
-          title: '',
-          href: null,
-          headerShown: false,
-        }}
-      />
-      <Tabs.Screen
         name="session/camera"
         options={{
           href: null,

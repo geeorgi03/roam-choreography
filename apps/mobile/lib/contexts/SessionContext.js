@@ -29,6 +29,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.useSessionContext = exports.SessionProvider = void 0;
 const react_1 = __importStar(require("react"));
 const expo_av_1 = require("expo-av");
+const netinfo_1 = __importDefault(require("@react-native-community/netinfo"));
+const database_1 = require("../database");
 const useClips_1 = require("../hooks/useClips");
 const useMusicTrackStatus_1 = require("../hooks/useMusicTrackStatus");
 const useNotePins_1 = require("../hooks/useNotePins");
@@ -61,8 +63,17 @@ function SessionProvider({ sessionId, children }) {
     const [selectedClipForSheet, setSelectedClipForSheet] = (0, react_1.useState)(null);
     const [sectionClips, setSectionClips] = (0, react_1.useState)([]);
     const [sessionMode, setSessionModeState] = (0, react_1.useState)(() => (0, storage_1.getSessionMode)(sessionId));
+    const [offlineClips, setOfflineClips] = (0, react_1.useState)([]);
+    const [isOffline, setIsOffline] = (0, react_1.useState)(false);
+    const [isOnline, setIsOnline] = (0, react_1.useState)(true);
     // Refs
     const soundRef = (0, react_1.useRef)(null);
+    /** Disk snapshot of clips from MMKV, read before any cache write (hydration). */
+    const diskClipsSnapshotRef = (0, react_1.useRef)([]);
+    /** True after seed effect has applied cached clips for the current sessionId (avoids write-before-seed overwrite). */
+    const hasSeeded = (0, react_1.useRef)(false);
+    const loopHydratedRef = (0, react_1.useRef)({});
+    const prevIsOnlineRef = (0, react_1.useRef)(null);
     const activeSheetIdRef = (0, react_1.useRef)(null);
     const wasPlayingBeforeSheetRef = (0, react_1.useRef)(false);
     // Hooks
@@ -129,9 +140,73 @@ function SessionProvider({ sessionId, children }) {
                 setSectionClips(cached.sections);
         });
     }, [sessionId, session?.access_token]);
-    (0, react_1.useEffect)(() => {
-        if (!sessionId)
+    (0, react_1.useLayoutEffect)(() => {
+        hasSeeded.current = false;
+        if (!sessionId) {
+            diskClipsSnapshotRef.current = [];
+            setOfflineClips([]);
+            hasSeeded.current = true;
             return;
+        }
+        const cached = (0, sessionCache_1.getCachedSession)(sessionId);
+        const diskClips = cached && Array.isArray(cached.clips) ? cached.clips : [];
+        diskClipsSnapshotRef.current = diskClips;
+        setOfflineClips(diskClips.length > 0 ? diskClips : []);
+        hasSeeded.current = true;
+    }, [sessionId]);
+    (0, react_1.useEffect)(() => {
+        let cancelled = false;
+        void netinfo_1.default.fetch().then((state) => {
+            if (!cancelled) {
+                setIsOffline(!state.isConnected);
+                setIsOnline(state.isConnected === true && state.isInternetReachable !== false);
+            }
+        });
+        const unsubscribe = netinfo_1.default.addEventListener((state) => {
+            setIsOffline(!state.isConnected);
+            setIsOnline(state.isConnected === true && state.isInternetReachable !== false);
+        });
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
+    }, []);
+    (0, react_1.useEffect)(() => {
+        const prev = prevIsOnlineRef.current;
+        prevIsOnlineRef.current = isOnline;
+        if (isOnline && prev === false) {
+            setOfflineClips([]);
+        }
+    }, [isOnline]);
+    (0, react_1.useEffect)(() => {
+        if (!isOffline && clips.length > 0) {
+            setOfflineClips([]);
+        }
+    }, [isOffline, clips.length]);
+    (0, react_1.useEffect)(() => {
+        if (isOnline || !sessionId)
+            return;
+        const cached = (0, sessionCache_1.getCachedSession)(sessionId);
+        const disk = cached && Array.isArray(cached.clips) ? cached.clips : [];
+        setOfflineClips(disk);
+    }, [isOnline, sessionId]);
+    (0, react_1.useEffect)(() => {
+        if (!sessionId || !hasSeeded.current)
+            return;
+        const localSnap = (0, database_1.getClipsForSession)(sessionId);
+        let clipsToPersist;
+        if (clips.length > 0) {
+            clipsToPersist = clips;
+        }
+        else if (localSnap.length > 0) {
+            clipsToPersist = localSnap;
+        }
+        else if (!isOnline && diskClipsSnapshotRef.current.length > 0) {
+            clipsToPersist = diskClipsSnapshotRef.current;
+        }
+        else {
+            clipsToPersist = [];
+        }
         (0, sessionCache_1.cacheSession)(sessionId, {
             session: {
                 name: sessionName,
@@ -139,10 +214,11 @@ function SessionProvider({ sessionId, children }) {
                 quality_target: qualityTarget,
             },
             sections: sectionClips,
-            clips: [],
+            clips: clipsToPersist,
             cachedAt: Date.now(),
         });
-    }, [sessionId, sessionName, sessionPhrase, qualityTarget, sectionClips]);
+        diskClipsSnapshotRef.current = clipsToPersist;
+    }, [sessionId, sessionName, sessionPhrase, qualityTarget, sectionClips, clips, isOnline]);
     (0, react_1.useEffect)(() => {
         const path = musicTrack?.storage_path;
         if (!path || !supabase_1.supabase) {
@@ -229,6 +305,26 @@ function SessionProvider({ sessionId, children }) {
             setActiveSectionState(storedSection);
         }
     }, [sessionId]);
+    // Hydrate loop state when sessionId changes
+    (0, react_1.useEffect)(() => {
+        loopHydratedRef.current[sessionId] = false;
+        const storedLoopRegion = (0, storage_1.getLoopState)(sessionId);
+        setLoopRegion(storedLoopRegion ?? null);
+        setLoopOpenAt((0, storage_1.getLoopOpenAt)(sessionId) ?? null);
+        loopHydratedRef.current[sessionId] = true;
+    }, [sessionId]);
+    // Persist loop region changes
+    (0, react_1.useEffect)(() => {
+        if (!loopHydratedRef.current[sessionId])
+            return;
+        (0, storage_1.setLoopState)(sessionId, loopRegion);
+    }, [loopRegion, sessionId]);
+    // Persist loop open-at changes
+    (0, react_1.useEffect)(() => {
+        if (!loopHydratedRef.current[sessionId])
+            return;
+        (0, storage_1.setLoopOpenAt)(sessionId, loopOpenAt);
+    }, [loopOpenAt, sessionId]);
     // Wrapper function to persist active section changes
     const setActiveSection = (0, react_1.useCallback)((section) => {
         setActiveSectionState(section);
@@ -285,8 +381,10 @@ function SessionProvider({ sessionId, children }) {
     const handleClearLoop = (0, react_1.useCallback)(() => {
         setLoopRegion(null);
         setLoopOpenAt(null);
+        (0, storage_1.setLoopState)(sessionId, null);
+        (0, storage_1.setLoopOpenAt)(sessionId, null);
         soundRef.current?.setIsLoopingAsync(false);
-    }, []);
+    }, [sessionId]);
     // Sheet functions
     const openSheet = (0, react_1.useCallback)((id) => {
         activeSheetIdRef.current = id;
@@ -421,7 +519,7 @@ function SessionProvider({ sessionId, children }) {
         sessionMode,
         setSessionMode,
         // Hooks data
-        clips,
+        clips: isOffline && clips.length === 0 ? offlineClips : clips,
         retryClip,
         musicTrack,
         isAnalysing,

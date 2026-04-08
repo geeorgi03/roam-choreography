@@ -53,6 +53,8 @@ export interface Clip {
     thumbnail_url: string | null;
     clip_type: 'MINE' | 'REF' | 'voice_memo' | null;
     start_ms: number | null;
+    parent_clip_id: string | null;
+    triggered_by_note_id: string | null;
 }
 /** ---- MusicTrack (Tech Plan) ---- */
 export interface BeatGridEntry {

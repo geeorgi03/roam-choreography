@@ -33,6 +33,7 @@ const expo_router_1 = require("expo-router");
 const react_native_toast_message_1 = __importDefault(require("react-native-toast-message"));
 const theme_1 = require("../../lib/theme");
 const SessionContext_1 = require("../../lib/contexts/SessionContext");
+const VoiceNoteRow_1 = require("./VoiceNoteRow");
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
 // Visible timeline span when no audio is loaded (75 s)
@@ -66,6 +67,10 @@ function WorkbenchTab() {
     const waveformWidth = (0, react_1.useRef)(0);
     const [waveformWidthPx, setWaveformWidthPx] = (0, react_1.useState)(0);
     const [notePinTimecodeMs, setNotePinTimecodeMs] = (0, react_1.useState)(null);
+    const [activeVoiceNoteId, setActiveVoiceNoteId] = (0, react_1.useState)(null);
+    const handleVoiceNotePlaybackEnded = (0, react_1.useCallback)((noteId) => {
+        setActiveVoiceNoteId((current) => (current === noteId ? null : current));
+    }, []);
     // ── Derived values ───────────────────────────────────────────────────────
     const timelineDurationMs = durationMs > 0 ? durationMs : FALLBACK_DURATION_MS;
     const waveformBars = (0, react_1.useMemo)(() => Array.from({ length: WAVEFORM_BAR_COUNT }, (_v, i) => ({
@@ -103,6 +108,11 @@ function WorkbenchTab() {
             setActiveSection(sections[0].label);
         }
     }, [musicTrack?.sections, activeSection, setActiveSection]);
+    (0, react_1.useEffect)(() => {
+        if (workspaceTab !== 'notes') {
+            setActiveVoiceNoteId(null);
+        }
+    }, [workspaceTab]);
     // ── Section chip handler ─────────────────────────────────────────────────
     const handleSectionPress = (0, react_1.useCallback)(async (section) => {
         setActiveSection(section.label);
@@ -155,10 +165,13 @@ function WorkbenchTab() {
         openSheet('note-pin');
     }, [playheadMs, openSheet]);
     const handleDeleteNote = (0, react_1.useCallback)(async (noteId) => {
+        if (activeVoiceNoteId === noteId) {
+            setActiveVoiceNoteId(null);
+        }
         const ok = await deleteNote(noteId);
         if (ok)
             react_native_toast_message_1.default.show({ type: 'success', text1: 'Note deleted' });
-    }, [deleteNote]);
+    }, [activeVoiceNoteId, deleteNote]);
     // ── Clip filtering by active section ────────────────────────────────────
     const hasActiveMusicSection = (0, react_1.useMemo)(() => musicTrack?.sections?.some((s) => s.label === activeSection) ?? false, [musicTrack?.sections, activeSection]);
     const displayClips = (0, react_1.useMemo)(() => {
@@ -176,220 +189,245 @@ function WorkbenchTab() {
         }
         return counts;
     }, [sectionClips]);
+    const isFullyEmpty = sectionClips.length === 0 && musicTrack === null;
     return (<react_native_1.Pressable style={styles.container} onPress={!sessionMode ? () => setSessionMode(true) : undefined}>
-      <react_native_1.ScrollView horizontal={false} style={styles.waveformContainer} contentContainerStyle={styles.waveformContainerContent} showsVerticalScrollIndicator={false} scrollEnabled={false}>
-        <react_native_1.View style={styles.waveformTrack} onLayout={(event) => {
-            const measuredWidth = Math.max(0, event.nativeEvent.layout.width - WAVEFORM_HORIZONTAL_PADDING * 2);
-            waveformWidth.current = measuredWidth;
-            setWaveformWidthPx(measuredWidth);
-        }}>
-          <react_native_1.TouchableOpacity style={styles.waveformTapArea} activeOpacity={1} onPress={handleWaveformTap}>
-            <react_native_1.View style={[styles.waveformBarsRow, { width: waveformContentWidth }]}>
-              {waveformBars.map((bar) => {
-            const barFraction = bar.index / WAVEFORM_BAR_COUNT;
-            const isActive = loopRegion
-                ? barFraction >= loopRegion.start / timelineDurationMs &&
-                    barFraction <= loopRegion.end / timelineDurationMs
-                : false;
-            return (<react_native_1.View key={bar.index} style={[
-                    styles.waveformBar,
-                    {
-                        width: waveformBarWidth,
-                        height: bar.height,
-                        backgroundColor: isActive ? 'rgba(125,185,168,0.6)' : '#e8e3dc',
-                    },
-                ]}/>);
-        })}
-            </react_native_1.View>
-          </react_native_1.TouchableOpacity>
-          {loopRegion ? (<>
-              <react_native_1.View style={[
-                styles.waveformLoopEdge,
-                { left: WAVEFORM_HORIZONTAL_PADDING + loopStartX },
-            ]}/>
-              <react_native_1.View style={[
-                styles.waveformLoopEdge,
-                { left: WAVEFORM_HORIZONTAL_PADDING + loopEndX },
-            ]}/>
-            </>) : null}
-          <react_native_1.View style={[
-            styles.waveformPlayhead,
-            { left: WAVEFORM_HORIZONTAL_PADDING + playheadX },
-        ]}>
-            <react_native_1.View style={styles.waveformPlayheadDot}/>
-          </react_native_1.View>
-        </react_native_1.View>
-      </react_native_1.ScrollView>
-
-      {sessionMode && (<react_native_1.TouchableOpacity style={styles.sessionModeRow} onPress={() => setSessionMode(false)} activeOpacity={0.75}>
-          <react_native_1.Text style={styles.sessionModeRowLabel}>{activeSection}</react_native_1.Text>
-          <react_native_1.Text style={styles.sessionModeRowCount}>
-            {sectionClipCounts.get(activeSection) ?? 0}
-          </react_native_1.Text>
-        </react_native_1.TouchableOpacity>)}
-
-      {!sessionMode && (<>
-      <react_native_1.View style={styles.toggleRow}>
-        <react_native_1.TouchableOpacity style={[styles.toggleChip, styles.toggleChipActive]} activeOpacity={0.8}>
-          <react_native_1.Text style={[
-                styles.toggleChipText,
-                styles.toggleChipTextActive,
-            ]}>
-            Counts
-          </react_native_1.Text>
-        </react_native_1.TouchableOpacity>
-        <react_native_1.View style={[styles.toggleChip, { opacity: 0.45 }]}>
-          <react_native_1.Text style={styles.toggleChipText}>
-            Partition
-          </react_native_1.Text>
-        </react_native_1.View>
-      </react_native_1.View>
-      <react_native_1.Text style={styles.partitionHint}>read-only in V3</react_native_1.Text>
-        </>)}
-      
-
-      <react_native_1.View style={styles.sectionStripWrapper}>
-        {/* Section pill zone — absorbs touches to prevent bubbling */}
-        {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (<react_native_1.View style={styles.sectionPillZone} onStartShouldSetResponder={() => true}>
-            <react_native_1.View style={styles.sectionPillListWrap}>
-              <react_native_1.ScrollView style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]} contentContainerStyle={styles.sectionPillListContent} showsVerticalScrollIndicator={false}>
-                {musicTrack.sections.map((s) => {
-                const pillContent = (<>
-                      <react_native_1.Text style={[
-                        styles.sectionPillText,
-                        s.label === activeSection && styles.sectionPillTextActive,
-                    ]}>
-                        {s.label}
-                      </react_native_1.Text>
-                      <react_native_1.Text style={styles.sectionPillCount}>
-                        {sectionClipCounts.get(s.label) ?? 0}
-                      </react_native_1.Text>
-                    </>);
-                return (<react_native_1.TouchableOpacity key={s.label} style={[
-                        styles.sectionPill,
-                        s.label === activeSection && styles.sectionPillActive,
-                    ]} onPress={() => handleSectionPress(s)} activeOpacity={0.75}>
-                      {pillContent}
-                    </react_native_1.TouchableOpacity>);
-            })}
-              </react_native_1.ScrollView>
-            </react_native_1.View>
-            {showSectionSwipeHint ? (<react_native_1.Text style={styles.sectionSwipeHint}>← swipe to change section →</react_native_1.Text>) : null}
-          </react_native_1.View>) : null}
-
-        {/* Workspace zone — allows touches to bubble to outer Pressable */}
-        {!sessionMode && (<react_native_1.View style={styles.workspaceZone}>
-        <react_native_1.View style={styles.workspaceHeader}>
-          <react_native_1.View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
-            <react_native_1.Text style={styles.workspaceTitle}>{activeSection}</react_native_1.Text>
-          </react_native_1.View>
-          <react_native_1.Text style={styles.workspaceMeta}>
-            {formatTimecode(playheadMs)} · …
-          </react_native_1.Text>
-          {!musicTrack ? (<react_native_1.TouchableOpacity style={styles.workspaceBtn} onPress={() => router.push({ pathname: './music-setup', params: { sessionId } })}>
-              <react_native_1.Text style={styles.workspaceBtnText}>Add music</react_native_1.Text>
-            </react_native_1.TouchableOpacity>) : null}
-          <react_native_1.TouchableOpacity style={styles.mapJumpBtn} onPress={jumpToSongMap} testID={`map-jump-${activeMoment}`} activeOpacity={0.8}>
-            <react_native_1.Text style={styles.mapJumpBtnText}>→ Map</react_native_1.Text>
-          </react_native_1.TouchableOpacity>
-        </react_native_1.View>
-
-        <react_native_1.View style={styles.workspaceTabs}>
-          <react_native_1.TouchableOpacity style={[
-                styles.workspaceTab,
-                workspaceTab === 'ideas' && styles.workspaceTabActive,
-            ]} onPress={() => setWorkspaceTab('ideas')}>
-            <react_native_1.Text style={[
-                styles.workspaceTabText,
-                workspaceTab === 'ideas' && styles.workspaceTabTextActive,
-            ]}>
-              Ideas
-            </react_native_1.Text>
-          </react_native_1.TouchableOpacity>
-          <react_native_1.TouchableOpacity style={[
-                styles.workspaceTab,
-                workspaceTab === 'notes' && styles.workspaceTabActive,
-            ]} onPress={() => setWorkspaceTab('notes')}>
-            <react_native_1.Text style={[
-                styles.workspaceTabText,
-                workspaceTab === 'notes' && styles.workspaceTabTextActive,
-            ]}>
-              Notes
-            </react_native_1.Text>
-          </react_native_1.TouchableOpacity>
-        </react_native_1.View>
-        <react_native_1.TouchableOpacity style={styles.pinNoteBtn} onPress={() => handleOpenNotePin(playheadMs)} activeOpacity={0.85}>
-          <react_native_1.Text style={styles.pinNoteBtnText}>
-            Pin note @ {formatTimecode(notePinTimecodeMs ?? playheadMs)}
-          </react_native_1.Text>
-        </react_native_1.TouchableOpacity>
-
-        {workspaceTab === 'ideas' ? (<react_native_1.FlatList data={displayClips} keyExtractor={(c) => c.local_id} numColumns={2} columnWrapperStyle={{ gap: 10 }} contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 40 }} renderItem={({ item, index }) => (<react_native_1.View style={styles.clipCell}>
-                <react_native_1.TouchableOpacity style={[
-                        styles.clipThumb,
-                        item.clip_type === 'voice_memo' ? styles.clipThumbVoiceMemo :
-                            isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
-                    ]} onPress={() => openClipSheet(item)} activeOpacity={0.85}>
-                  {item.clip_type === 'voice_memo' ? (<react_native_1.View style={styles.voiceMemoIndicator}>
-                      <react_native_1.Text style={styles.voiceMemoIcon}>🎤</react_native_1.Text>
-                      <react_native_1.Text style={styles.voiceMemoLabel}>Voice Memo</react_native_1.Text>
-                    </react_native_1.View>) : item.mux_playback_id ? (<react_native_1.Image source={{
-                            uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
-                        }} style={styles.clipThumbImage}/>) : null}
+      {!isFullyEmpty && (<>
+        {musicTrack ? (<react_native_1.ScrollView horizontal={false} style={styles.waveformContainer} contentContainerStyle={styles.waveformContainerContent} showsVerticalScrollIndicator={false} scrollEnabled={false}>
+            <react_native_1.View style={styles.waveformTrack} onLayout={(event) => {
+                    const measuredWidth = Math.max(0, event.nativeEvent.layout.width - WAVEFORM_HORIZONTAL_PADDING * 2);
+                    waveformWidth.current = measuredWidth;
+                    setWaveformWidthPx(measuredWidth);
+                }}>
+              <react_native_1.TouchableOpacity style={styles.waveformTapArea} activeOpacity={1} onPress={handleWaveformTap}>
+                <react_native_1.View style={[styles.waveformBarsRow, { width: waveformContentWidth }]}>
+                  {waveformBars.map((bar) => {
+                    const barFraction = bar.index / WAVEFORM_BAR_COUNT;
+                    const isActive = loopRegion
+                        ? barFraction >= loopRegion.start / timelineDurationMs &&
+                            barFraction <= loopRegion.end / timelineDurationMs
+                        : false;
+                    return (<react_native_1.View key={bar.index} style={[
+                            styles.waveformBar,
+                            {
+                                width: waveformBarWidth,
+                                height: bar.height,
+                                backgroundColor: isActive ? 'rgba(125,185,168,0.6)' : '#e8e3dc',
+                            },
+                        ]}/>);
+                })}
+                </react_native_1.View>
+              </react_native_1.TouchableOpacity>
+              {loopRegion ? (<>
                   <react_native_1.View style={[
-                        styles.clipTypeBadge,
-                        item.clip_type === 'voice_memo' ? styles.clipTypeBadgeVoiceMemo :
-                            isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine,
-                    ]}>
-                    <react_native_1.Text style={[
-                        styles.clipTypeBadgeText,
-                        item.clip_type === 'voice_memo' ? styles.clipTypeBadgeTextVoiceMemo :
-                            isReferenceClip(item)
-                                ? styles.clipTypeBadgeTextRef
-                                : styles.clipTypeBadgeTextMine,
-                    ]}>
-                      {item.clip_type === 'voice_memo' ? 'VOICE' :
-                        isReferenceClip(item) ? 'REF' : 'MINE'}
+                        styles.waveformLoopEdge,
+                        { left: WAVEFORM_HORIZONTAL_PADDING + loopStartX },
+                    ]}/>
+                  <react_native_1.View style={[
+                        styles.waveformLoopEdge,
+                        { left: WAVEFORM_HORIZONTAL_PADDING + loopEndX },
+                    ]}/>
+                </>) : null}
+              <react_native_1.View style={[
+                    styles.waveformPlayhead,
+                    { left: WAVEFORM_HORIZONTAL_PADDING + playheadX },
+                ]}>
+                <react_native_1.View style={styles.waveformPlayheadDot}/>
+              </react_native_1.View>
+            </react_native_1.View>
+          </react_native_1.ScrollView>) : (<react_native_1.TouchableOpacity style={styles.addMusicPrompt} activeOpacity={0.8} onPress={() => router.push({ pathname: './music-setup', params: { sessionId } })}>
+            <react_native_1.Text style={styles.addMusicPromptText}>Add music →</react_native_1.Text>
+          </react_native_1.TouchableOpacity>)}
+
+        {sessionMode && (<react_native_1.TouchableOpacity style={styles.sessionModeRow} onPress={() => setSessionMode(false)} activeOpacity={0.75}>
+            <react_native_1.Text style={styles.sessionModeRowLabel}>{activeSection}</react_native_1.Text>
+            <react_native_1.Text style={styles.sessionModeRowCount}>
+              {sectionClipCounts.get(activeSection) ?? 0}
+            </react_native_1.Text>
+          </react_native_1.TouchableOpacity>)}
+
+        {!sessionMode && (<>
+            {musicTrack ? (<>
+                <react_native_1.View style={styles.toggleRow}>
+                  <react_native_1.TouchableOpacity style={[styles.toggleChip, styles.toggleChipActive]} activeOpacity={0.8}>
+                    <react_native_1.Text style={[styles.toggleChipText, styles.toggleChipTextActive]}>
+                      Counts
                     </react_native_1.Text>
+                  </react_native_1.TouchableOpacity>
+                  <react_native_1.View style={[styles.toggleChip, { opacity: 0.45 }]}>
+                    <react_native_1.Text style={styles.toggleChipText}>Partition</react_native_1.Text>
                   </react_native_1.View>
-                  {item.upload_status === 'failed' ? (<react_native_1.TouchableOpacity style={styles.retryPill} onPress={() => retryClip(item.local_id)}>
-                      <react_native_1.Text style={styles.retryPillText}>Retry</react_native_1.Text>
-                    </react_native_1.TouchableOpacity>) : null}
+                </react_native_1.View>
+                <react_native_1.Text style={styles.partitionHint}>read-only in V3</react_native_1.Text>
+              </>) : null}
+          </>)}
+
+        <react_native_1.View style={styles.sectionStripWrapper}>
+          {/* Section pill zone — absorbs touches to prevent bubbling */}
+          {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (<react_native_1.View style={styles.sectionPillZone} onStartShouldSetResponder={() => true}>
+              <react_native_1.View style={styles.sectionPillListWrap}>
+                <react_native_1.ScrollView style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]} contentContainerStyle={styles.sectionPillListContent} showsVerticalScrollIndicator={false}>
+                  {musicTrack.sections.map((s) => {
+                    const pillContent = (<>
+                        <react_native_1.Text style={[
+                            styles.sectionPillText,
+                            s.label === activeSection && styles.sectionPillTextActive,
+                        ]}>
+                          {s.label}
+                        </react_native_1.Text>
+                        <react_native_1.Text style={styles.sectionPillCount}>
+                          {sectionClipCounts.get(s.label) ?? 0}
+                        </react_native_1.Text>
+                      </>);
+                    return (<react_native_1.TouchableOpacity key={s.label} style={[
+                            styles.sectionPill,
+                            s.label === activeSection && styles.sectionPillActive,
+                        ]} onPress={() => handleSectionPress(s)} activeOpacity={0.75}>
+                        {pillContent}
+                      </react_native_1.TouchableOpacity>);
+                })}
+                </react_native_1.ScrollView>
+              </react_native_1.View>
+              {showSectionSwipeHint ? (<react_native_1.Text style={styles.sectionSwipeHint}>← swipe to change section →</react_native_1.Text>) : null}
+            </react_native_1.View>) : null}
+
+          {/* Workspace zone — allows touches to bubble to outer Pressable */}
+          {!sessionMode && (<react_native_1.View style={styles.workspaceZone}>
+              <react_native_1.View style={styles.workspaceHeader}>
+                <react_native_1.View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
+                  <react_native_1.Text style={styles.workspaceTitle}>{activeSection}</react_native_1.Text>
+                </react_native_1.View>
+                <react_native_1.Text style={styles.workspaceMeta}>{formatTimecode(playheadMs)} · …</react_native_1.Text>
+                <react_native_1.TouchableOpacity style={styles.mapJumpBtn} onPress={jumpToSongMap} testID={`map-jump-${activeMoment}`} activeOpacity={0.8}>
+                  <react_native_1.Text style={styles.mapJumpBtnText}>→ Map</react_native_1.Text>
+                </react_native_1.TouchableOpacity>
+              </react_native_1.View>
+
+              <react_native_1.View style={styles.workspaceTabs}>
+                <react_native_1.TouchableOpacity style={[
+                    styles.workspaceTab,
+                    workspaceTab === 'ideas' && styles.workspaceTabActive,
+                ]} onPress={() => setWorkspaceTab('ideas')}>
+                  <react_native_1.Text style={[
+                    styles.workspaceTabText,
+                    workspaceTab === 'ideas' && styles.workspaceTabTextActive,
+                ]}>
+                    Ideas
+                  </react_native_1.Text>
                 </react_native_1.TouchableOpacity>
                 <react_native_1.TouchableOpacity style={[
-                        styles.clipShareIcon,
-                        item.upload_status !== 'ready' && styles.clipShareIconDisabled,
-                    ]} onPress={() => {
-                        if (item.upload_status !== 'ready' || !item.server_id) {
-                            react_native_toast_message_1.default.show({
-                                type: 'info',
-                                text1: 'Available once clip is ready.',
-                            });
-                            return;
-                        }
-                        setSelectedClipForSheet(item);
-                        openSheet('clip-share');
-                    }}>
-                  <react_native_1.Text style={styles.clipShareIconText}>⎘</react_native_1.Text>
+                    styles.workspaceTab,
+                    workspaceTab === 'notes' && styles.workspaceTabActive,
+                ]} onPress={() => setWorkspaceTab('notes')}>
+                  <react_native_1.Text style={[
+                    styles.workspaceTabText,
+                    workspaceTab === 'notes' && styles.workspaceTabTextActive,
+                ]}>
+                    Notes
+                  </react_native_1.Text>
                 </react_native_1.TouchableOpacity>
-              </react_native_1.View>)}/>) : (<react_native_1.View style={styles.notesContent}>
-            {notes.map((note) => (<react_native_1.View key={note.id} style={styles.noteItem}>
-                <react_native_1.Text style={styles.noteTime}>{formatTimecode(note.timecode_ms)}</react_native_1.Text>
-                <react_native_1.Text style={styles.noteText}>{note.text}</react_native_1.Text>
-                <react_native_1.TouchableOpacity style={styles.noteDelete} onPress={() => handleDeleteNote(note.id)}>
-                  <react_native_1.Text style={styles.noteDeleteText}>✕</react_native_1.Text>
-                </react_native_1.TouchableOpacity>
-              </react_native_1.View>))}
-          </react_native_1.View>)}
+              </react_native_1.View>
+              <react_native_1.TouchableOpacity style={styles.pinNoteBtn} onPress={() => handleOpenNotePin(playheadMs)} activeOpacity={0.85}>
+                <react_native_1.Text style={styles.pinNoteBtnText}>
+                  Pin note @ {formatTimecode(notePinTimecodeMs ?? playheadMs)}
+                </react_native_1.Text>
+              </react_native_1.TouchableOpacity>
+
+              {workspaceTab === 'ideas' ? (<react_native_1.FlatList data={displayClips} keyExtractor={(c) => c.local_id} numColumns={2} columnWrapperStyle={{ gap: 10 }} contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 40 }} renderItem={({ item }) => (<react_native_1.View style={styles.clipCell}>
+                      <react_native_1.TouchableOpacity style={[
+                            styles.clipThumb,
+                            item.clip_type === 'voice_memo'
+                                ? styles.clipThumbVoiceMemo
+                                : isReferenceClip(item)
+                                    ? styles.clipThumbRef
+                                    : styles.clipThumbMine,
+                        ]} onPress={() => openClipSheet(item)} activeOpacity={0.85}>
+                        {item.clip_type === 'voice_memo' ? (<react_native_1.View style={styles.voiceMemoIndicator}>
+                            <react_native_1.Text style={styles.voiceMemoIcon}>🎤</react_native_1.Text>
+                            <react_native_1.Text style={styles.voiceMemoLabel}>Voice Memo</react_native_1.Text>
+                          </react_native_1.View>) : item.mux_playback_id ? (<react_native_1.Image source={{
+                                uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
+                            }} style={styles.clipThumbImage}/>) : null}
+                        <react_native_1.View style={[
+                            styles.clipTypeBadge,
+                            item.clip_type === 'voice_memo'
+                                ? styles.clipTypeBadgeVoiceMemo
+                                : isReferenceClip(item)
+                                    ? styles.clipTypeBadgeRef
+                                    : styles.clipTypeBadgeMine,
+                        ]}>
+                          <react_native_1.Text style={[
+                            styles.clipTypeBadgeText,
+                            item.clip_type === 'voice_memo'
+                                ? styles.clipTypeBadgeTextVoiceMemo
+                                : isReferenceClip(item)
+                                    ? styles.clipTypeBadgeTextRef
+                                    : styles.clipTypeBadgeTextMine,
+                        ]}>
+                            {item.clip_type === 'voice_memo'
+                            ? 'VOICE'
+                            : isReferenceClip(item)
+                                ? 'REF'
+                                : 'MINE'}
+                          </react_native_1.Text>
+                        </react_native_1.View>
+                        {item.upload_status === 'failed' ? (<react_native_1.TouchableOpacity style={styles.retryPill} onPress={() => retryClip(item.local_id)}>
+                            <react_native_1.Text style={styles.retryPillText}>Retry</react_native_1.Text>
+                          </react_native_1.TouchableOpacity>) : null}
+                      </react_native_1.TouchableOpacity>
+                      <react_native_1.TouchableOpacity style={[
+                            styles.clipShareIcon,
+                            item.upload_status !== 'ready' && styles.clipShareIconDisabled,
+                        ]} onPress={() => {
+                            if (item.upload_status !== 'ready' || !item.server_id) {
+                                react_native_toast_message_1.default.show({
+                                    type: 'info',
+                                    text1: 'Available once clip is ready.',
+                                });
+                                return;
+                            }
+                            setSelectedClipForSheet(item);
+                            openSheet('clip-share');
+                        }}>
+                        <react_native_1.Text style={styles.clipShareIconText}>⎘</react_native_1.Text>
+                      </react_native_1.TouchableOpacity>
+                    </react_native_1.View>)}/>) : (<react_native_1.View style={styles.notesContent}>
+                  {notes.map((note) => (<react_native_1.View key={note.id} style={[
+                            styles.noteItem,
+                            activeVoiceNoteId === note.id && styles.noteItemActivePlayback,
+                        ]}>
+                      <react_native_1.Text style={styles.noteTime}>{formatTimecode(note.timecode_ms)}</react_native_1.Text>
+                      {note.audio_storage_path ? (<VoiceNoteRow_1.VoiceNoteRow noteId={note.id} audioStoragePath={note.audio_storage_path} isActive={activeVoiceNoteId === note.id} onRequestPlay={setActiveVoiceNoteId} onPlaybackEnded={handleVoiceNotePlaybackEnded}/>) : null}
+                      <react_native_1.Text style={styles.noteText}>{note.text}</react_native_1.Text>
+                      <react_native_1.TouchableOpacity style={styles.noteDelete} onPress={() => handleDeleteNote(note.id)}>
+                        <react_native_1.Text style={styles.noteDeleteText}>✕</react_native_1.Text>
+                      </react_native_1.TouchableOpacity>
+                    </react_native_1.View>))}
+                </react_native_1.View>)}
+            </react_native_1.View>)}
+        </react_native_1.View>
+        </>)}
+
+      {isFullyEmpty && (<react_native_1.View style={styles.emptyState}>
+          <react_native_1.Text style={styles.emptyStatePrompt}>Add a reference video or start recording.</react_native_1.Text>
+          <react_native_1.View style={styles.emptyStateActions}>
+            <react_native_1.TouchableOpacity style={styles.emptyVideoBtn} onPress={() => router.push({ pathname: './youtube-player', params: { sessionId } })}>
+              <react_native_1.Text style={styles.emptyVideoBtnText}>Add video →</react_native_1.Text>
+            </react_native_1.TouchableOpacity>
+            <react_native_1.TouchableOpacity style={styles.emptyRecordBtn} onPress={() => router.push({
+                pathname: './camera',
+                params: { id: sessionId, sectionName: activeSection },
+            })}>
+              <react_native_1.View style={styles.recordFabInner}/>
+            </react_native_1.TouchableOpacity>
+          </react_native_1.View>
         </react_native_1.View>)}
-      </react_native_1.View>
-      <react_native_1.TouchableOpacity style={styles.recordFab} activeOpacity={0.85} onPress={() => router.push({
-            pathname: './camera',
-            params: { id: sessionId, sectionName: activeSection },
-        })}>
-        <react_native_1.View style={styles.recordFabInner}/>
-      </react_native_1.TouchableOpacity>
-      
+
+      {!isFullyEmpty && (<react_native_1.TouchableOpacity style={styles.recordFab} activeOpacity={0.85} onPress={() => router.push({
+                pathname: './camera',
+                params: { id: sessionId, sectionName: activeSection },
+            })}>
+          <react_native_1.View style={styles.recordFabInner}/>
+        </react_native_1.TouchableOpacity>)}
     </react_native_1.Pressable>);
 }
 exports.WorkbenchTab = WorkbenchTab;
@@ -404,6 +442,20 @@ const styles = react_native_1.StyleSheet.create({
     },
     waveformContainerContent: {
         height: 80,
+    },
+    addMusicPrompt: {
+        height: 80,
+        paddingHorizontal: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: colors.chrome,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+    },
+    addMusicPromptText: {
+        fontFamily: theme_1.theme.typography.monoFamily,
+        fontSize: 11,
+        color: colors.muted,
     },
     waveformTrack: {
         height: 80,
@@ -733,6 +785,10 @@ const styles = react_native_1.StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
     },
+    noteItemActivePlayback: {
+        borderLeftWidth: 2,
+        borderLeftColor: colors.mine,
+    },
     noteTime: {
         color: colors.muted,
         fontSize: 11,
@@ -798,6 +854,39 @@ const styles = react_native_1.StyleSheet.create({
     },
     sectionPillZone: {
     // No special layout needed - semantic wrapper only
+    },
+    emptyState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 24,
+        paddingHorizontal: 32,
+    },
+    emptyStatePrompt: {
+        color: colors.muted,
+        fontSize: 15,
+        textAlign: 'center',
+    },
+    emptyStateActions: {
+        flexDirection: 'row',
+        gap: 16,
+    },
+    emptyVideoBtn: {
+        backgroundColor: colors.active,
+        borderRadius: spacing.pill,
+    },
+    emptyVideoBtnText: {
+        color: '#ffffff',
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    emptyRecordBtn: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: colors.capture,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     workspaceZone: {
         flex: 1,

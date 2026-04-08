@@ -26,6 +26,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const react_1 = require("react");
 const react_native_1 = require("react-native");
 const WebBrowser = __importStar(require("expo-web-browser"));
+const expo_router_1 = require("expo-router");
 const theme_1 = require("../../lib/theme");
 const useSession_1 = require("../../lib/hooks/useSession");
 const api_1 = require("../../lib/api");
@@ -147,7 +148,7 @@ function ProfileScreen() {
     };
     if (loading) {
         return (<react_native_1.View style={styles.container}>
-        <react_native_1.ActivityIndicator color={theme_1.theme.textPrimary} size="large"/>
+        <react_native_1.ActivityIndicator color={theme_1.theme.light.active} size="large"/>
       </react_native_1.View>);
     }
     const planLabel = plan === 'free' ? 'Free' : plan === 'creator' ? 'Creator' : plan === 'pro' ? 'Pro' : plan === 'studio' ? 'Studio' : 'Free';
@@ -162,18 +163,18 @@ function ProfileScreen() {
       </react_native_1.View>
 
       {plan === 'free' && (<react_native_1.TouchableOpacity style={[styles.button, checkoutLoading && styles.buttonDisabled]} onPress={handleUpgrade} disabled={checkoutLoading}>
-          {checkoutLoading ? (<react_native_1.ActivityIndicator color={theme_1.theme.textPrimary} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Upgrade</react_native_1.Text>)}
+          {checkoutLoading ? (<react_native_1.ActivityIndicator color={theme_1.theme.light.active} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Upgrade</react_native_1.Text>)}
         </react_native_1.TouchableOpacity>)}
 
       {plan && plan !== 'free' && (<react_native_1.TouchableOpacity style={[styles.button, portalLoading && styles.buttonDisabled]} onPress={handleManageSubscription} disabled={portalLoading}>
-          {portalLoading ? (<react_native_1.ActivityIndicator color={theme_1.theme.textPrimary} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Manage subscription</react_native_1.Text>)}
+          {portalLoading ? (<react_native_1.ActivityIndicator color={theme_1.theme.light.active} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Manage subscription</react_native_1.Text>)}
         </react_native_1.TouchableOpacity>)}
 
       {showDev && (<react_native_1.View style={styles.devSection}>
           <react_native_1.Text style={styles.devTitle}>Developer Settings</react_native_1.Text>
           <react_native_1.Text style={styles.devLabel}>API Base URL</react_native_1.Text>
           <react_native_1.Text style={styles.devHint}>Current: {api_1.API_BASE}</react_native_1.Text>
-          <react_native_1.TextInput style={styles.devInput} value={apiUrlInput} onChangeText={setApiUrlInput} placeholder="https://your-api.railway.app" placeholderTextColor="#555" autoCapitalize="none" autoCorrect={false} keyboardType="url"/>
+          <react_native_1.TextInput style={styles.devInput} value={apiUrlInput} onChangeText={setApiUrlInput} placeholder="https://your-api.railway.app" placeholderTextColor={theme_1.theme.light.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url"/>
           <react_native_1.View style={styles.devButtonRow}>
             <react_native_1.TouchableOpacity style={styles.devButton} onPress={handleSaveApiUrl}>
               <react_native_1.Text style={styles.devButtonText}>Save</react_native_1.Text>
@@ -183,13 +184,32 @@ function ProfileScreen() {
             </react_native_1.TouchableOpacity>
           </react_native_1.View>
         </react_native_1.View>)}
+      <react_native_1.TouchableOpacity style={styles.signOutButton} onPress={async () => {
+            try {
+                if (!supabaseRef.current) {
+                    const { supabase } = await import('../../lib/supabase');
+                    supabaseRef.current = supabase;
+                }
+                if (!supabaseRef.current)
+                    throw new Error('Supabase client is not available.');
+                const { error } = await supabaseRef.current.auth.signOut();
+                if (error)
+                    throw error;
+                expo_router_1.router.replace('/auth/sign-in');
+            }
+            catch (e) {
+                react_native_1.Alert.alert('Sign out failed', 'Please try again');
+            }
+        }}>
+        <react_native_1.Text style={styles.signOutButtonText}>Sign out</react_native_1.Text>
+      </react_native_1.TouchableOpacity>
     </react_native_1.ScrollView>);
 }
 exports.default = ProfileScreen;
 const styles = react_native_1.StyleSheet.create({
     scrollContainer: {
         flex: 1,
-        backgroundColor: theme_1.theme.background,
+        backgroundColor: theme_1.theme.light.ground,
     },
     container: {
         padding: 20,
@@ -203,30 +223,30 @@ const styles = react_native_1.StyleSheet.create({
     },
     label: {
         fontSize: 14,
-        color: theme_1.theme.textSecondary,
+        color: theme_1.theme.light.muted,
         marginBottom: 8,
     },
     planBadge: {
         paddingHorizontal: 20,
         paddingVertical: 10,
-        borderRadius: theme_1.theme.borderRadius,
+        borderRadius: theme_1.theme.spacing.radiusMd,
         borderWidth: 1,
-        borderColor: theme_1.theme.textSecondary,
+        borderColor: theme_1.theme.light.muted,
     },
     planBadgePaid: {
-        borderColor: theme_1.theme.accent,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderColor: theme_1.theme.light.mine,
+        backgroundColor: theme_1.theme.light.mineBg,
     },
     planText: {
         fontSize: 18,
         fontWeight: '700',
-        color: theme_1.theme.textPrimary,
+        color: theme_1.theme.light.active,
     },
     button: {
-        backgroundColor: theme_1.theme.accent,
+        backgroundColor: theme_1.theme.light.mine,
         borderWidth: 1,
-        borderColor: theme_1.theme.textSecondary,
-        borderRadius: theme_1.theme.borderRadius,
+        borderColor: theme_1.theme.light.muted,
+        borderRadius: theme_1.theme.spacing.radiusMd,
         paddingVertical: 14,
         paddingHorizontal: 24,
         minWidth: 200,
@@ -238,42 +258,42 @@ const styles = react_native_1.StyleSheet.create({
     buttonText: {
         fontSize: 16,
         fontWeight: '600',
-        color: theme_1.theme.textPrimary,
+        color: theme_1.theme.light.active,
     },
     devSection: {
         marginTop: 40,
         width: '100%',
         borderTopWidth: 1,
-        borderTopColor: '#333',
+        borderTopColor: theme_1.theme.light.border,
         paddingTop: 20,
     },
     devTitle: {
         fontSize: 14,
         fontWeight: '700',
-        color: theme_1.theme.textSecondary,
+        color: theme_1.theme.light.muted,
         marginBottom: 16,
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
     devLabel: {
         fontSize: 14,
-        color: theme_1.theme.textPrimary,
+        color: theme_1.theme.light.active,
         marginBottom: 4,
     },
     devHint: {
         fontSize: 12,
-        color: theme_1.theme.textSecondary,
+        color: theme_1.theme.light.muted,
         marginBottom: 8,
     },
     devInput: {
-        backgroundColor: '#222',
-        color: theme_1.theme.textPrimary,
+        backgroundColor: theme_1.theme.light.ground,
+        color: theme_1.theme.light.active,
         borderRadius: 8,
         paddingHorizontal: 12,
         paddingVertical: 10,
         fontSize: 14,
         borderWidth: 1,
-        borderColor: '#444',
+        borderColor: theme_1.theme.light.border,
         marginBottom: 12,
     },
     devButtonRow: {
@@ -282,19 +302,35 @@ const styles = react_native_1.StyleSheet.create({
     },
     devButton: {
         flex: 1,
-        backgroundColor: '#333',
+        backgroundColor: theme_1.theme.light.border,
         borderRadius: 8,
         paddingVertical: 10,
         alignItems: 'center',
     },
     devButtonSecondary: {
-        backgroundColor: '#222',
+        backgroundColor: theme_1.theme.light.ground,
         borderWidth: 1,
-        borderColor: '#444',
+        borderColor: theme_1.theme.light.border,
     },
     devButtonText: {
-        color: theme_1.theme.textPrimary,
+        color: theme_1.theme.light.active,
         fontSize: 14,
+        fontWeight: '600',
+    },
+    signOutButton: {
+        marginTop: 40,
+        borderWidth: 1,
+        borderColor: theme_1.theme.light.mine,
+        backgroundColor: theme_1.theme.light.ground,
+        borderRadius: theme_1.theme.spacing.radiusMd,
+        paddingVertical: 14,
+        paddingHorizontal: 24,
+        minWidth: 200,
+        alignItems: 'center',
+    },
+    signOutButtonText: {
+        color: theme_1.theme.light.active,
+        fontSize: 16,
         fontWeight: '600',
     },
 });

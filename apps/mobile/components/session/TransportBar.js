@@ -9,7 +9,9 @@ const react_native_1 = require("react-native");
 const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const theme_1 = require("../../lib/theme");
 function TransportBar({ variant }) {
-    const { isPlaying, playheadMs, durationMs, playbackSpeed, setPlaybackSpeed, handleSeekBack, handleSeekForward, loopRegion, loopOpenAt, handlePlayPause, handleLoopToggle, handleClearLoop, } = (0, SessionContext_1.useSessionContext)();
+    const { musicTrack, isPlaying, playheadMs, durationMs, playbackSpeed, setPlaybackSpeed, handleSeekBack, handleSeekForward, loopRegion, loopOpenAt, handlePlayPause, handleLoopToggle, handleClearLoop, } = (0, SessionContext_1.useSessionContext)();
+    if (musicTrack === null)
+        return null;
     const getLoopButtonStyle = () => {
         if (loopOpenAt !== null) {
             return {

@@ -50,6 +50,8 @@ const api_1 = require("../lib/api");
 const writeQueue_1 = require("../lib/writeQueue");
 const OfflineBanner_1 = __importDefault(require("../components/OfflineBanner"));
 const netinfo_1 = __importDefault(require("@react-native-community/netinfo"));
+const ErrorBoundary_1 = __importDefault(require("../components/ErrorBoundary"));
+const InboxCountContext_1 = require("../lib/contexts/InboxCountContext");
 let GestureHandlerRootView = null;
 try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -94,15 +96,20 @@ class RootErrorBoundary extends react_1.default.Component {
 const errorStyles = react_native_1.StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#330000',
+        backgroundColor: theme_1.theme.light.ground,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
     },
-    title: { fontSize: 18, fontWeight: '700', color: '#ffcccc', marginBottom: 8 },
-    message: { fontSize: 14, color: '#ffaaaa', textAlign: 'center', marginBottom: 16 },
-    button: { marginTop: 16, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: '#555' },
-    buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+    title: { fontSize: 18, fontWeight: '700', color: theme_1.theme.light.active, marginBottom: 8 },
+    message: { fontSize: 14, color: theme_1.theme.light.muted, textAlign: 'center', marginBottom: 16 },
+    button: {
+        marginTop: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        backgroundColor: theme_1.theme.light.mine,
+    },
+    buttonText: { color: theme_1.theme.light.ground, fontSize: 16, fontWeight: '600' },
 });
 // --- Safe first frame: View + Text only, no GHR, no theme (inline styles) ---
 const safeFirstFrameStyles = react_native_1.StyleSheet.create({
@@ -334,7 +341,11 @@ function RootNavigator() {
       </react_native_1.View>);
     }
     return (<>
-      <expo_router_1.Stack screenOptions={{ headerShown: false }}/>
+      <ErrorBoundary_1.default>
+        <InboxCountContext_1.InboxCountProvider>
+          <expo_router_1.Stack screenOptions={{ headerShown: false }}/>
+        </InboxCountContext_1.InboxCountProvider>
+      </ErrorBoundary_1.default>
       <react_native_toast_message_1.default />
       <OfflineBanner_1.default />
       

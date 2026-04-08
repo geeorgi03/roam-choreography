@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getActiveSectionId = exports.setActiveSectionId = exports.getActiveSection = exports.setActiveSection = exports.getActiveSessionId = exports.setActiveSessionId = exports.setSessionMode = exports.getSessionMode = exports.setLoupeState = exports.getLoupeState = exports.setTusUrls = exports.getTusUrls = exports.setUploadQueue = exports.getUploadQueue = exports.storage = void 0;
+exports.getActiveSectionId = exports.setActiveSectionId = exports.getActiveSection = exports.setActiveSection = exports.getActiveSessionId = exports.setActiveSessionId = exports.setLoopOpenAt = exports.getLoopOpenAt = exports.setLoopState = exports.getLoopState = exports.setSessionMode = exports.getSessionMode = exports.setLoupeState = exports.getLoupeState = exports.setTusUrls = exports.getTusUrls = exports.setUploadQueue = exports.getUploadQueue = exports.storage = void 0;
 let storage = null;
 exports.storage = storage;
 try {
@@ -28,6 +28,15 @@ try {
 }
 catch (e) {
     console.error('[storage] Session mode MMKV init failed:', e);
+}
+let loopStorage = null;
+try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { MMKV: MMKVClass } = require('react-native-mmkv');
+    loopStorage = new MMKVClass({ id: 'loop-state' });
+}
+catch (e) {
+    console.error('[storage] Loop MMKV init failed:', e);
 }
 const UPLOAD_QUEUE_KEY = 'upload_queue';
 const TUS_URLS_KEY = 'tus_urls';
@@ -123,6 +132,59 @@ function setSessionMode(sessionId, value) {
     sessionModeStorage.set(`session-mode:${sessionId}`, value ? '1' : '0');
 }
 exports.setSessionMode = setSessionMode;
+function getLoopState(sessionId) {
+    if (!loopStorage)
+        return null;
+    const raw = loopStorage.getString(`loop:${sessionId}`);
+    if (!raw)
+        return null;
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            const state = parsed;
+            if (typeof state.start === 'number' && typeof state.end === 'number') {
+                return { start: state.start, end: state.end };
+            }
+        }
+        return null;
+    }
+    catch {
+        return null;
+    }
+}
+exports.getLoopState = getLoopState;
+function setLoopState(sessionId, state) {
+    if (!loopStorage)
+        return;
+    const key = `loop:${sessionId}`;
+    if (state === null) {
+        loopStorage.delete(key);
+        return;
+    }
+    loopStorage.set(key, JSON.stringify(state));
+}
+exports.setLoopState = setLoopState;
+function getLoopOpenAt(sessionId) {
+    if (!loopStorage)
+        return null;
+    const raw = loopStorage.getString(`loop-open:${sessionId}`);
+    if (raw === undefined || raw === null)
+        return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
+}
+exports.getLoopOpenAt = getLoopOpenAt;
+function setLoopOpenAt(sessionId, value) {
+    if (!loopStorage)
+        return;
+    const key = `loop-open:${sessionId}`;
+    if (value === null) {
+        loopStorage.delete(key);
+        return;
+    }
+    loopStorage.set(key, String(value));
+}
+exports.setLoopOpenAt = setLoopOpenAt;
 const ACTIVE_SESSION_ID_KEY = 'active_session_id';
 const ACTIVE_SECTION_PREFIX = 'active_section:';
 function setActiveSessionId(sessionId) {

@@ -101,6 +101,10 @@ export function WorkbenchTab() {
   const [notePinTimecodeMs, setNotePinTimecodeMs] = useState<number | null>(null);
   const [activeVoiceNoteId, setActiveVoiceNoteId] = useState<string | null>(null);
 
+  const handleVoiceNotePlaybackEnded = useCallback((noteId: string) => {
+    setActiveVoiceNoteId((current) => (current === noteId ? null : current));
+  }, []);
+
   // ── Derived values ───────────────────────────────────────────────────────
   const timelineDurationMs = durationMs > 0 ? durationMs : FALLBACK_DURATION_MS;
   const waveformBars = useMemo(
@@ -157,6 +161,12 @@ export function WorkbenchTab() {
       setActiveSection(sections[0].label);
     }
   }, [musicTrack?.sections, activeSection, setActiveSection]);
+
+  useEffect(() => {
+    if (workspaceTab !== 'notes') {
+      setActiveVoiceNoteId(null);
+    }
+  }, [workspaceTab]);
 
   // ── Section chip handler ─────────────────────────────────────────────────
   const handleSectionPress = useCallback(
@@ -609,11 +619,7 @@ export function WorkbenchTab() {
                           audioStoragePath={note.audio_storage_path}
                           isActive={activeVoiceNoteId === note.id}
                           onRequestPlay={setActiveVoiceNoteId}
-                          onPlaybackEnded={(noteId) => {
-                            setActiveVoiceNoteId((current) =>
-                              current === noteId ? null : current
-                            );
-                          }}
+                          onPlaybackEnded={handleVoiceNotePlaybackEnded}
                         />
                       ) : null}
                       <Text style={styles.noteText}>{note.text}</Text>

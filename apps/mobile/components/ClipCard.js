@@ -46,7 +46,7 @@ function ClipCard({ clip, onPress, onLongPress, onRetry, commentCount }) {
               <react_native_1.Text style={styles.pillText}>queued</react_native_1.Text>
             </react_native_1.View>)}
           {clip.upload_status === 'uploading' && (<react_native_1.View style={styles.pillRow}>
-              <react_native_1.ActivityIndicator size="small" color={theme_1.theme.textSecondary}/>
+              <react_native_1.ActivityIndicator size="small" color={theme_1.theme.light.muted}/>
               <react_native_1.Text style={styles.pillText}>{clip.upload_progress}%</react_native_1.Text>
             </react_native_1.View>)}
           {clip.upload_status === 'processing' && (<react_native_1.View style={styles.pill}>
@@ -73,7 +73,7 @@ const styles = react_native_1.StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#222',
+        borderBottomColor: theme_1.theme.light.border,
     },
     thumbWrap: {
         width: 56,
@@ -91,19 +91,21 @@ const styles = react_native_1.StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 6,
-        backgroundColor: '#333',
+        backgroundColor: theme_1.theme.light.chrome,
+        borderWidth: 1,
+        borderColor: theme_1.theme.light.border,
         justifyContent: 'center',
         alignItems: 'center',
     },
     thumbIcon: {
-        color: theme_1.theme.textSecondary,
+        color: theme_1.theme.light.muted,
         fontSize: 20,
     },
     voiceMemoThumb: {
         width: 56,
         height: 56,
         borderRadius: 6,
-        backgroundColor: theme_1.theme.capture,
+        backgroundColor: theme_1.theme.light.capture,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -116,7 +118,8 @@ const styles = react_native_1.StyleSheet.create({
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: theme_1.theme.textPrimary,
+        fontFamily: theme_1.theme.typography.displayFamily,
+        color: theme_1.theme.light.active,
         marginBottom: 4,
     },
     meta: {
@@ -127,13 +130,16 @@ const styles = react_native_1.StyleSheet.create({
     },
     timestamp: {
         fontSize: 12,
-        color: theme_1.theme.textSecondary,
+        fontFamily: theme_1.theme.typography.monoFamily,
+        color: theme_1.theme.light.muted,
     },
     pill: {
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 6,
-        backgroundColor: '#333',
+        backgroundColor: theme_1.theme.light.chrome,
+        borderWidth: 1,
+        borderColor: theme_1.theme.light.border,
     },
     pillRow: {
         flexDirection: 'row',
@@ -142,11 +148,14 @@ const styles = react_native_1.StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 6,
-        backgroundColor: '#333',
+        backgroundColor: theme_1.theme.light.chrome,
+        borderWidth: 1,
+        borderColor: theme_1.theme.light.border,
     },
     pillText: {
         fontSize: 12,
-        color: theme_1.theme.textSecondary,
+        fontFamily: theme_1.theme.typography.monoFamily,
+        color: theme_1.theme.light.muted,
     },
     pillRetry: {
         backgroundColor: 'transparent',
@@ -156,11 +165,11 @@ const styles = react_native_1.StyleSheet.create({
         color: '#e57373',
     },
     pillUntagged: {
-        backgroundColor: theme_1.theme.untaggedBg,
+        backgroundColor: theme_1.theme.light.amberBg,
     },
     pillUntaggedText: {
         fontSize: 12,
-        color: theme_1.theme.untaggedText,
+        color: theme_1.theme.light.amber,
     },
     pillComment: {
         backgroundColor: 'rgba(184, 134, 11, 0.3)',

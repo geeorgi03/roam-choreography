@@ -8,6 +8,7 @@ const react_native_1 = require("react-native");
 const expo_router_1 = require("expo-router");
 const theme_1 = require("../../lib/theme");
 const useSession_1 = require("../../lib/hooks/useSession");
+const FirstSessionSheet_1 = require("../../components/FirstSessionSheet");
 const CreateSessionSheet_1 = require("../../components/CreateSessionSheet");
 const PaywallSheet_1 = require("../../components/PaywallSheet");
 const react_native_mmkv_1 = require("react-native-mmkv");
@@ -31,6 +32,7 @@ function mapCachedToSession(cached) {
 function HomeScreen() {
     const { session } = (0, useSession_1.useSession)();
     const createSheetRef = (0, react_1.useRef)(null);
+    const firstSessionSheetRef = (0, react_1.useRef)(null);
     const paywallSheetRef = (0, react_1.useRef)(null);
     const redirected = (0, react_1.useRef)(false);
     const [sessions, setSessions] = (0, react_1.useState)([]);
@@ -179,10 +181,10 @@ function HomeScreen() {
                     <react_native_1.Text style={styles.doorTitle}>Browse library</react_native_1.Text>
                     <react_native_1.Text style={styles.doorSub}>Explore your collection</react_native_1.Text>
                   </react_native_1.TouchableOpacity>
-                  <react_native_1.TouchableOpacity style={styles.doorCard} onPress={() => createSheetRef.current?.snapToIndex(0)} activeOpacity={0.85}>
+                  <react_native_1.TouchableOpacity style={styles.doorCard} onPress={() => firstSessionSheetRef.current?.snapToIndex(0)} activeOpacity={0.85}>
                     <react_native_1.Text style={styles.doorIcon}>🎵</react_native_1.Text>
                     <react_native_1.Text style={styles.doorTitle}>Start a session</react_native_1.Text>
-                    <react_native_1.Text style={styles.doorSub}>I have a song to work with</react_native_1.Text>
+                    <react_native_1.Text style={styles.doorSub}>Name it, add a video, go.</react_native_1.Text>
                   </react_native_1.TouchableOpacity>
                 </react_native_1.View>
                 {inboxCount > 0 ? (<react_native_1.TouchableOpacity style={styles.inboxPill} onPress={() => expo_router_1.router.push('/inbox')} activeOpacity={0.85}>
@@ -210,6 +212,7 @@ function HomeScreen() {
           </react_native_1.TouchableOpacity>
         </react_native_1.View>)}
       {sheetsReady && (<>
+          <FirstSessionSheet_1.FirstSessionSheet bottomSheetRef={firstSessionSheetRef} onCreated={handleCreated} onPaywallRequired={() => paywallSheetRef.current?.snapToIndex(0)}/>
           <CreateSessionSheet_1.CreateSessionSheet bottomSheetRef={createSheetRef} onCreated={handleCreated} onPaywallRequired={() => paywallSheetRef.current?.snapToIndex(0)}/>
           <PaywallSheet_1.PaywallSheet bottomSheetRef={paywallSheetRef}/>
         </>)}

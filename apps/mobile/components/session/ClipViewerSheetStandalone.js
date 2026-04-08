@@ -98,6 +98,11 @@ exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipView
             videoRef.current.setPositionAsync(start);
         }
     };
+    const clipTypeBadge = clip?.clip_type === 'REF'
+        ? { label: 'REF', backgroundColor: '#7db9a8' }
+        : clip?.clip_type === 'MINE'
+            ? { label: 'MINE', backgroundColor: '#e8a87c' }
+            : null;
     const renderBackdrop = (props) => (<bottom_sheet_1.BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} pressBehavior="close"/>);
     return (<bottom_sheet_1.default ref={ref} index={-1} snapPoints={['50%', '85%']} enablePanDownToClose onClose={onClose} backdropComponent={renderBackdrop}>
         {clip ? (<>
@@ -105,6 +110,9 @@ exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipView
             <react_native_1.View style={styles.darkZone}>
               <react_native_1.View style={styles.header}>
                 <react_native_1.Text style={styles.clipLabel}>{clip.label || 'Untitled Clip'}</react_native_1.Text>
+                {clipTypeBadge && (<react_native_1.View style={[styles.typeBadge, { backgroundColor: clipTypeBadge.backgroundColor }]}>
+                    <react_native_1.Text style={styles.typeBadgeText}>{clipTypeBadge.label}</react_native_1.Text>
+                  </react_native_1.View>)}
                 <react_native_1.View style={styles.libraryPill}>
                   <react_native_1.Text style={styles.libraryPillText}>library</react_native_1.Text>
                 </react_native_1.View>
@@ -184,6 +192,18 @@ const styles = react_native_1.StyleSheet.create({
         color: '#ffffff',
         fontSize: 12,
         fontWeight: '600',
+    },
+    typeBadge: {
+        paddingHorizontal: 4,
+        paddingVertical: 2,
+        borderRadius: 4,
+        marginRight: 6,
+    },
+    typeBadgeText: {
+        color: '#ffffff',
+        fontSize: 12,
+        fontWeight: '700',
+        fontFamily: theme_1.theme.typography.monoFamily,
     },
     videoContainer: {
         height: 200,

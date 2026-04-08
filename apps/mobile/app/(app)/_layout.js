@@ -4,7 +4,9 @@ const expo_router_1 = require("expo-router");
 const react_native_1 = require("react-native");
 const storage_1 = require("../../lib/storage");
 const theme_1 = require("../../lib/theme");
+const InboxCountContext_1 = require("../../lib/contexts/InboxCountContext");
 function AppStackLayout() {
+    const { count } = (0, InboxCountContext_1.useInboxCount)();
     return (<expo_router_1.Tabs screenOptions={{
             headerStyle: { backgroundColor: theme_1.theme.light.ground },
             headerTintColor: theme_1.theme.light.active,
@@ -29,11 +31,18 @@ function AppStackLayout() {
             },
         }}/>
       <expo_router_1.Tabs.Screen name="library" options={{ title: 'Library' }}/>
-      <expo_router_1.Tabs.Screen name="profile" options={{
-            href: null,
-            headerShown: false,
-        }}/>
       <expo_router_1.Tabs.Screen name="inbox" options={{
+            title: 'Inbox',
+            headerShown: true,
+            tabBarIcon: ({ focused }) => (<react_native_1.Text style={{
+                    color: focused ? theme_1.theme.light.active : theme_1.theme.light.muted,
+                    fontSize: 18,
+                }}>
+              🔔
+            </react_native_1.Text>),
+            tabBarBadge: count > 0 ? count : undefined,
+        }}/>
+      <expo_router_1.Tabs.Screen name="profile" options={{
             href: null,
             headerShown: false,
         }}/>
@@ -53,19 +62,17 @@ function AppStackLayout() {
             href: null,
             headerShown: false,
         }}/>
-      <expo_router_1.Tabs.Screen name="session/beat-grid" options={{
-            href: null,
-            headerShown: false,
-        }}/>
       <expo_router_1.Tabs.Screen name="session/camera" options={{
             href: null,
             headerShown: false,
         }}/>
       <expo_router_1.Tabs.Screen name="session/music-setup" options={{
+            title: '',
             href: null,
             headerShown: false,
         }}/>
       <expo_router_1.Tabs.Screen name="session/youtube-player" options={{
+            title: '',
             href: null,
             headerShown: false,
         }}/>

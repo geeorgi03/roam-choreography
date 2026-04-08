@@ -211,7 +211,7 @@ const styles = react_native_1.StyleSheet.create({
         marginTop: 12,
     },
     input: {
-        backgroundColor: '#222',
+        backgroundColor: theme_1.theme.light.border,
         borderWidth: 1,
         borderColor: theme_1.theme.textSecondary,
         borderRadius: theme_1.theme.borderRadius,
@@ -233,7 +233,7 @@ const styles = react_native_1.StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 14,
         borderRadius: theme_1.theme.borderRadius,
-        backgroundColor: '#222',
+        backgroundColor: theme_1.theme.light.border,
         borderWidth: 1,
         borderColor: theme_1.theme.textSecondary,
     },

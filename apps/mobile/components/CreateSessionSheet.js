@@ -112,7 +112,7 @@ function CreateSessionSheet({ bottomSheetRef, onCreated, onPaywallRequired, }) {
         <react_native_1.TextInput style={styles.input} placeholder="Session name" placeholderTextColor={theme_1.theme.textSecondary} value={name} onChangeText={setName} editable={!loading}/>
         {error ? <react_native_1.Text style={styles.errorText}>{error}</react_native_1.Text> : null}
         <react_native_1.TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleCreate} disabled={loading}>
-          {loading ? (<react_native_1.ActivityIndicator color={theme_1.theme.textPrimary} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Create</react_native_1.Text>)}
+          {loading ? (<react_native_1.ActivityIndicator color={theme_1.theme.textPrimary} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Start session</react_native_1.Text>)}
         </react_native_1.TouchableOpacity>
       </react_native_1.View>
     </bottom_sheet_1.default>);

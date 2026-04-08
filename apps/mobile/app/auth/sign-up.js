@@ -36,7 +36,7 @@ function SignUpScreen() {
     if (configLoading) {
         return (<react_native_1.View style={styles.container}>
         <react_native_1.View style={styles.content}>
-          <react_native_1.ActivityIndicator size="large" color={theme_1.theme.textPrimary}/>
+          <react_native_1.ActivityIndicator size="large" color={theme_1.theme.light.active}/>
         </react_native_1.View>
       </react_native_1.View>);
     }
@@ -57,7 +57,7 @@ function SignUpScreen() {
                     (0, devBypassAuth_1.setDevBypassAuth)(true);
                     expo_router_1.router.replace('/(app)');
                 }}>
-              <react_native_1.Text style={[styles.linkText, { color: theme_1.theme.brandGreen }]}>Open app (dev only)</react_native_1.Text>
+              <react_native_1.Text style={[styles.linkText, { color: theme_1.theme.light.mine }]}>Open app (dev only)</react_native_1.Text>
             </react_native_1.TouchableOpacity>)}
         </react_native_1.View>
       </react_native_1.View>);
@@ -68,9 +68,9 @@ function SignUpScreen() {
         <react_native_1.Text style={styles.tagline}>Capture-first choreography tool</react_native_1.Text>
         <react_native_1.View style={styles.form}>
           <react_native_1.Text style={styles.label}>Email</react_native_1.Text>
-          <react_native_1.TextInput style={styles.input} placeholder="you@example.com" placeholderTextColor={theme_1.theme.textSecondary} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false}/>
+          <react_native_1.TextInput style={styles.input} placeholder="you@example.com" placeholderTextColor={theme_1.theme.light.muted} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false}/>
           <react_native_1.Text style={styles.label}>Password</react_native_1.Text>
-          <react_native_1.TextInput style={styles.input} placeholder="••••••••" placeholderTextColor={theme_1.theme.textSecondary} value={password} onChangeText={setPassword} secureTextEntry/>
+          <react_native_1.TextInput style={styles.input} placeholder="••••••••" placeholderTextColor={theme_1.theme.light.muted} value={password} onChangeText={setPassword} secureTextEntry/>
           {error ? <react_native_1.Text style={styles.error}>{error}</react_native_1.Text> : null}
           {message ? <react_native_1.Text style={styles.message}>{message}</react_native_1.Text> : null}
           <react_native_1.TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSignUp} disabled={loading || !supabase}>
@@ -84,7 +84,7 @@ function SignUpScreen() {
                 (0, devBypassAuth_1.setDevBypassAuth)(true);
                 expo_router_1.router.replace('/(app)');
             }}>
-            <react_native_1.Text style={[styles.linkText, { color: theme_1.theme.brandGreen }]}>Open app (dev only)</react_native_1.Text>
+            <react_native_1.Text style={[styles.linkText, { color: theme_1.theme.light.mine }]}>Open app (dev only)</react_native_1.Text>
           </react_native_1.TouchableOpacity>)}
       </react_native_1.View>
     </react_native_1.KeyboardAvoidingView>);
@@ -93,7 +93,7 @@ exports.default = SignUpScreen;
 const styles = react_native_1.StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme_1.theme.background,
+        backgroundColor: theme_1.theme.light.ground,
     },
     content: {
         flex: 1,
@@ -103,47 +103,49 @@ const styles = react_native_1.StyleSheet.create({
     brandTitle: {
         fontSize: 36,
         fontWeight: '700',
-        color: theme_1.theme.brandGreen,
+        color: theme_1.theme.light.active,
         marginBottom: 8,
     },
     tagline: {
         fontSize: 14,
-        color: theme_1.theme.textSecondary,
+        color: theme_1.theme.light.muted,
         marginBottom: 32,
     },
     form: {
-        backgroundColor: '#1a1a1a',
+        backgroundColor: theme_1.theme.light.chrome,
         borderRadius: theme_1.theme.borderRadius,
         padding: 24,
         borderWidth: 1,
-        borderColor: '#222',
+        borderColor: theme_1.theme.light.border,
     },
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: theme_1.theme.textPrimary,
+        color: theme_1.theme.light.active,
         marginBottom: 8,
     },
     input: {
-        backgroundColor: '#222',
+        backgroundColor: theme_1.theme.light.ground,
         borderRadius: theme_1.theme.borderRadius,
+        borderWidth: 1,
+        borderColor: theme_1.theme.light.border,
         padding: 16,
         fontSize: 16,
-        color: theme_1.theme.textPrimary,
+        color: theme_1.theme.light.active,
         marginBottom: 20,
     },
     error: {
-        color: '#e74c3c',
+        color: theme_1.theme.light.amber,
         fontSize: 14,
         marginBottom: 16,
     },
     message: {
-        color: theme_1.theme.textSecondary,
+        color: theme_1.theme.light.muted,
         fontSize: 14,
         marginBottom: 16,
     },
     button: {
-        backgroundColor: theme_1.theme.brandGreen,
+        backgroundColor: theme_1.theme.light.mine,
         borderRadius: theme_1.theme.borderRadius,
         padding: 16,
         alignItems: 'center',
@@ -153,7 +155,7 @@ const styles = react_native_1.StyleSheet.create({
         opacity: 0.6,
     },
     buttonText: {
-        color: '#111',
+        color: theme_1.theme.light.ground,
         fontSize: 16,
         fontWeight: '600',
     },
@@ -162,7 +164,7 @@ const styles = react_native_1.StyleSheet.create({
         alignItems: 'center',
     },
     linkText: {
-        color: theme_1.theme.textSecondary,
+        color: theme_1.theme.light.muted,
         fontSize: 14,
     },
 });

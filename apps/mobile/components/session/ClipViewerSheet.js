@@ -236,12 +236,20 @@ exports.ClipViewerSheet = react_1.default.forwardRef(function ClipViewerSheet({ 
         setDurationMs(status.durationMillis || 0);
         setPlayheadFraction(status.durationMillis ? status.positionMillis / status.durationMillis : 0);
     };
+    const clipTypeBadge = selectedClipForSheet.clip_type === 'REF'
+        ? { label: 'REF', backgroundColor: '#7db9a8' }
+        : selectedClipForSheet.clip_type === 'MINE'
+            ? { label: 'MINE', backgroundColor: '#e8a87c' }
+            : null;
     return (<bottom_sheet_1.default ref={ref} index={-1} snapPoints={['50%', '85%']} enablePanDownToClose onClose={onClose}>
       {/* Dark zone */}
       <react_native_1.View style={styles.darkZone}>
         {/* Header */}
         <react_native_1.View style={styles.header}>
           <react_native_1.Text style={styles.clipLabel}>{selectedClipForSheet.label || 'Untitled Clip'}</react_native_1.Text>
+          {clipTypeBadge && (<react_native_1.View style={[styles.typeBadge, { backgroundColor: clipTypeBadge.backgroundColor }]}>
+              <react_native_1.Text style={styles.typeBadgeText}>{clipTypeBadge.label}</react_native_1.Text>
+            </react_native_1.View>)}
           <react_native_1.View style={styles.mirrorPill}>
             <react_native_1.Text style={styles.mirrorPillText}>mirror</react_native_1.Text>
           </react_native_1.View>
@@ -381,6 +389,18 @@ const styles = react_native_1.StyleSheet.create({
         color: '#ffffff',
         fontSize: 12,
         fontWeight: '600',
+    },
+    typeBadge: {
+        paddingHorizontal: 4,
+        paddingVertical: 2,
+        borderRadius: 4,
+        marginRight: 6,
+    },
+    typeBadgeText: {
+        color: '#ffffff',
+        fontSize: 12,
+        fontWeight: '700',
+        fontFamily: theme_1.theme.typography.monoFamily,
     },
     videoContainer: {
         height: 200,
