@@ -129,7 +129,7 @@ export function CreateSessionSheet({
           {loading ? (
             <ActivityIndicator color={theme.textPrimary} size="small" />
           ) : (
-            <Text style={styles.buttonText}>Create</Text>
+            <Text style={styles.buttonText}>Start session</Text>
           )}
         </TouchableOpacity>
       </View>

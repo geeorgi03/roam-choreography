@@ -261,357 +261,362 @@ export function WorkbenchTab() {
       style={styles.container}
       onPress={!sessionMode ? () => setSessionMode(true) : undefined}
     >
-      <ScrollView
-        horizontal={false}
-        style={styles.waveformContainer}
-        contentContainerStyle={styles.waveformContainerContent}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={false}
-      >
-        <View
-          style={styles.waveformTrack}
-          onLayout={(event) => {
-            const measuredWidth = Math.max(
-              0,
-              event.nativeEvent.layout.width - WAVEFORM_HORIZONTAL_PADDING * 2
-            );
-            waveformWidth.current = measuredWidth;
-            setWaveformWidthPx(measuredWidth);
-          }}
-        >
-          <TouchableOpacity
-            style={styles.waveformTapArea}
-            activeOpacity={1}
-            onPress={handleWaveformTap}
+      <>
+        {musicTrack ? (
+          <ScrollView
+            horizontal={false}
+            style={styles.waveformContainer}
+            contentContainerStyle={styles.waveformContainerContent}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={false}
           >
-            <View style={[styles.waveformBarsRow, { width: waveformContentWidth }]}>
-              {waveformBars.map((bar) => {
-                const barFraction = bar.index / WAVEFORM_BAR_COUNT;
-                const isActive = loopRegion
-                  ? barFraction >= loopRegion.start / timelineDurationMs &&
-                    barFraction <= loopRegion.end / timelineDurationMs
-                  : false;
-                return (
+            <View
+              style={styles.waveformTrack}
+              onLayout={(event) => {
+                const measuredWidth = Math.max(
+                  0,
+                  event.nativeEvent.layout.width - WAVEFORM_HORIZONTAL_PADDING * 2
+                );
+                waveformWidth.current = measuredWidth;
+                setWaveformWidthPx(measuredWidth);
+              }}
+            >
+              <TouchableOpacity
+                style={styles.waveformTapArea}
+                activeOpacity={1}
+                onPress={handleWaveformTap}
+              >
+                <View style={[styles.waveformBarsRow, { width: waveformContentWidth }]}>
+                  {waveformBars.map((bar) => {
+                    const barFraction = bar.index / WAVEFORM_BAR_COUNT;
+                    const isActive = loopRegion
+                      ? barFraction >= loopRegion.start / timelineDurationMs &&
+                        barFraction <= loopRegion.end / timelineDurationMs
+                      : false;
+                    return (
+                      <View
+                        key={bar.index}
+                        style={[
+                          styles.waveformBar,
+                          {
+                            width: waveformBarWidth,
+                            height: bar.height,
+                            backgroundColor: isActive ? 'rgba(125,185,168,0.6)' : '#e8e3dc',
+                          },
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+              </TouchableOpacity>
+              {loopRegion ? (
+                <>
                   <View
-                    key={bar.index}
                     style={[
-                      styles.waveformBar,
-                      {
-                        width: waveformBarWidth,
-                        height: bar.height,
-                        backgroundColor: isActive ? 'rgba(125,185,168,0.6)' : '#e8e3dc',
-                      },
+                      styles.waveformLoopEdge,
+                      { left: WAVEFORM_HORIZONTAL_PADDING + loopStartX },
                     ]}
                   />
-                );
-              })}
-            </View>
-          </TouchableOpacity>
-          {loopRegion ? (
-            <>
-              <View
-                style={[
-                  styles.waveformLoopEdge,
-                  { left: WAVEFORM_HORIZONTAL_PADDING + loopStartX },
-                ]}
-              />
-              <View
-                style={[
-                  styles.waveformLoopEdge,
-                  { left: WAVEFORM_HORIZONTAL_PADDING + loopEndX },
-                ]}
-              />
-            </>
-          ) : null}
-          <View
-            style={[
-              styles.waveformPlayhead,
-              { left: WAVEFORM_HORIZONTAL_PADDING + playheadX },
-            ]}
-          >
-            <View style={styles.waveformPlayheadDot} />
-          </View>
-        </View>
-      </ScrollView>
-
-      {sessionMode && (
-        <TouchableOpacity
-          style={styles.sessionModeRow}
-          onPress={() => setSessionMode(false)}
-          activeOpacity={0.75}
-        >
-          <Text style={styles.sessionModeRowLabel}>{activeSection}</Text>
-          <Text style={styles.sessionModeRowCount}>
-            {sectionClipCounts.get(activeSection) ?? 0}
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {!sessionMode && (
-        <>
-      <View style={styles.toggleRow}>
-        <TouchableOpacity
-          style={[styles.toggleChip, styles.toggleChipActive]}
-          activeOpacity={0.8}
-        >
-          <Text
-            style={[
-              styles.toggleChipText,
-              styles.toggleChipTextActive,
-            ]}
-          >
-            Counts
-          </Text>
-        </TouchableOpacity>
-        <View style={[styles.toggleChip, { opacity: 0.45 }]}>
-          <Text
-            style={styles.toggleChipText}
-          >
-            Partition
-          </Text>
-        </View>
-      </View>
-      <Text style={styles.partitionHint}>read-only in V3</Text>
-        </>
-      )}
-      
-
-      <View style={styles.sectionStripWrapper}>
-        {/* Section pill zone — absorbs touches to prevent bubbling */}
-        {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (
-          <View style={styles.sectionPillZone} onStartShouldSetResponder={() => true}>
-            <View style={styles.sectionPillListWrap}>
-              <ScrollView
-                style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]}
-                contentContainerStyle={styles.sectionPillListContent}
-                showsVerticalScrollIndicator={false}
-              >
-                {musicTrack.sections.map((s) => {
-                  const pillContent = (
-                    <>
-                      <Text
-                        style={[
-                          styles.sectionPillText,
-                          s.label === activeSection && styles.sectionPillTextActive,
-                        ]}
-                      >
-                        {s.label}
-                      </Text>
-                      <Text style={styles.sectionPillCount}>
-                        {sectionClipCounts.get(s.label) ?? 0}
-                      </Text>
-                    </>
-                  );
-
-                  return (
-                    <TouchableOpacity
-                      key={s.label}
-                      style={[
-                        styles.sectionPill,
-                        s.label === activeSection && styles.sectionPillActive,
-                      ]}
-                      onPress={() => handleSectionPress(s)}
-                      activeOpacity={0.75}
-                    >
-                      {pillContent}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-            {showSectionSwipeHint ? (
-              <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Workspace zone — allows touches to bubble to outer Pressable */}
-        {!sessionMode && (
-          <View style={styles.workspaceZone}>
-        <View style={styles.workspaceHeader}>
-          <View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
-            <Text style={styles.workspaceTitle}>{activeSection}</Text>
-          </View>
-          <Text style={styles.workspaceMeta}>
-            {formatTimecode(playheadMs)} · …
-          </Text>
-          {!musicTrack ? (
-            <TouchableOpacity
-              style={styles.workspaceBtn}
-              onPress={() =>
-                router.push({ pathname: './music-setup', params: { sessionId } })
-              }
-            >
-              <Text style={styles.workspaceBtnText}>Add music</Text>
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity
-            style={styles.mapJumpBtn}
-            onPress={jumpToSongMap}
-            testID={`map-jump-${activeMoment}`}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.mapJumpBtnText}>→ Map</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.workspaceTabs}>
-          <TouchableOpacity
-            style={[
-              styles.workspaceTab,
-              workspaceTab === 'ideas' && styles.workspaceTabActive,
-            ]}
-            onPress={() => setWorkspaceTab('ideas')}
-          >
-            <Text
-              style={[
-                styles.workspaceTabText,
-                workspaceTab === 'ideas' && styles.workspaceTabTextActive,
-              ]}
-            >
-              Ideas
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.workspaceTab,
-              workspaceTab === 'notes' && styles.workspaceTabActive,
-            ]}
-            onPress={() => setWorkspaceTab('notes')}
-          >
-            <Text
-              style={[
-                styles.workspaceTabText,
-                workspaceTab === 'notes' && styles.workspaceTabTextActive,
-              ]}
-            >
-              Notes
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          style={styles.pinNoteBtn}
-          onPress={() => handleOpenNotePin(playheadMs)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.pinNoteBtnText}>
-            Pin note @ {formatTimecode(notePinTimecodeMs ?? playheadMs)}
-          </Text>
-        </TouchableOpacity>
-
-        {workspaceTab === 'ideas' ? (
-          <FlatList
-            data={displayClips}
-            keyExtractor={(c) => c.local_id}
-            numColumns={2}
-            columnWrapperStyle={{ gap: 10 }}
-            contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 40 }}
-            renderItem={({ item, index }) => (
-              <View style={styles.clipCell}>
-                <TouchableOpacity
-                  style={[
-                    styles.clipThumb,
-                    item.clip_type === 'voice_memo' ? styles.clipThumbVoiceMemo :
-                    isReferenceClip(item) ? styles.clipThumbRef : styles.clipThumbMine,
-                  ]}
-                  onPress={() => openClipSheet(item)}
-                  activeOpacity={0.85}
-                >
-                  {item.clip_type === 'voice_memo' ? (
-                    <View style={styles.voiceMemoIndicator}>
-                      <Text style={styles.voiceMemoIcon}>🎤</Text>
-                      <Text style={styles.voiceMemoLabel}>Voice Memo</Text>
-                    </View>
-                  ) : item.mux_playback_id ? (
-                    <Image
-                      source={{
-                        uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
-                      }}
-                      style={styles.clipThumbImage}
-                    />
-                  ) : null}
                   <View
                     style={[
-                      styles.clipTypeBadge,
-                      item.clip_type === 'voice_memo' ? styles.clipTypeBadgeVoiceMemo :
-                      isReferenceClip(item) ? styles.clipTypeBadgeRef : styles.clipTypeBadgeMine,
+                      styles.waveformLoopEdge,
+                      { left: WAVEFORM_HORIZONTAL_PADDING + loopEndX },
+                    ]}
+                  />
+                </>
+              ) : null}
+              <View
+                style={[
+                  styles.waveformPlayhead,
+                  { left: WAVEFORM_HORIZONTAL_PADDING + playheadX },
+                ]}
+              >
+                <View style={styles.waveformPlayheadDot} />
+              </View>
+            </View>
+          </ScrollView>
+        ) : (
+          <TouchableOpacity
+            style={styles.addMusicPrompt}
+            activeOpacity={0.8}
+            onPress={() => router.push({ pathname: './music-setup', params: { sessionId } })}
+          >
+            <Text style={styles.addMusicPromptText}>Add music →</Text>
+          </TouchableOpacity>
+        )}
+
+        {sessionMode && (
+          <TouchableOpacity
+            style={styles.sessionModeRow}
+            onPress={() => setSessionMode(false)}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.sessionModeRowLabel}>{activeSection}</Text>
+            <Text style={styles.sessionModeRowCount}>
+              {sectionClipCounts.get(activeSection) ?? 0}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {!sessionMode && (
+          <>
+            {musicTrack ? (
+              <>
+                <View style={styles.toggleRow}>
+                  <TouchableOpacity
+                    style={[styles.toggleChip, styles.toggleChipActive]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.toggleChipText, styles.toggleChipTextActive]}>
+                      Counts
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={[styles.toggleChip, { opacity: 0.45 }]}>
+                    <Text style={styles.toggleChipText}>Partition</Text>
+                  </View>
+                </View>
+                <Text style={styles.partitionHint}>read-only in V3</Text>
+              </>
+            ) : null}
+          </>
+        )}
+
+        <View style={styles.sectionStripWrapper}>
+          {/* Section pill zone — absorbs touches to prevent bubbling */}
+          {musicTrack?.sections && musicTrack.sections.length > 0 && !sessionMode ? (
+            <View style={styles.sectionPillZone} onStartShouldSetResponder={() => true}>
+              <View style={styles.sectionPillListWrap}>
+                <ScrollView
+                  style={[styles.sectionPillList, { maxHeight: sectionPillListMaxHeight }]}
+                  contentContainerStyle={styles.sectionPillListContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {musicTrack.sections.map((s) => {
+                    const pillContent = (
+                      <>
+                        <Text
+                          style={[
+                            styles.sectionPillText,
+                            s.label === activeSection && styles.sectionPillTextActive,
+                          ]}
+                        >
+                          {s.label}
+                        </Text>
+                        <Text style={styles.sectionPillCount}>
+                          {sectionClipCounts.get(s.label) ?? 0}
+                        </Text>
+                      </>
+                    );
+
+                    return (
+                      <TouchableOpacity
+                        key={s.label}
+                        style={[
+                          styles.sectionPill,
+                          s.label === activeSection && styles.sectionPillActive,
+                        ]}
+                        onPress={() => handleSectionPress(s)}
+                        activeOpacity={0.75}
+                      >
+                        {pillContent}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+              {showSectionSwipeHint ? (
+                <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* Workspace zone — allows touches to bubble to outer Pressable */}
+          {!sessionMode && (
+            <View style={styles.workspaceZone}>
+              <View style={styles.workspaceHeader}>
+                <View {...sectionSwipePan.panHandlers} style={styles.workspaceSectionGesture}>
+                  <Text style={styles.workspaceTitle}>{activeSection}</Text>
+                </View>
+                <Text style={styles.workspaceMeta}>{formatTimecode(playheadMs)} · …</Text>
+                <TouchableOpacity
+                  style={styles.mapJumpBtn}
+                  onPress={jumpToSongMap}
+                  testID={`map-jump-${activeMoment}`}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.mapJumpBtnText}>→ Map</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.workspaceTabs}>
+                <TouchableOpacity
+                  style={[
+                    styles.workspaceTab,
+                    workspaceTab === 'ideas' && styles.workspaceTabActive,
+                  ]}
+                  onPress={() => setWorkspaceTab('ideas')}
+                >
+                  <Text
+                    style={[
+                      styles.workspaceTabText,
+                      workspaceTab === 'ideas' && styles.workspaceTabTextActive,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.clipTypeBadgeText,
-                        item.clip_type === 'voice_memo' ? styles.clipTypeBadgeTextVoiceMemo :
-                        isReferenceClip(item)
-                          ? styles.clipTypeBadgeTextRef
-                          : styles.clipTypeBadgeTextMine,
-                      ]}
-                    >
-                      {item.clip_type === 'voice_memo' ? 'VOICE' :
-                       isReferenceClip(item) ? 'REF' : 'MINE'}
-                    </Text>
-                  </View>
-                  {item.upload_status === 'failed' ? (
-                    <TouchableOpacity
-                      style={styles.retryPill}
-                      onPress={() => retryClip(item.local_id)}
-                    >
-                      <Text style={styles.retryPillText}>Retry</Text>
-                    </TouchableOpacity>
-                  ) : null}
+                    Ideas
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
-                    styles.clipShareIcon,
-                    item.upload_status !== 'ready' && styles.clipShareIconDisabled,
+                    styles.workspaceTab,
+                    workspaceTab === 'notes' && styles.workspaceTabActive,
                   ]}
-                  onPress={() => {
-                    if (item.upload_status !== 'ready' || !item.server_id) {
-                      Toast.show({
-                        type: 'info',
-                        text1: 'Available once clip is ready.',
-                      });
-                      return;
-                    }
-                    setSelectedClipForSheet(item);
-                    openSheet('clip-share');
-                  }}
+                  onPress={() => setWorkspaceTab('notes')}
                 >
-                  <Text style={styles.clipShareIconText}>⎘</Text>
+                  <Text
+                    style={[
+                      styles.workspaceTabText,
+                      workspaceTab === 'notes' && styles.workspaceTabTextActive,
+                    ]}
+                  >
+                    Notes
+                  </Text>
                 </TouchableOpacity>
               </View>
-            )}
-          />
-        ) : (
-          <View style={styles.notesContent}>
-            {notes.map((note) => (
-              <View key={note.id} style={styles.noteItem}>
-                <Text style={styles.noteTime}>{formatTimecode(note.timecode_ms)}</Text>
-                <Text style={styles.noteText}>{note.text}</Text>
-                <TouchableOpacity
-                  style={styles.noteDelete}
-                  onPress={() => handleDeleteNote(note.id)}
-                >
-                  <Text style={styles.noteDeleteText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
+              <TouchableOpacity
+                style={styles.pinNoteBtn}
+                onPress={() => handleOpenNotePin(playheadMs)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.pinNoteBtnText}>
+                  Pin note @ {formatTimecode(notePinTimecodeMs ?? playheadMs)}
+                </Text>
+              </TouchableOpacity>
+
+              {workspaceTab === 'ideas' ? (
+                <FlatList
+                  data={displayClips}
+                  keyExtractor={(c) => c.local_id}
+                  numColumns={2}
+                  columnWrapperStyle={{ gap: 10 }}
+                  contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 40 }}
+                  renderItem={({ item }) => (
+                    <View style={styles.clipCell}>
+                      <TouchableOpacity
+                        style={[
+                          styles.clipThumb,
+                          item.clip_type === 'voice_memo'
+                            ? styles.clipThumbVoiceMemo
+                            : isReferenceClip(item)
+                              ? styles.clipThumbRef
+                              : styles.clipThumbMine,
+                        ]}
+                        onPress={() => openClipSheet(item)}
+                        activeOpacity={0.85}
+                      >
+                        {item.clip_type === 'voice_memo' ? (
+                          <View style={styles.voiceMemoIndicator}>
+                            <Text style={styles.voiceMemoIcon}>🎤</Text>
+                            <Text style={styles.voiceMemoLabel}>Voice Memo</Text>
+                          </View>
+                        ) : item.mux_playback_id ? (
+                          <Image
+                            source={{
+                              uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
+                            }}
+                            style={styles.clipThumbImage}
+                          />
+                        ) : null}
+                        <View
+                          style={[
+                            styles.clipTypeBadge,
+                            item.clip_type === 'voice_memo'
+                              ? styles.clipTypeBadgeVoiceMemo
+                              : isReferenceClip(item)
+                                ? styles.clipTypeBadgeRef
+                                : styles.clipTypeBadgeMine,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.clipTypeBadgeText,
+                              item.clip_type === 'voice_memo'
+                                ? styles.clipTypeBadgeTextVoiceMemo
+                                : isReferenceClip(item)
+                                  ? styles.clipTypeBadgeTextRef
+                                  : styles.clipTypeBadgeTextMine,
+                            ]}
+                          >
+                            {item.clip_type === 'voice_memo'
+                              ? 'VOICE'
+                              : isReferenceClip(item)
+                                ? 'REF'
+                                : 'MINE'}
+                          </Text>
+                        </View>
+                        {item.upload_status === 'failed' ? (
+                          <TouchableOpacity
+                            style={styles.retryPill}
+                            onPress={() => retryClip(item.local_id)}
+                          >
+                            <Text style={styles.retryPillText}>Retry</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.clipShareIcon,
+                          item.upload_status !== 'ready' && styles.clipShareIconDisabled,
+                        ]}
+                        onPress={() => {
+                          if (item.upload_status !== 'ready' || !item.server_id) {
+                            Toast.show({
+                              type: 'info',
+                              text1: 'Available once clip is ready.',
+                            });
+                            return;
+                          }
+                          setSelectedClipForSheet(item);
+                          openSheet('clip-share');
+                        }}
+                      >
+                        <Text style={styles.clipShareIconText}>⎘</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                />
+              ) : (
+                <View style={styles.notesContent}>
+                  {notes.map((note) => (
+                    <View key={note.id} style={styles.noteItem}>
+                      <Text style={styles.noteTime}>{formatTimecode(note.timecode_ms)}</Text>
+                      <Text style={styles.noteText}>{note.text}</Text>
+                      <TouchableOpacity
+                        style={styles.noteDelete}
+                        onPress={() => handleDeleteNote(note.id)}
+                      >
+                        <Text style={styles.noteDeleteText}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
         </View>
-        )}
-      </View>
-      <TouchableOpacity
-        style={styles.recordFab}
-        activeOpacity={0.85}
-        onPress={() =>
-          router.push({
-            pathname: './camera',
-            params: { id: sessionId, sectionName: activeSection },
-          })
-        }
-      >
-        <View style={styles.recordFabInner} />
-      </TouchableOpacity>
-      
+
+        <TouchableOpacity
+          style={styles.recordFab}
+          activeOpacity={0.85}
+          onPress={() =>
+            router.push({
+              pathname: './camera',
+              params: { id: sessionId, sectionName: activeSection },
+            })
+          }
+        >
+          <View style={styles.recordFabInner} />
+        </TouchableOpacity>
+      </>
     </Pressable>
   );
 }
@@ -622,11 +627,61 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ground,
     position: 'relative',
   },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 24,
+    paddingHorizontal: 32,
+  },
+  emptyStatePrompt: {
+    color: colors.muted,
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  emptyStateActions: {
+    flexDirection: 'row',
+    gap: 16,
+    alignItems: 'center',
+  },
+  emptyStateAddVideoBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: colors.active,
+    borderRadius: spacing.pill,
+  },
+  emptyStateAddVideoBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  emptyStateFab: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.capture,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   waveformContainer: {
     height: 80,
   },
   waveformContainerContent: {
     height: 80,
+  },
+  addMusicPrompt: {
+    height: 80,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.chrome,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  addMusicPromptText: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 11,
+    color: colors.muted,
   },
   waveformTrack: {
     height: 80,

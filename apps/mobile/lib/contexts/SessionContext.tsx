@@ -11,7 +11,17 @@ import { useInbox } from '../hooks/useInbox';
 import { useSession } from '../hooks/useSession';
 import { supabase } from '../supabase';
 import { API_BASE } from '../api';
-import { getSessionMode, setSessionMode as setSessionModeStorage, getActiveSection, setActiveSection as persistActiveSection, setActiveSectionId } from '../storage';
+import {
+  getSessionMode,
+  setSessionMode as setSessionModeStorage,
+  getActiveSection,
+  setActiveSection as persistActiveSection,
+  setActiveSectionId,
+  getLoopState,
+  setLoopState as setLoopStateStorage,
+  getLoopOpenAt,
+  setLoopOpenAt as setLoopOpenAtStorage,
+} from '../storage';
 import { cacheSession, getCachedSession } from '../sessionCache';
 import { enqueue, isNetworkError } from '../writeQueue';
 
@@ -382,6 +392,25 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
       setActiveSectionState(storedSection);
     }
   }, [sessionId]);
+
+  // Hydrate loop state when sessionId changes
+  useEffect(() => {
+    const storedLoopRegion = getLoopState(sessionId);
+    setLoopRegion(storedLoopRegion ?? null);
+
+    const storedLoopOpenAt = getLoopOpenAt(sessionId);
+    setLoopOpenAt(storedLoopOpenAt ?? null);
+  }, [sessionId]);
+
+  // Persist loop region changes
+  useEffect(() => {
+    setLoopStateStorage(sessionId, loopRegion);
+  }, [loopRegion, sessionId]);
+
+  // Persist loop open-at changes
+  useEffect(() => {
+    setLoopOpenAtStorage(sessionId, loopOpenAt);
+  }, [loopOpenAt, sessionId]);
 
   // Wrapper function to persist active section changes
   const setActiveSection = useCallback((section: string) => {

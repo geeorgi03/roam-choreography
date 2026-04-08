@@ -14,6 +14,7 @@ interface TransportBarProps {
 
 export function TransportBar({ variant }: TransportBarProps) {
   const {
+    musicTrack,
     isPlaying,
     playheadMs,
     durationMs,
@@ -27,6 +28,8 @@ export function TransportBar({ variant }: TransportBarProps) {
     handleLoopToggle,
     handleClearLoop,
   } = useSessionContext();
+
+  if (musicTrack === null) return null;
 
   const getLoopButtonStyle = () => {
     if (loopOpenAt !== null) {

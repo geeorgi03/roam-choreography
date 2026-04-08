@@ -29,10 +29,20 @@ try {
   console.error('[storage] Session mode MMKV init failed:', e);
 }
 
+let loopStorage: MMKV | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { MMKV: MMKVClass } = require('react-native-mmkv') as typeof import('react-native-mmkv');
+  loopStorage = new MMKVClass({ id: 'loop-state' });
+} catch (e) {
+  console.error('[storage] Loop MMKV init failed:', e);
+}
+
 const UPLOAD_QUEUE_KEY = 'upload_queue';
 const TUS_URLS_KEY = 'tus_urls';
 
 type LoupeState = { x: number; y: number; zoom: number };
+type LoopState = { start: number; end: number };
 
 export function getUploadQueue(): QueueItem[] {
   if (!storage) return [];
@@ -108,6 +118,52 @@ export function getSessionMode(sessionId: string): boolean {
 export function setSessionMode(sessionId: string, value: boolean): void {
   if (!sessionModeStorage) return;
   sessionModeStorage.set(`session-mode:${sessionId}`, value ? '1' : '0');
+}
+
+export function getLoopState(sessionId: string): LoopState | null {
+  if (!loopStorage) return null;
+  const raw = loopStorage.getString(`loop:${sessionId}`);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const state = parsed as Record<string, unknown>;
+      if (typeof state.start === 'number' && typeof state.end === 'number') {
+        return { start: state.start, end: state.end };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function setLoopState(sessionId: string, state: LoopState | null): void {
+  if (!loopStorage) return;
+  const key = `loop:${sessionId}`;
+  if (state === null) {
+    loopStorage.delete(key);
+    return;
+  }
+  loopStorage.set(key, JSON.stringify(state));
+}
+
+export function getLoopOpenAt(sessionId: string): number | null {
+  if (!loopStorage) return null;
+  const raw = loopStorage.getString(`loop-open:${sessionId}`);
+  if (raw === undefined || raw === null) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+export function setLoopOpenAt(sessionId: string, value: number | null): void {
+  if (!loopStorage) return;
+  const key = `loop-open:${sessionId}`;
+  if (value === null) {
+    loopStorage.delete(key);
+    return;
+  }
+  loopStorage.set(key, String(value));
 }
 
 const ACTIVE_SESSION_ID_KEY = 'active_session_id';

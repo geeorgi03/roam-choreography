@@ -85,6 +85,7 @@ export default function AppStackLayout() {
       <Tabs.Screen
         name="session/beat-grid"
         options={{
+          title: '',
           href: null,
           headerShown: false,
         }}
@@ -99,6 +100,7 @@ export default function AppStackLayout() {
       <Tabs.Screen
         name="session/music-setup"
         options={{
+          title: '',
           href: null,
           headerShown: false,
         }}
@@ -106,6 +108,7 @@ export default function AppStackLayout() {
       <Tabs.Screen
         name="session/youtube-player"
         options={{
+          title: '',
           href: null,
           headerShown: false,
         }}
