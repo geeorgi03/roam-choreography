@@ -32,7 +32,7 @@ export function FirstSessionSheet({
 
   const nameInputRef = useRef<TextInput | null>(null);
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState('');
   const [musicUrl, setMusicUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -199,12 +199,11 @@ export function FirstSessionSheet({
                   loading && styles.buttonDisabled,
                 ]}
                 onPress={() => {
-                  setStep(3);
                   handleCreate();
                 }}
                 disabled={loading}
               >
-                {loading && step === 3 ? (
+                {loading ? (
                   <ActivityIndicator size="small" color={colors.muted} />
                 ) : (
                   <Text style={[styles.secondaryButtonText, { color: colors.muted }]}>Skip</Text>
@@ -229,11 +228,6 @@ export function FirstSessionSheet({
           </>
         ) : null}
 
-        {step === 3 ? (
-          <View style={styles.step3Container}>
-            {loading ? <ActivityIndicator size="small" color={colors.mine} /> : null}
-          </View>
-        ) : null}
       </View>
     </BottomSheet>
   );

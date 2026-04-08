@@ -174,8 +174,34 @@ app.get('/', async (c) => {
 app.post('/', checkSessionLimit, async (c) => {
   const userId = c.get('userId');
   const userEmail = c.get('userEmail');
-  const body = await c.req.json<{ name?: string }>();
-  const name = typeof body?.name === 'string' ? body.name.trim() || 'Untitled Session' : 'Untitled Session';
+
+  const parsedBody = await safeReqJson<{ name?: unknown; music_url?: unknown }>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const rawBody = parsedBody.data;
+
+  const name =
+    typeof rawBody?.name === 'string' ? rawBody.name.trim() || 'Untitled Session' : 'Untitled Session';
+
+  let musicUrl: string | null = null;
+  if (rawBody?.music_url !== undefined) {
+    if (typeof rawBody.music_url !== 'string') {
+      return c.json({ error: 'music_url must be a string URL when provided' }, 400);
+    }
+    const candidate = rawBody.music_url.trim();
+    if (!candidate) {
+      return c.json({ error: 'music_url must be a non-empty string when provided' }, 400);
+    }
+
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return c.json({ error: 'music_url must use http or https scheme' }, 400);
+      }
+      musicUrl = parsed.toString();
+    } catch {
+      return c.json({ error: 'music_url must be a valid URL' }, 400);
+    }
+  }
 
   // Ensure public.users exists for this auth user (prevents FK failures when migrations/triggers weren't applied).
   // users.email is NOT NULL, so if we don't have it, fail loudly instead of inserting an invalid row.
@@ -189,16 +215,36 @@ app.post('/', checkSessionLimit, async (c) => {
     return c.json({ error: userUpsertError.message }, 500);
   }
 
-  const { data, error } = await supabase
+  const { data: sessionRow, error: sessionError } = await supabase
     .from('sessions')
     .insert({ user_id: userId, name })
     .select('id, user_id, name, phrase, created_at')
     .single();
 
-  if (error) {
-    return c.json({ error: error.message }, 500);
+  if (sessionError) {
+    return c.json({ error: sessionError.message }, 500);
   }
-  return c.json(data as Session, 201);
+
+  if (musicUrl) {
+    const musicTrackId = crypto.randomUUID();
+
+    const { error: musicError } = await supabase
+      .from('music_tracks')
+      .insert({
+        id: musicTrackId,
+        session_id: sessionRow.id,
+        source_type: 'youtube',
+        source_url: musicUrl,
+        storage_path: null,
+        analysis_status: 'complete',
+      });
+
+    if (musicError) {
+      return c.json({ error: musicError.message }, 500);
+    }
+  }
+
+  return c.json(sessionRow as Session, 201);
 });
 
 /** GET /sessions/:id — get one session with music_track and clips (must belong to user) */
