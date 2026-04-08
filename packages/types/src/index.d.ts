@@ -29,6 +29,8 @@ export interface Session {
         source_clip_id: string;
     } | null;
     created_at: ISODateTime;
+    clip_count?: number;
+    section_count?: number;
 }
 /** ---- Clip (Tech Plan) ---- */
 export interface Clip {

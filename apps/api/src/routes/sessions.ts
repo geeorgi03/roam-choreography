@@ -1,8 +1,12 @@
 import { Hono } from 'hono';
+import { createRequire } from 'module';
 import { requireAuth } from '../middleware/auth.js';
 import { supabase } from '../lib/supabase.js';
 import { checkSessionLimit } from '../lib/planGate.js';
 import type { Session, MusicTrack, Clip, Moment, FormationData, QualityData, Loop } from '@roam/types';
+
+const require = createRequire(import.meta.url);
+const PDFDocument = require('pdfkit') as typeof import('pdfkit');
 
 const GROUP_COLOR_PALETTE = ['#e67c5c', '#4a90e2', '#8a6ee8', '#3ba287', '#f2b233', '#d35d9e'];
 
@@ -160,14 +164,57 @@ app.get('/', async (c) => {
   const userId = c.get('userId');
   const { data, error } = await supabase
     .from('sessions')
-    .select('id, user_id, name, phrase, created_at, updated_at')
+    .select('id, user_id, name, phrase, created_at, updated_at, clips(count), section_clips(count)')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false });
 
   if (error) {
     return c.json({ error: error.message }, 500);
   }
-  return c.json({ sessions: data as Session[] });
+
+  const sessionIds = (data ?? []).map((row) => (row as { id: string }).id);
+  const sectionCountBySessionId = new Map<string, number>();
+
+  if (sessionIds.length > 0) {
+    const { data: sectionRows, error: sectionError } = await supabase
+      .from('section_clips')
+      .select('session_id, section_label')
+      .in('session_id', sessionIds);
+
+    if (sectionError) {
+      return c.json({ error: sectionError.message }, 500);
+    }
+
+    const sectionLabelsBySessionId = new Map<string, Set<string>>();
+    for (const row of sectionRows ?? []) {
+      const typed = row as { session_id?: string | null; section_label?: string | null };
+      if (!typed.session_id || !typed.section_label) continue;
+      if (!sectionLabelsBySessionId.has(typed.session_id)) {
+        sectionLabelsBySessionId.set(typed.session_id, new Set<string>());
+      }
+      sectionLabelsBySessionId.get(typed.session_id)!.add(typed.section_label);
+    }
+
+    for (const [sessionId, labels] of sectionLabelsBySessionId.entries()) {
+      sectionCountBySessionId.set(sessionId, labels.size);
+    }
+  }
+
+  const sessions = (data ?? []).map((row) => {
+    const typedRow = row as Session & {
+      clips?: Array<{ count?: number | null }> | null;
+      section_clips?: Array<{ count?: number | null }> | null;
+    };
+    const { clips, section_clips, ...sessionFields } = typedRow;
+
+    return {
+      ...sessionFields,
+      clip_count: clips?.[0]?.count ?? 0,
+      section_count: sectionCountBySessionId.get(typedRow.id) ?? 0,
+    } as Session;
+  });
+
+  return c.json({ sessions: sessions as Session[] });
 });
 
 /** POST /sessions — create a session */
@@ -1069,6 +1116,231 @@ app.delete('/:id/loops/:loopId', async (c) => {
   }
   if (!data) return c.json({ error: 'Not found' }, 404);
   return c.body(null, 204);
+});
+
+type SectionEntry = { label: string; start_ms: number };
+type NotePinRow = { id: string; session_id: string; text: string | null; timecode_ms: number | null };
+
+function formatMmSs(timecodeMs: number | null | undefined): string {
+  const clamped = Math.max(0, Math.floor((timecodeMs ?? 0) / 1000));
+  const mm = Math.floor(clamped / 60);
+  const ss = clamped % 60;
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+}
+
+function resolveSectionLabel(
+  clipId: string,
+  sectionByClipId: Map<string, string>,
+  sectionEntries: SectionEntry[]
+): string {
+  const mapped = sectionByClipId.get(clipId);
+  if (mapped) return mapped;
+  if (sectionEntries.length > 0) return 'Unassigned';
+  return 'Unassigned';
+}
+
+function sanitizePdfFilename(input: string): string {
+  return input.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'session-export';
+}
+
+/** GET /sessions/:id/export/pdf — export owner session summary as PDF */
+app.get('/:id/export/pdf', async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, user_id, name, phrase, quality_target, created_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (sessionError) {
+    if (isInvalidUuidCastError(sessionError)) return c.json({ error: 'Not found' }, 404);
+    return c.json({ error: sessionError.message }, 500);
+  }
+  if (!sessionRow) return c.json({ error: 'Not found' }, 404);
+  if (sessionRow.user_id !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+  const { data: trackRows, error: trackError } = await supabase
+    .from('music_tracks')
+    .select('sections')
+    .eq('session_id', id)
+    .limit(1);
+  if (trackError) return c.json({ error: trackError.message }, 500);
+  const sections = ((trackRows?.[0] as { sections?: SectionEntry[] | null } | undefined)?.sections ?? []) as SectionEntry[];
+
+  const { data: clipRows, error: clipsError } = await supabase
+    .from('clips')
+    .select('id, label, clip_type, url, session_id, recorded_at')
+    .eq('session_id', id)
+    .order('recorded_at', { ascending: true });
+  if (clipsError) return c.json({ error: clipsError.message }, 500);
+  const clips = (clipRows ?? []) as Array<
+    Pick<Clip, 'id' | 'label' | 'clip_type' | 'url' | 'session_id' | 'recorded_at'>
+  >;
+
+  const { data: sectionClipRows, error: sectionClipsError } = await supabase
+    .from('section_clips')
+    .select('clip_id, section_label')
+    .eq('session_id', id);
+  if (sectionClipsError) return c.json({ error: sectionClipsError.message }, 500);
+  const sectionByClipId = new Map<string, string>();
+  for (const row of sectionClipRows ?? []) {
+    const typed = row as { clip_id?: string | null; section_label?: string | null };
+    if (typed.clip_id && typed.section_label) sectionByClipId.set(typed.clip_id, typed.section_label);
+  }
+
+  const { data: noteRows, error: notesError } = await supabase
+    .from('note_pins')
+    .select('*')
+    .eq('session_id', id)
+    .order('timecode_ms', { ascending: true });
+  if (notesError) return c.json({ error: notesError.message }, 500);
+  const notes = (noteRows ?? []) as NotePinRow[];
+
+  const clipsBySection = new Map<string, typeof clips>();
+  for (const clip of clips) {
+    const sectionLabel = resolveSectionLabel(clip.id, sectionByClipId, sections);
+    if (!clipsBySection.has(sectionLabel)) clipsBySection.set(sectionLabel, []);
+    clipsBySection.get(sectionLabel)!.push(clip);
+  }
+
+  const notesBySection = new Map<string, NotePinRow[]>();
+  for (const note of notes) {
+    const noteMs = note.timecode_ms ?? 0;
+    let chosenLabel = 'Unassigned';
+    if (sections.length > 0) {
+      const ordered = [...sections].sort((a, b) => a.start_ms - b.start_ms);
+      for (const section of ordered) {
+        if (noteMs >= section.start_ms) chosenLabel = section.label;
+      }
+    }
+    if (!notesBySection.has(chosenLabel)) notesBySection.set(chosenLabel, []);
+    notesBySection.get(chosenLabel)!.push(note);
+  }
+
+  const resolvedSectionLabels: string[] = [];
+  for (const section of sections) {
+    if (!resolvedSectionLabels.includes(section.label)) resolvedSectionLabels.push(section.label);
+  }
+  for (const sectionLabel of clipsBySection.keys()) {
+    if (sectionLabel === 'Unassigned') continue;
+    if (!resolvedSectionLabels.includes(sectionLabel)) resolvedSectionLabels.push(sectionLabel);
+  }
+  if (clipsBySection.has('Unassigned') && !resolvedSectionLabels.includes('Unassigned')) {
+    resolvedSectionLabels.push('Unassigned');
+  }
+
+  const doc = new PDFDocument({
+    size: 'A4',
+    margins: { top: 57, bottom: 57, left: 57, right: 57 },
+  }) as InstanceType<typeof PDFDocument>;
+
+  const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', (err: Error) => reject(err));
+
+    const title = sessionRow.name?.trim() || 'Session';
+    const createdLabel = sessionRow.created_at
+      ? new Date(sessionRow.created_at).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        })
+      : '';
+
+    doc.fontSize(22).font('Helvetica-Bold').text(title, { align: 'left', continued: true });
+    doc.fontSize(11).font('Helvetica').text(createdLabel, { align: 'right' });
+
+    if (sessionRow.phrase) {
+      doc.moveDown(0.4);
+      doc.fontSize(12).font('Helvetica-Oblique').text(sessionRow.phrase);
+    }
+
+    const qualityTarget = sessionRow.quality_target as
+      | { source_clip_id?: string; clip_url?: string; label?: string }
+      | null;
+    if (qualityTarget) {
+      const fromClip = clips.find((clip) => clip.id === qualityTarget.source_clip_id)?.label?.trim();
+      const qualityLabel = fromClip || qualityTarget.label || qualityTarget.clip_url || 'Set';
+      doc.moveDown(0.3);
+      doc.fontSize(11).font('Helvetica').text(`Quality target: ${qualityLabel}`);
+    }
+
+    doc.moveDown(0.6);
+    doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).stroke();
+
+    doc.moveDown(0.8);
+    doc.fontSize(14).font('Helvetica-Bold').text('SECTIONS');
+    doc.moveDown(0.3);
+    if (resolvedSectionLabels.length === 0) {
+      doc.fontSize(11).font('Helvetica').text('- No sections');
+    } else {
+      for (const sectionLabel of resolvedSectionLabels) {
+        const sectionClips = clipsBySection.get(sectionLabel) ?? [];
+        const sectionNotes = notesBySection.get(sectionLabel) ?? [];
+        doc
+          .fontSize(11)
+          .font('Helvetica')
+          .text(`- ${sectionLabel} (${sectionClips.length} clips, ${sectionNotes.length} notes)`);
+      }
+    }
+
+    doc.moveDown(0.6);
+    doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).stroke();
+
+    doc.moveDown(0.8);
+    doc.fontSize(14).font('Helvetica-Bold').text('CLIPS');
+    doc.moveDown(0.3);
+    if (clips.length === 0) {
+      doc.fontSize(11).font('Helvetica').text('- No clips');
+    } else {
+      for (const sectionLabel of resolvedSectionLabels) {
+        const sectionClips = clipsBySection.get(sectionLabel) ?? [];
+        if (sectionClips.length === 0) continue;
+        doc.fontSize(12).font('Helvetica-Bold').text(sectionLabel);
+        for (const clip of sectionClips) {
+          const clipKind = clip.clip_type === 'REF' ? 'REF' : 'MINE';
+          const label = clip.label?.trim() || 'Untitled clip';
+          doc.fontSize(11).font('Helvetica').text(`- [${clipKind}] ${label}`);
+          if (clip.clip_type === 'REF' && clip.url) {
+            doc.fontSize(10).font('Helvetica').fillColor('#555555').text(`  ${clip.url}`);
+            doc.fillColor('#000000');
+          }
+        }
+        doc.moveDown(0.2);
+      }
+    }
+
+    doc.moveDown(0.6);
+    doc.moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).stroke();
+
+    doc.moveDown(0.8);
+    doc.fontSize(14).font('Helvetica-Bold').text('NOTES');
+    doc.moveDown(0.3);
+    if (notes.length === 0) {
+      doc.fontSize(11).font('Helvetica').text('- No notes');
+    } else {
+      for (const note of notes) {
+        const ts = formatMmSs(note.timecode_ms);
+        const text = note.text?.trim() || '(empty)';
+        doc.fontSize(11).font('Helvetica').text(`[${ts}] ${text}`);
+      }
+    }
+
+    doc.end();
+  });
+
+  const safeFileName = sanitizePdfFilename(sessionRow.name || 'session-export');
+  return new Response(pdfBuffer, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${safeFileName}.pdf"`,
+    },
+  });
 });
 
 export const sessionsRoutes = app;

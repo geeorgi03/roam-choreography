@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Audio, type AVPlaybackStatus } from 'expo-av';
 import NetInfo from '@react-native-community/netinfo';
+import type { Session } from '@supabase/supabase-js';
 import { ClipRow, getClipsForSession } from '../database';
 import { FormationData, Moment, QualityData, SectionClip } from '@roam/types';
 import { useClips } from '../hooks/useClips';
@@ -26,6 +27,7 @@ import { cacheSession, getCachedSession } from '../sessionCache';
 import { enqueue, isNetworkError } from '../writeQueue';
 
 export interface SessionContextValue {
+  session: Session | null;
   sessionId: string;
   sessionName: string;
   sessionPhrase: string | null;
@@ -585,6 +587,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   }, [sessionId, session?.access_token, sessionName, sessionPhrase]);
 
   const value: SessionContextValue = {
+    session,
     sessionId,
     sessionName,
     sessionPhrase,

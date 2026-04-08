@@ -5,6 +5,7 @@ import { Video, AVPlaybackStatus } from 'expo-av';
 import { SectionClip, Loop } from '@roam/types';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
+import type { NotePin } from '../../lib/hooks/useNotePins';
 import { theme } from '../../lib/theme';
 import { supabase } from '../../lib/supabase';
 import { API_BASE } from '../../lib/api';
@@ -19,7 +20,21 @@ interface ClipViewerSheetProps {
 }
 
 export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProps>(function ClipViewerSheet({ onClose }, ref) {
-  const { selectedClipForSheet, activeSheetId, loopRegion, activeSection, sectionClips, setSectionClips, sessionId, jumpToSongMap, setQualityTarget } = useSessionContext();
+  const {
+    selectedClipForSheet,
+    activeSheetId,
+    loopRegion,
+    activeSection,
+    sectionClips,
+    setSectionClips,
+    sessionId,
+    jumpToSongMap,
+    setQualityTarget,
+    clips,
+    notes,
+    openClipSheet,
+    setSelectedClipForSheet,
+  } = useSessionContext();
   const { session } = useSession();
   const videoRef = useRef<Video>(null);
   const positionMsRef = useRef<number>(0);
@@ -51,6 +66,23 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
   if (!selectedClipForSheet) {
     return null;
   }
+
+  const selectedParentClipId = selectedClipForSheet.parent_clip_id ?? null;
+  const selectedTriggeredByNoteId = selectedClipForSheet.triggered_by_note_id ?? null;
+  const parentClip = selectedParentClipId
+    ? clips.find((clip) => clip.server_id === selectedParentClipId) ?? null
+    : null;
+  const inspiredNote = selectedTriggeredByNoteId
+    ? (notes as NotePin[]).find((note) => note.id === selectedTriggeredByNoteId) ?? null
+    : null;
+  const handleOpenParentClip = () => {
+    if (!parentClip) return;
+    if (activeSheetId === 'clip-viewer') {
+      setSelectedClipForSheet(parentClip);
+      return;
+    }
+    openClipSheet(parentClip);
+  };
 
   const handleSkipBack = () => {
     if (videoRef.current) {
@@ -363,6 +395,24 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
 
       {/* Light zone */}
       <View style={styles.lightZone}>
+        {(parentClip || inspiredNote) && (
+          <View style={styles.lineageContainer}>
+            {parentClip && (
+              <TouchableOpacity style={styles.parentClipRow} onPress={handleOpenParentClip}>
+                <Text style={styles.parentClipText}>
+                  From: <Text style={styles.parentClipLabel}>{parentClip.label || 'Untitled Clip'}</Text> {'\u2192'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {inspiredNote && (
+              <View style={styles.inspiredNoteRow}>
+                <Text style={styles.inspiredNoteText}>
+                  Inspired by note: {inspiredNote.text}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
         {/* Loop chips */}
         <LoopChipRow
           sessionId={sessionId}
@@ -552,6 +602,32 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ground,
     padding: 16,
     paddingTop: 8,
+  },
+  lineageContainer: {
+    borderTopWidth: 0.5,
+    borderTopColor: '#e8e3dc',
+    paddingTop: 10,
+    marginBottom: 12,
+    gap: 8,
+  },
+  parentClipRow: {
+    paddingVertical: 2,
+  },
+  parentClipText: {
+    color: colors.muted,
+    fontSize: 13,
+  },
+  parentClipLabel: {
+    color: colors.ink,
+    fontWeight: '700',
+  },
+  inspiredNoteRow: {
+    paddingVertical: 2,
+  },
+  inspiredNoteText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontStyle: 'italic',
   },
   loopChipsContainer: {
     marginBottom: 16,

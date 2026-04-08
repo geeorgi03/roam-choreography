@@ -13,13 +13,16 @@ import type { Clip } from '@roam/types';
 import { ClipCard } from '../../components/ClipCard';
 import type { ClipRow } from '../../lib/database';
 import { useSession } from '../../lib/hooks/useSession';
+import { useNotePins } from '../../lib/hooks/useNotePins';
 import { ClipViewerSheetStandalone } from '../../components/session/ClipViewerSheetStandalone';
+import { useTranslation } from '../../lib/i18n';
 
 import { API_BASE } from '../../lib/api';
 const colors = theme.light;
 const spacing = theme.spacing;
 
 export default function LibraryScreen() {
+  const { t } = useTranslation();
   const { session } = useSession();
   const token = session?.access_token ?? null;
   const currentUserId = session?.user?.id ?? null;
@@ -36,6 +39,7 @@ export default function LibraryScreen() {
 
   const clipSheetRef = useRef<any>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { notes: selectedSessionNotes } = useNotePins(selectedClip?.session_id ?? null);
 
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -125,6 +129,8 @@ export default function LibraryScreen() {
       upload_status: 'ready',
       upload_progress: 0,
       mux_playback_id: (clip as unknown as { mux_playback_id?: string | null }).mux_playback_id ?? null,
+      parent_clip_id: (clip as unknown as { parent_clip_id?: string | null }).parent_clip_id ?? null,
+      triggered_by_note_id: (clip as unknown as { triggered_by_note_id?: string | null }).triggered_by_note_id ?? null,
       move_name: (clip as unknown as { move_name?: string | null }).move_name ?? null,
       style: (clip as unknown as { style?: string | null }).style ?? null,
       energy: (clip as unknown as { energy?: string | null }).energy ?? null,
@@ -183,6 +189,7 @@ export default function LibraryScreen() {
       return mineType;
     });
   }, [clips, filterSegment, currentUserId]);
+  const allClipRows = useMemo(() => clips.map(toClipRow), [clips]);
 
   return (
     <View style={styles.container}>
@@ -196,7 +203,7 @@ export default function LibraryScreen() {
               <Text style={styles.searchIcon}>🔍</Text>
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search clips…"
+                placeholder={t('library.searchPlaceholder')}
                 placeholderTextColor={colors.muted}
                 value={q}
                 onChangeText={setQ}
@@ -216,7 +223,19 @@ export default function LibraryScreen() {
                     activeOpacity={0.85}
                   >
                     <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                      {seg}
+                      {
+                        t(
+                          `library.filter${
+                            seg === 'All'
+                              ? 'All'
+                              : seg === 'REF'
+                                ? 'Ref'
+                                : seg === 'MINE'
+                                  ? 'Mine'
+                                  : 'Shared'
+                          }`
+                        )
+                      }
                     </Text>
                   </TouchableOpacity>
                 );
@@ -232,9 +251,9 @@ export default function LibraryScreen() {
           ) : (
             <View style={styles.emptyWarm}>
               <Text style={styles.emptyIcon}>📂</Text>
-              <Text style={styles.emptyTitle}>No clips yet</Text>
+              <Text style={styles.emptyTitle}>{t('library.noClips')}</Text>
               <TouchableOpacity style={styles.emptyCta} onPress={() => {}} activeOpacity={0.85}>
-                <Text style={styles.emptyCtaText}>Start recording</Text>
+                <Text style={styles.emptyCtaText}>{t('library.startRecording')}</Text>
               </TouchableOpacity>
             </View>
           )
@@ -261,7 +280,7 @@ export default function LibraryScreen() {
                 {loadingMore ? (
                   <ActivityIndicator color={colors.active} size="small" />
                 ) : (
-                  <Text style={styles.loadMoreText}>Load more</Text>
+                  <Text style={styles.loadMoreText}>{t('library.loadMore')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -276,17 +295,20 @@ export default function LibraryScreen() {
         clip={selectedClip}
         sessionId={selectedClip?.session_id ?? null}
         onClose={closeClipViewer}
+        allClips={allClipRows}
+        allNotes={selectedSessionNotes}
+        onOpenClip={setSelectedClip}
       />
     </View>
   );
 }
 
-const t = theme.light;
+const themeColors = theme.light;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: t.ground,
+    backgroundColor: themeColors.ground,
   },
   header: {
     paddingHorizontal: 16,

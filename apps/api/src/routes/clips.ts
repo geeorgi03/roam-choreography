@@ -291,6 +291,7 @@ app.post('/:sessionId/clips/:clipId/trim', async (c) => {
       thumbnail_url: null,
       start_ms: body.start_ms,
       trimmed_from_clip_id: clipId,
+      parent_clip_id: clipId,
     })
     .select('*')
     .single();

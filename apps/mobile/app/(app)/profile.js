@@ -30,9 +30,11 @@ const expo_router_1 = require("expo-router");
 const theme_1 = require("../../lib/theme");
 const useSession_1 = require("../../lib/hooks/useSession");
 const api_1 = require("../../lib/api");
+const i18n_1 = require("../../lib/i18n");
 const SUCCESS_URL = 'https://roamdance.com/billing/success';
 const PORTAL_RETURN_URL = 'https://roamdance.com/profile';
 function ProfileScreen() {
+    const { t } = (0, i18n_1.useTranslation)();
     const { session } = (0, useSession_1.useSession)();
     const [plan, setPlan] = (0, react_1.useState)(null);
     const [loading, setLoading] = (0, react_1.useState)(true);
@@ -140,21 +142,29 @@ function ProfileScreen() {
     const handleSaveApiUrl = () => {
         const trimmed = apiUrlInput.trim();
         if (trimmed && !trimmed.startsWith('http')) {
-            react_native_1.Alert.alert('Invalid URL', 'API URL must start with http:// or https://');
+            react_native_1.Alert.alert(t('profile.invalidUrl'), t('profile.invalidUrlMsg'));
             return;
         }
         (0, api_1.setApiBaseOverride)(trimmed || null);
-        react_native_1.Alert.alert(trimmed ? 'API URL Updated' : 'API URL Reset', trimmed ? `API calls will now use:\n${trimmed}` : `Using default: ${api_1.API_BASE}`);
+        react_native_1.Alert.alert(trimmed ? t('profile.apiUrlUpdated') : t('profile.apiUrlReset'), trimmed ? `API calls will now use:\n${trimmed}` : `${t('profile.devResetMsg')}: ${api_1.API_BASE}`);
     };
     if (loading) {
         return (<react_native_1.View style={styles.container}>
         <react_native_1.ActivityIndicator color={theme_1.theme.light.active} size="large"/>
       </react_native_1.View>);
     }
-    const planLabel = plan === 'free' ? 'Free' : plan === 'creator' ? 'Creator' : plan === 'pro' ? 'Pro' : plan === 'studio' ? 'Studio' : 'Free';
+    const planLabel = plan === 'free'
+        ? t('profile.planFree')
+        : plan === 'creator'
+            ? t('profile.planCreator')
+            : plan === 'pro'
+                ? t('profile.planPro')
+                : plan === 'studio'
+                    ? t('profile.planStudio')
+                    : t('profile.planFree');
     return (<react_native_1.ScrollView style={styles.scrollContainer} contentContainerStyle={styles.container}>
       <react_native_1.View style={styles.section}>
-        <react_native_1.Text style={styles.label}>Current plan</react_native_1.Text>
+        <react_native_1.Text style={styles.label}>{t('profile.currentPlan')}</react_native_1.Text>
         <react_native_1.TouchableOpacity onPress={handleDevTap} activeOpacity={1}>
           <react_native_1.View style={[styles.planBadge, plan !== 'free' && styles.planBadgePaid]}>
             <react_native_1.Text style={styles.planText}>{planLabel}</react_native_1.Text>
@@ -163,24 +173,31 @@ function ProfileScreen() {
       </react_native_1.View>
 
       {plan === 'free' && (<react_native_1.TouchableOpacity style={[styles.button, checkoutLoading && styles.buttonDisabled]} onPress={handleUpgrade} disabled={checkoutLoading}>
-          {checkoutLoading ? (<react_native_1.ActivityIndicator color={theme_1.theme.light.active} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Upgrade</react_native_1.Text>)}
+          {checkoutLoading ? (<react_native_1.ActivityIndicator color={theme_1.theme.light.active} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>{t('profile.upgrade')}</react_native_1.Text>)}
         </react_native_1.TouchableOpacity>)}
 
       {plan && plan !== 'free' && (<react_native_1.TouchableOpacity style={[styles.button, portalLoading && styles.buttonDisabled]} onPress={handleManageSubscription} disabled={portalLoading}>
-          {portalLoading ? (<react_native_1.ActivityIndicator color={theme_1.theme.light.active} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>Manage subscription</react_native_1.Text>)}
+          {portalLoading ? (<react_native_1.ActivityIndicator color={theme_1.theme.light.active} size="small"/>) : (<react_native_1.Text style={styles.buttonText}>{t('profile.manageSubscription')}</react_native_1.Text>)}
         </react_native_1.TouchableOpacity>)}
 
       {showDev && (<react_native_1.View style={styles.devSection}>
-          <react_native_1.Text style={styles.devTitle}>Developer Settings</react_native_1.Text>
-          <react_native_1.Text style={styles.devLabel}>API Base URL</react_native_1.Text>
-          <react_native_1.Text style={styles.devHint}>Current: {api_1.API_BASE}</react_native_1.Text>
+          <react_native_1.Text style={styles.devTitle}>{t('profile.devSettings')}</react_native_1.Text>
+          <react_native_1.Text style={styles.devLabel}>{t('profile.devApiBaseUrl')}</react_native_1.Text>
+          <react_native_1.Text style={styles.devHint}>
+            {t('profile.devCurrent')}
+            {api_1.API_BASE}
+          </react_native_1.Text>
           <react_native_1.TextInput style={styles.devInput} value={apiUrlInput} onChangeText={setApiUrlInput} placeholder="https://your-api.railway.app" placeholderTextColor={theme_1.theme.light.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url"/>
           <react_native_1.View style={styles.devButtonRow}>
             <react_native_1.TouchableOpacity style={styles.devButton} onPress={handleSaveApiUrl}>
-              <react_native_1.Text style={styles.devButtonText}>Save</react_native_1.Text>
+              <react_native_1.Text style={styles.devButtonText}>{t('profile.devSave')}</react_native_1.Text>
             </react_native_1.TouchableOpacity>
-            <react_native_1.TouchableOpacity style={[styles.devButton, styles.devButtonSecondary]} onPress={() => { setApiUrlInput(''); (0, api_1.setApiBaseOverride)(null); react_native_1.Alert.alert('Reset', 'Using default API URL'); }}>
-              <react_native_1.Text style={styles.devButtonText}>Reset</react_native_1.Text>
+            <react_native_1.TouchableOpacity style={[styles.devButton, styles.devButtonSecondary]} onPress={() => {
+                setApiUrlInput('');
+                (0, api_1.setApiBaseOverride)(null);
+                react_native_1.Alert.alert(t('profile.devReset'), t('profile.devResetMsg'));
+            }}>
+              <react_native_1.Text style={styles.devButtonText}>{t('profile.devReset')}</react_native_1.Text>
             </react_native_1.TouchableOpacity>
           </react_native_1.View>
         </react_native_1.View>)}
@@ -198,10 +215,10 @@ function ProfileScreen() {
                 expo_router_1.router.replace('/auth/sign-in');
             }
             catch (e) {
-                react_native_1.Alert.alert('Sign out failed', 'Please try again');
+                react_native_1.Alert.alert(t('profile.signOutFailed'), t('profile.signOutFailedMsg'));
             }
         }}>
-        <react_native_1.Text style={styles.signOutButtonText}>Sign out</react_native_1.Text>
+        <react_native_1.Text style={styles.signOutButtonText}>{t('profile.signOut')}</react_native_1.Text>
       </react_native_1.TouchableOpacity>
     </react_native_1.ScrollView>);
 }

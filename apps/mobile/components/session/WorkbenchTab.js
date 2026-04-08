@@ -34,6 +34,7 @@ const react_native_toast_message_1 = __importDefault(require("react-native-toast
 const theme_1 = require("../../lib/theme");
 const SessionContext_1 = require("../../lib/contexts/SessionContext");
 const VoiceNoteRow_1 = require("./VoiceNoteRow");
+const i18n_1 = require("../../lib/i18n");
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
 // Visible timeline span when no audio is loaded (75 s)
@@ -58,6 +59,7 @@ function isReferenceClip(clip) {
     return haystack.includes('ref') || haystack.includes('reference');
 }
 function WorkbenchTab() {
+    const { t } = (0, i18n_1.useTranslation)();
     const router = (0, expo_router_1.useRouter)();
     const { sessionId, activeSection, activeMoment, jumpToSongMap, setActiveSection, playheadMs, durationMs, musicUrl, loopRegion, clips, musicTrack, isAnalysing, notes, createNote, deleteNote, inboxCount, sectionClips, retryClip, soundRef, handlePlayPause, handleSeekBack, handleSeekForward, handleLoopToggle, activeSheetId, openSheet, closeSheet, selectedClipForSheet, setSelectedClipForSheet, openClipSheet, refreshCount, sessionMode, setSessionMode, } = (0, SessionContext_1.useSessionContext)();
     // ── Session metadata ─────────────────────────────────────────────────────
@@ -170,7 +172,7 @@ function WorkbenchTab() {
         }
         const ok = await deleteNote(noteId);
         if (ok)
-            react_native_toast_message_1.default.show({ type: 'success', text1: 'Note deleted' });
+            react_native_toast_message_1.default.show({ type: 'success', text1: t('workbench.noteDeleted') });
     }, [activeVoiceNoteId, deleteNote]);
     // ── Clip filtering by active section ────────────────────────────────────
     const hasActiveMusicSection = (0, react_1.useMemo)(() => musicTrack?.sections?.some((s) => s.label === activeSection) ?? false, [musicTrack?.sections, activeSection]);
@@ -235,7 +237,7 @@ function WorkbenchTab() {
               </react_native_1.View>
             </react_native_1.View>
           </react_native_1.ScrollView>) : (<react_native_1.TouchableOpacity style={styles.addMusicPrompt} activeOpacity={0.8} onPress={() => router.push({ pathname: './music-setup', params: { sessionId } })}>
-            <react_native_1.Text style={styles.addMusicPromptText}>Add music →</react_native_1.Text>
+            <react_native_1.Text style={styles.addMusicPromptText}>{t('workbench.addMusic')}</react_native_1.Text>
           </react_native_1.TouchableOpacity>)}
 
         {sessionMode && (<react_native_1.TouchableOpacity style={styles.sessionModeRow} onPress={() => setSessionMode(false)} activeOpacity={0.75}>
@@ -250,14 +252,14 @@ function WorkbenchTab() {
                 <react_native_1.View style={styles.toggleRow}>
                   <react_native_1.TouchableOpacity style={[styles.toggleChip, styles.toggleChipActive]} activeOpacity={0.8}>
                     <react_native_1.Text style={[styles.toggleChipText, styles.toggleChipTextActive]}>
-                      Counts
+                      {t('workbench.counts')}
                     </react_native_1.Text>
                   </react_native_1.TouchableOpacity>
                   <react_native_1.View style={[styles.toggleChip, { opacity: 0.45 }]}>
-                    <react_native_1.Text style={styles.toggleChipText}>Partition</react_native_1.Text>
+                    <react_native_1.Text style={styles.toggleChipText}>{t('workbench.partition')}</react_native_1.Text>
                   </react_native_1.View>
                 </react_native_1.View>
-                <react_native_1.Text style={styles.partitionHint}>read-only in V3</react_native_1.Text>
+                <react_native_1.Text style={styles.partitionHint}>{t('workbench.partitionHint')}</react_native_1.Text>
               </>) : null}
           </>)}
 
@@ -287,7 +289,7 @@ function WorkbenchTab() {
                 })}
                 </react_native_1.ScrollView>
               </react_native_1.View>
-              {showSectionSwipeHint ? (<react_native_1.Text style={styles.sectionSwipeHint}>← swipe to change section →</react_native_1.Text>) : null}
+              {showSectionSwipeHint ? (<react_native_1.Text style={styles.sectionSwipeHint}>{t('workbench.sectionSwipeHint')}</react_native_1.Text>) : null}
             </react_native_1.View>) : null}
 
           {/* Workspace zone — allows touches to bubble to outer Pressable */}
@@ -298,7 +300,7 @@ function WorkbenchTab() {
                 </react_native_1.View>
                 <react_native_1.Text style={styles.workspaceMeta}>{formatTimecode(playheadMs)} · …</react_native_1.Text>
                 <react_native_1.TouchableOpacity style={styles.mapJumpBtn} onPress={jumpToSongMap} testID={`map-jump-${activeMoment}`} activeOpacity={0.8}>
-                  <react_native_1.Text style={styles.mapJumpBtnText}>→ Map</react_native_1.Text>
+                  <react_native_1.Text style={styles.mapJumpBtnText}>{t('workbench.mapJump')}</react_native_1.Text>
                 </react_native_1.TouchableOpacity>
               </react_native_1.View>
 
@@ -311,7 +313,7 @@ function WorkbenchTab() {
                     styles.workspaceTabText,
                     workspaceTab === 'ideas' && styles.workspaceTabTextActive,
                 ]}>
-                    Ideas
+                    {t('workbench.tabIdeas')}
                   </react_native_1.Text>
                 </react_native_1.TouchableOpacity>
                 <react_native_1.TouchableOpacity style={[
@@ -322,13 +324,14 @@ function WorkbenchTab() {
                     styles.workspaceTabText,
                     workspaceTab === 'notes' && styles.workspaceTabTextActive,
                 ]}>
-                    Notes
+                    {t('workbench.tabNotes')}
                   </react_native_1.Text>
                 </react_native_1.TouchableOpacity>
               </react_native_1.View>
               <react_native_1.TouchableOpacity style={styles.pinNoteBtn} onPress={() => handleOpenNotePin(playheadMs)} activeOpacity={0.85}>
                 <react_native_1.Text style={styles.pinNoteBtnText}>
-                  Pin note @ {formatTimecode(notePinTimecodeMs ?? playheadMs)}
+                  {t('workbench.pinNote')}
+                  {formatTimecode(notePinTimecodeMs ?? playheadMs)}
                 </react_native_1.Text>
               </react_native_1.TouchableOpacity>
 
@@ -343,7 +346,7 @@ function WorkbenchTab() {
                         ]} onPress={() => openClipSheet(item)} activeOpacity={0.85}>
                         {item.clip_type === 'voice_memo' ? (<react_native_1.View style={styles.voiceMemoIndicator}>
                             <react_native_1.Text style={styles.voiceMemoIcon}>🎤</react_native_1.Text>
-                            <react_native_1.Text style={styles.voiceMemoLabel}>Voice Memo</react_native_1.Text>
+                            <react_native_1.Text style={styles.voiceMemoLabel}>{t('workbench.voiceMemoLabel')}</react_native_1.Text>
                           </react_native_1.View>) : item.mux_playback_id ? (<react_native_1.Image source={{
                                 uri: `https://image.mux.com/${item.mux_playback_id}/thumbnail.jpg?time=0`,
                             }} style={styles.clipThumbImage}/>) : null}
@@ -371,7 +374,7 @@ function WorkbenchTab() {
                           </react_native_1.Text>
                         </react_native_1.View>
                         {item.upload_status === 'failed' ? (<react_native_1.TouchableOpacity style={styles.retryPill} onPress={() => retryClip(item.local_id)}>
-                            <react_native_1.Text style={styles.retryPillText}>Retry</react_native_1.Text>
+                            <react_native_1.Text style={styles.retryPillText}>{t('workbench.retry')}</react_native_1.Text>
                           </react_native_1.TouchableOpacity>) : null}
                       </react_native_1.TouchableOpacity>
                       <react_native_1.TouchableOpacity style={[
@@ -381,7 +384,7 @@ function WorkbenchTab() {
                             if (item.upload_status !== 'ready' || !item.server_id) {
                                 react_native_toast_message_1.default.show({
                                     type: 'info',
-                                    text1: 'Available once clip is ready.',
+                                    text1: t('workbench.clipAvailableOnce'),
                                 });
                                 return;
                             }
@@ -408,10 +411,10 @@ function WorkbenchTab() {
         </>)}
 
       {isFullyEmpty && (<react_native_1.View style={styles.emptyState}>
-          <react_native_1.Text style={styles.emptyStatePrompt}>Add a reference video or start recording.</react_native_1.Text>
+          <react_native_1.Text style={styles.emptyStatePrompt}>{t('workbench.emptyPrompt')}</react_native_1.Text>
           <react_native_1.View style={styles.emptyStateActions}>
             <react_native_1.TouchableOpacity style={styles.emptyVideoBtn} onPress={() => router.push({ pathname: './youtube-player', params: { sessionId } })}>
-              <react_native_1.Text style={styles.emptyVideoBtnText}>Add video →</react_native_1.Text>
+              <react_native_1.Text style={styles.emptyVideoBtnText}>{t('workbench.addVideo')}</react_native_1.Text>
             </react_native_1.TouchableOpacity>
             <react_native_1.TouchableOpacity style={styles.emptyRecordBtn} onPress={() => router.push({
                 pathname: './camera',

@@ -23,6 +23,7 @@ import Toast from 'react-native-toast-message';
 import { theme } from '../../lib/theme';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { VoiceNoteRow } from './VoiceNoteRow';
+import { useTranslation } from '../../lib/i18n';
 
 const colors = theme.light;
 const spacing = theme.spacing;
@@ -56,6 +57,7 @@ function isReferenceClip(clip: {
 }
 
 export function WorkbenchTab() {
+  const { t } = useTranslation();
   const router = useRouter();
   const {
     sessionId,
@@ -244,7 +246,7 @@ export function WorkbenchTab() {
       setActiveVoiceNoteId(null);
     }
     const ok = await deleteNote(noteId);
-    if (ok) Toast.show({ type: 'success', text1: 'Note deleted' });
+    if (ok) Toast.show({ type: 'success', text1: t('workbench.noteDeleted') });
   }, [activeVoiceNoteId, deleteNote]);
 
   // ── Clip filtering by active section ────────────────────────────────────
@@ -359,7 +361,7 @@ export function WorkbenchTab() {
             activeOpacity={0.8}
             onPress={() => router.push({ pathname: './music-setup', params: { sessionId } })}
           >
-            <Text style={styles.addMusicPromptText}>Add music →</Text>
+            <Text style={styles.addMusicPromptText}>{t('workbench.addMusic')}</Text>
           </TouchableOpacity>
         )}
 
@@ -386,14 +388,14 @@ export function WorkbenchTab() {
                     activeOpacity={0.8}
                   >
                     <Text style={[styles.toggleChipText, styles.toggleChipTextActive]}>
-                      Counts
+                      {t('workbench.counts')}
                     </Text>
                   </TouchableOpacity>
                   <View style={[styles.toggleChip, { opacity: 0.45 }]}>
-                    <Text style={styles.toggleChipText}>Partition</Text>
+                    <Text style={styles.toggleChipText}>{t('workbench.partition')}</Text>
                   </View>
                 </View>
-                <Text style={styles.partitionHint}>read-only in V3</Text>
+                <Text style={styles.partitionHint}>{t('workbench.partitionHint')}</Text>
               </>
             ) : null}
           </>
@@ -443,7 +445,7 @@ export function WorkbenchTab() {
                 </ScrollView>
               </View>
               {showSectionSwipeHint ? (
-                <Text style={styles.sectionSwipeHint}>← swipe to change section →</Text>
+                <Text style={styles.sectionSwipeHint}>{t('workbench.sectionSwipeHint')}</Text>
               ) : null}
             </View>
           ) : null}
@@ -462,7 +464,7 @@ export function WorkbenchTab() {
                   testID={`map-jump-${activeMoment}`}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.mapJumpBtnText}>→ Map</Text>
+                  <Text style={styles.mapJumpBtnText}>{t('workbench.mapJump')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -480,7 +482,7 @@ export function WorkbenchTab() {
                       workspaceTab === 'ideas' && styles.workspaceTabTextActive,
                     ]}
                   >
-                    Ideas
+                    {t('workbench.tabIdeas')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -496,7 +498,7 @@ export function WorkbenchTab() {
                       workspaceTab === 'notes' && styles.workspaceTabTextActive,
                     ]}
                   >
-                    Notes
+                    {t('workbench.tabNotes')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -506,7 +508,8 @@ export function WorkbenchTab() {
                 activeOpacity={0.85}
               >
                 <Text style={styles.pinNoteBtnText}>
-                  Pin note @ {formatTimecode(notePinTimecodeMs ?? playheadMs)}
+                  {t('workbench.pinNote')}
+                  {formatTimecode(notePinTimecodeMs ?? playheadMs)}
                 </Text>
               </TouchableOpacity>
 
@@ -534,7 +537,7 @@ export function WorkbenchTab() {
                         {item.clip_type === 'voice_memo' ? (
                           <View style={styles.voiceMemoIndicator}>
                             <Text style={styles.voiceMemoIcon}>🎤</Text>
-                            <Text style={styles.voiceMemoLabel}>Voice Memo</Text>
+                            <Text style={styles.voiceMemoLabel}>{t('workbench.voiceMemoLabel')}</Text>
                           </View>
                         ) : item.mux_playback_id ? (
                           <Image
@@ -576,7 +579,7 @@ export function WorkbenchTab() {
                             style={styles.retryPill}
                             onPress={() => retryClip(item.local_id)}
                           >
-                            <Text style={styles.retryPillText}>Retry</Text>
+                            <Text style={styles.retryPillText}>{t('workbench.retry')}</Text>
                           </TouchableOpacity>
                         ) : null}
                       </TouchableOpacity>
@@ -589,7 +592,7 @@ export function WorkbenchTab() {
                           if (item.upload_status !== 'ready' || !item.server_id) {
                             Toast.show({
                               type: 'info',
-                              text1: 'Available once clip is ready.',
+                              text1: t('workbench.clipAvailableOnce'),
                             });
                             return;
                           }
@@ -641,7 +644,7 @@ export function WorkbenchTab() {
 
       {isFullyEmpty && (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyStatePrompt}>Add a reference video or start recording.</Text>
+          <Text style={styles.emptyStatePrompt}>{t('workbench.emptyPrompt')}</Text>
           <View style={styles.emptyStateActions}>
             <TouchableOpacity
               style={styles.emptyVideoBtn}
@@ -649,7 +652,7 @@ export function WorkbenchTab() {
                 router.push({ pathname: './youtube-player', params: { sessionId } })
               }
             >
-              <Text style={styles.emptyVideoBtnText}>Add video →</Text>
+              <Text style={styles.emptyVideoBtnText}>{t('workbench.addVideo')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.emptyRecordBtn}

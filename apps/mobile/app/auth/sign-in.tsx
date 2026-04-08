@@ -13,8 +13,10 @@ import { router } from 'expo-router';
 import { useSupabaseSafe } from '../../lib/hooks/useSupabaseSafe';
 import { theme } from '../../lib/theme';
 import { setDevBypassAuth } from '../../lib/devBypassAuth';
+import { useTranslation } from '../../lib/i18n';
 
 export default function SignInScreen() {
+  const { t } = useTranslation();
   const { supabase, error: configError, loading: configLoading } = useSupabaseSafe();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -49,17 +51,17 @@ export default function SignInScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.content}>
-          <Text style={styles.brandTitle}>Roam</Text>
+          <Text style={styles.brandTitle}>{t('signIn.brandTitle')}</Text>
           <Text style={[styles.error, { marginBottom: 24 }]}>
             {isConfig
-              ? 'Sign-in is not configured for this build. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in EAS environment variables, then create a new build.'
-              : configError?.message ?? 'Something went wrong.'}
+              ? t('signIn.configError')
+              : configError?.message ?? t('signIn.genericError')}
           </Text>
           <TouchableOpacity
             style={styles.link}
             onPress={() => router.push('/auth/sign-up')}
           >
-            <Text style={styles.linkText}>Create account</Text>
+            <Text style={styles.linkText}>{t('signIn.createAccount')}</Text>
           </TouchableOpacity>
           {__DEV__ && (
             <TouchableOpacity
@@ -69,7 +71,7 @@ export default function SignInScreen() {
                 router.replace('/(app)');
               }}
             >
-              <Text style={[styles.linkText, { color: theme.light.mine }]}>Open app (dev only)</Text>
+              <Text style={[styles.linkText, { color: theme.light.mine }]}>{t('signIn.openAppDev')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -83,13 +85,13 @@ export default function SignInScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <Text style={styles.brandTitle}>Roam</Text>
-        <Text style={styles.tagline}>Capture-first choreography tool</Text>
+        <Text style={styles.brandTitle}>{t('signIn.brandTitle')}</Text>
+        <Text style={styles.tagline}>{t('signIn.tagline')}</Text>
         <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t('signIn.email')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="you@example.com"
+            placeholder={t('signIn.emailPlaceholder')}
             placeholderTextColor={theme.light.muted}
             value={email}
             onChangeText={setEmail}
@@ -97,10 +99,10 @@ export default function SignInScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{t('signIn.password')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="••••••••"
+            placeholder={t('signIn.passwordPlaceholder')}
             placeholderTextColor={theme.light.muted}
             value={password}
             onChangeText={setPassword}
@@ -112,13 +114,13 @@ export default function SignInScreen() {
             onPress={handleSignIn}
             disabled={loading || !supabase}
           >
-            <Text style={styles.buttonText}>{loading ? 'Signing in…' : 'Sign In'}</Text>
+            <Text style={styles.buttonText}>{loading ? t('signIn.signingIn') : t('signIn.signIn')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.link}
             onPress={() => router.push('/auth/sign-up')}
           >
-            <Text style={styles.linkText}>Don't have an account? Sign up</Text>
+            <Text style={styles.linkText}>{t('signIn.noAccount')}</Text>
           </TouchableOpacity>
         </View>
         {__DEV__ && (
@@ -129,7 +131,7 @@ export default function SignInScreen() {
               router.replace('/(app)');
             }}
           >
-            <Text style={[styles.linkText, { color: theme.light.mine }]}>Open app (dev only)</Text>
+            <Text style={[styles.linkText, { color: theme.light.mine }]}>{t('signIn.openAppDev')}</Text>
           </TouchableOpacity>
         )}
       </View>

@@ -41,6 +41,8 @@ export interface Session {
   phrase: string | null;
   quality_target?: { clip_url: string; timestamp_ms: number; source_clip_id: string } | null;
   created_at: ISODateTime;
+  clip_count?: number;
+  section_count?: number;
 }
 
 /** ---- Clip (Tech Plan) ---- */

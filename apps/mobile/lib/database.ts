@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS clips (
   server_id TEXT,
   session_id TEXT,
   dual_pair_id TEXT,
+  parent_clip_id TEXT,
+  triggered_by_note_id TEXT,
   label TEXT,
   recorded_at TEXT,
   file_uri TEXT,
@@ -64,6 +66,8 @@ const MIGRATION_DUAL_PAIR_ID = 'ALTER TABLE clips ADD COLUMN dual_pair_id TEXT;'
 const MIGRATION_CLIP_TYPE = 'ALTER TABLE clips ADD COLUMN clip_type TEXT;';
 
 const MIGRATION_SOURCE_URL = 'ALTER TABLE clips ADD COLUMN source_url TEXT;';
+const MIGRATION_PARENT_CLIP_ID = 'ALTER TABLE clips ADD COLUMN parent_clip_id TEXT;';
+const MIGRATION_TRIGGERED_BY_NOTE_ID = 'ALTER TABLE clips ADD COLUMN triggered_by_note_id TEXT;';
 
 let _db: SQLiteDatabase | null = null;
 let _dbError: Error | null = null;
@@ -122,6 +126,20 @@ function initDb(): SQLiteDatabase | null {
     } catch {
       // If PRAGMA/migration fails, keep DB usable for existing clips.
     }
+    // One-time migration: add genealogy fields for clip lineage.
+    try {
+      const info = _db.getAllSync<{ name: string }>('PRAGMA table_info(clips)');
+      const parentClipCol = info?.find?.((c) => c.name === 'parent_clip_id');
+      if (!parentClipCol) {
+        _db.execSync(MIGRATION_PARENT_CLIP_ID);
+      }
+      const triggeredByNoteCol = info?.find?.((c) => c.name === 'triggered_by_note_id');
+      if (!triggeredByNoteCol) {
+        _db.execSync(MIGRATION_TRIGGERED_BY_NOTE_ID);
+      }
+    } catch {
+      // If PRAGMA/migration fails, keep DB usable for existing clips.
+    }
 
     console.log('[database] SQLite initialised');
   } catch (e) {
@@ -161,6 +179,8 @@ export interface ClipRow {
   server_id: string | null;
   session_id: string | null;
   dual_pair_id?: string | null;
+  parent_clip_id?: string | null;
+  triggered_by_note_id?: string | null;
   label: string | null;
   recorded_at: string | null;
   file_uri: string | null;
@@ -181,6 +201,8 @@ export interface InsertClipRow {
   local_id: string;
   session_id: string | null;
   dual_pair_id?: string | null;
+  parent_clip_id?: string | null;
+  triggered_by_note_id?: string | null;
   label?: string | null;
   recorded_at?: string | null;
   file_uri?: string | null;
@@ -211,6 +233,8 @@ export interface ServerClipSnapshot {
   local_id?: string | null;
   server_id?: string | null;
   session_id: string;
+  parent_clip_id?: string | null;
+  triggered_by_note_id?: string | null;
   label?: string | null;
   recorded_at?: string | null;
   file_uri?: string | null;
@@ -256,13 +280,15 @@ export function upsertClipFromServer(row: ServerClipSnapshot): string {
 
   db.runSync(
     `INSERT INTO clips (
-      local_id, server_id, session_id, label, recorded_at, file_uri,
+      local_id, server_id, session_id, parent_clip_id, triggered_by_note_id, label, recorded_at, file_uri,
       upload_status, upload_progress, mux_playback_id, source_url,
       move_name, style, energy, difficulty, bpm, notes, clip_type
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(local_id) DO UPDATE SET
       server_id = COALESCE(excluded.server_id, clips.server_id),
       session_id = COALESCE(excluded.session_id, clips.session_id),
+      parent_clip_id = COALESCE(excluded.parent_clip_id, clips.parent_clip_id),
+      triggered_by_note_id = COALESCE(excluded.triggered_by_note_id, clips.triggered_by_note_id),
       label = COALESCE(excluded.label, clips.label),
       recorded_at = COALESCE(excluded.recorded_at, clips.recorded_at),
       file_uri = COALESCE(excluded.file_uri, clips.file_uri),
@@ -281,6 +307,8 @@ export function upsertClipFromServer(row: ServerClipSnapshot): string {
       resolvedLocalId,
       serverId,
       row.session_id,
+      row.parent_clip_id ?? null,
+      row.triggered_by_note_id ?? null,
       row.label ?? null,
       row.recorded_at ?? null,
       row.file_uri ?? null,
@@ -304,14 +332,16 @@ export function upsertClipFromServer(row: ServerClipSnapshot): string {
 export function insertClip(row: InsertClipRow): void {
   db.runSync(
     `INSERT INTO clips (
-      local_id, session_id, dual_pair_id, label, recorded_at, file_uri,
+      local_id, session_id, dual_pair_id, parent_clip_id, triggered_by_note_id, label, recorded_at, file_uri,
       upload_status, upload_progress, server_id, mux_playback_id, source_url,
       move_name, style, energy, difficulty, bpm, notes, clip_type
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       row.local_id,
       row.session_id,
       row.dual_pair_id ?? null,
+      row.parent_clip_id ?? null,
+      row.triggered_by_note_id ?? null,
       row.label ?? null,
       row.recorded_at ?? null,
       row.file_uri ?? null,

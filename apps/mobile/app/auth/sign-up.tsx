@@ -14,8 +14,10 @@ import { makeRedirectUri } from 'expo-auth-session';
 import { useSupabaseSafe } from '../../lib/hooks/useSupabaseSafe';
 import { theme } from '../../lib/theme';
 import { setDevBypassAuth } from '../../lib/devBypassAuth';
+import { useTranslation } from '../../lib/i18n';
 
 export default function SignUpScreen() {
+  const { t } = useTranslation();
   const { supabase, error: configError, loading: configLoading } = useSupabaseSafe();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,7 +41,7 @@ export default function SignUpScreen() {
       setError(e.message);
       return;
     }
-    setMessage('Check your email to confirm your account.');
+    setMessage(t('signUp.confirmEmail'));
   }
 
   if (configLoading) {
@@ -57,17 +59,17 @@ export default function SignUpScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.content}>
-          <Text style={styles.brandTitle}>Roam</Text>
+          <Text style={styles.brandTitle}>{t('signUp.brandTitle')}</Text>
           <Text style={[styles.error, { marginBottom: 24 }]}>
             {isConfig
-              ? 'Sign-up is not configured for this build. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in EAS environment variables, then create a new build.'
-              : configError?.message ?? 'Something went wrong.'}
+              ? t('signUp.configError')
+              : configError?.message ?? t('signUp.genericError')}
           </Text>
           <TouchableOpacity
             style={styles.link}
             onPress={() => router.replace('/auth/sign-in')}
           >
-            <Text style={styles.linkText}>Back to sign in</Text>
+            <Text style={styles.linkText}>{t('signUp.backToSignIn')}</Text>
           </TouchableOpacity>
           {__DEV__ && (
             <TouchableOpacity
@@ -77,7 +79,7 @@ export default function SignUpScreen() {
                 router.replace('/(app)');
               }}
             >
-              <Text style={[styles.linkText, { color: theme.light.mine }]}>Open app (dev only)</Text>
+              <Text style={[styles.linkText, { color: theme.light.mine }]}>{t('signUp.openAppDev')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -91,13 +93,13 @@ export default function SignUpScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        <Text style={styles.brandTitle}>Roam</Text>
-        <Text style={styles.tagline}>Capture-first choreography tool</Text>
+        <Text style={styles.brandTitle}>{t('signUp.brandTitle')}</Text>
+        <Text style={styles.tagline}>{t('signUp.tagline')}</Text>
         <View style={styles.form}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t('signUp.email')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="you@example.com"
+            placeholder={t('signUp.emailPlaceholder')}
             placeholderTextColor={theme.light.muted}
             value={email}
             onChangeText={setEmail}
@@ -105,10 +107,10 @@ export default function SignUpScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{t('signUp.password')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="••••••••"
+            placeholder={t('signUp.passwordPlaceholder')}
             placeholderTextColor={theme.light.muted}
             value={password}
             onChangeText={setPassword}
@@ -121,13 +123,13 @@ export default function SignUpScreen() {
             onPress={handleSignUp}
             disabled={loading || !supabase}
           >
-            <Text style={styles.buttonText}>{loading ? 'Creating…' : 'Create account'}</Text>
+            <Text style={styles.buttonText}>{loading ? t('signUp.creating') : t('signUp.createAccount')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.link}
             onPress={() => router.replace('/auth/sign-in')}
           >
-            <Text style={styles.linkText}>Already have an account? Sign in</Text>
+            <Text style={styles.linkText}>{t('signUp.alreadyHaveAccount')}</Text>
           </TouchableOpacity>
         </View>
         {__DEV__ && (
@@ -138,7 +140,7 @@ export default function SignUpScreen() {
               router.replace('/(app)');
             }}
           >
-            <Text style={[styles.linkText, { color: theme.light.mine }]}>Open app (dev only)</Text>
+            <Text style={[styles.linkText, { color: theme.light.mine }]}>{t('signUp.openAppDev')}</Text>
           </TouchableOpacity>
         )}
       </View>

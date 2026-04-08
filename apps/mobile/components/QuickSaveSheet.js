@@ -44,6 +44,28 @@ function QuickSaveSheet({ bottomSheetRef, videoUri, secondaryVideoUri, dualPairI
     const [sessions, setSessions] = (0, react_1.useState)([]);
     const didLoadSessionsRef = (0, react_1.useRef)(false);
     const createSessionSheetRef = (0, react_1.useRef)(null);
+    const primarySaveResultsRef = (0, react_1.useRef)(new Map());
+    const primarySaveInFlightRef = (0, react_1.useRef)(new Map());
+    const savePrimaryOnce = (0, react_1.useCallback)(async (key, saver) => {
+        const committed = primarySaveResultsRef.current.get(key);
+        if (committed?.ok)
+            return committed;
+        const inFlight = primarySaveInFlightRef.current.get(key);
+        if (inFlight)
+            return inFlight;
+        const run = saver().finally(() => {
+            primarySaveInFlightRef.current.delete(key);
+        });
+        primarySaveInFlightRef.current.set(key, run);
+        const result = await run;
+        if (result.ok) {
+            primarySaveResultsRef.current.set(key, result);
+        }
+        return result;
+    }, []);
+    const showSecondarySaveWarning = (0, react_1.useCallback)((text1, text2) => {
+        react_native_toast_message_1.default.show({ type: 'error', text1, text2 });
+    }, []);
     const loadSessions = (0, react_1.useCallback)(async () => {
         if (!session?.access_token)
             return;
@@ -75,19 +97,23 @@ function QuickSaveSheet({ bottomSheetRef, videoUri, secondaryVideoUri, dualPairI
             return false;
         setLoading(true);
         try {
-            const r = await (0, saveClip_1.saveClip)(targetSessionId, videoUri, 'Clip', session.access_token, undefined, dualPairId);
+            const primaryKey = `session:${targetSessionId}:primary:${videoUri}:${dualPairId ?? 'none'}`;
+            const r = await savePrimaryOnce(primaryKey, () => (0, saveClip_1.saveClip)(targetSessionId, videoUri, 'Clip', session.access_token, undefined, dualPairId));
             if (!r.ok) {
                 react_native_toast_message_1.default.show({ type: 'error', text1: 'Could not save clip' });
                 return false;
             }
+            let secondaryFailed = false;
             if (dualPairId && secondaryVideoUri) {
                 const secondaryResult = await (0, saveClip_1.saveClip)(targetSessionId, secondaryVideoUri, 'Clip', session.access_token, undefined, dualPairId);
                 if (!secondaryResult.ok) {
-                    react_native_toast_message_1.default.show({ type: 'error', text1: 'Could not save clip' });
-                    return false;
+                    secondaryFailed = true;
+                    showSecondarySaveWarning('Saved with warning', 'Primary clip saved, second clip failed');
                 }
             }
-            react_native_toast_message_1.default.show({ type: 'success', text1: 'Saved' });
+            if (!secondaryFailed) {
+                react_native_toast_message_1.default.show({ type: 'success', text1: 'Saved' });
+            }
             bottomSheetRef.current?.close();
             onDone({ navigateTo: `/session/${targetSessionId}` });
             return true;
@@ -95,7 +121,7 @@ function QuickSaveSheet({ bottomSheetRef, videoUri, secondaryVideoUri, dualPairI
         finally {
             setLoading(false);
         }
-    }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone]);
+    }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone, savePrimaryOnce, showSecondarySaveWarning]);
     const saveToSectionSession = (0, react_1.useCallback)(async () => {
         if (!sessionId)
             return false;
@@ -107,19 +133,23 @@ function QuickSaveSheet({ bottomSheetRef, videoUri, secondaryVideoUri, dualPairI
         try {
             // Pass sectionName so the upload queue creates a section_clips entry
             // once the server clip_id is confirmed.
-            const r = await (0, saveClip_1.saveClip)(sessionId, videoUri, 'Clip', session.access_token, sectionName ?? undefined, dualPairId);
+            const primaryKey = `section:${sessionId}:${sectionName ?? 'none'}:primary:${videoUri}:${dualPairId ?? 'none'}`;
+            const r = await savePrimaryOnce(primaryKey, () => (0, saveClip_1.saveClip)(sessionId, videoUri, 'Clip', session.access_token, sectionName ?? undefined, dualPairId));
             if (!r.ok) {
                 react_native_toast_message_1.default.show({ type: 'error', text1: 'Could not save clip' });
                 return false;
             }
+            let secondaryFailed = false;
             if (dualPairId && secondaryVideoUri) {
                 const secondaryResult = await (0, saveClip_1.saveClip)(sessionId, secondaryVideoUri, 'Clip', session.access_token, sectionName ?? undefined, dualPairId);
                 if (!secondaryResult.ok) {
-                    react_native_toast_message_1.default.show({ type: 'error', text1: 'Could not save clip' });
-                    return false;
+                    secondaryFailed = true;
+                    showSecondarySaveWarning('Saved with warning', 'Primary clip saved, second clip failed');
                 }
             }
-            react_native_toast_message_1.default.show({ type: 'success', text1: 'Saved' });
+            if (!secondaryFailed) {
+                react_native_toast_message_1.default.show({ type: 'success', text1: 'Saved' });
+            }
             bottomSheetRef.current?.close();
             onDone();
             return true;
@@ -127,7 +157,7 @@ function QuickSaveSheet({ bottomSheetRef, videoUri, secondaryVideoUri, dualPairI
         finally {
             setLoading(false);
         }
-    }, [sessionId, sectionName, videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone]);
+    }, [sessionId, sectionName, videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone, savePrimaryOnce, showSecondarySaveWarning]);
     const saveLater = (0, react_1.useCallback)(async () => {
         if (!videoUri)
             return false;
@@ -135,7 +165,8 @@ function QuickSaveSheet({ bottomSheetRef, videoUri, secondaryVideoUri, dualPairI
             return false;
         setLoading(true);
         try {
-            const primaryResult = await (0, saveClip_1.saveInboxClip)(videoUri, 'Clip', session.access_token, dualPairId);
+            const primaryKey = `inbox:primary:${videoUri}:${dualPairId ?? 'none'}`;
+            const primaryResult = await savePrimaryOnce(primaryKey, () => (0, saveClip_1.saveInboxClip)(videoUri, 'Clip', session.access_token, dualPairId));
             if (!primaryResult.ok) {
                 if (primaryResult.reason === 'plan_limit_reached') {
                     react_native_toast_message_1.default.show({ type: 'error', text1: 'Upload limit reached' });
@@ -145,20 +176,19 @@ function QuickSaveSheet({ bottomSheetRef, videoUri, secondaryVideoUri, dualPairI
                 }
                 return false;
             }
+            let secondaryFailed = false;
             if (dualPairId && secondaryVideoUri) {
                 const secondaryResult = await (0, saveClip_1.saveInboxClip)(secondaryVideoUri, 'Clip', session.access_token, dualPairId);
                 if (!secondaryResult.ok) {
-                    react_native_toast_message_1.default.show({
-                        type: 'error',
-                        text1: 'Could not save both clips to Inbox',
-                        text2: secondaryResult.reason === 'plan_limit_reached'
-                            ? 'Upload limit reached'
-                            : secondaryResult.message,
-                    });
-                    return false;
+                    secondaryFailed = true;
+                    showSecondarySaveWarning('Saved to Inbox with warning', secondaryResult.reason === 'plan_limit_reached'
+                        ? 'Primary clip saved, second clip hit upload limit'
+                        : 'Primary clip saved, second clip failed');
                 }
             }
-            react_native_toast_message_1.default.show({ type: 'success', text1: 'Saved to Inbox' });
+            if (!secondaryFailed) {
+                react_native_toast_message_1.default.show({ type: 'success', text1: 'Saved to Inbox' });
+            }
             bottomSheetRef.current?.close();
             onDone({ navigateTo: '/inbox' });
             return true;
@@ -170,7 +200,7 @@ function QuickSaveSheet({ bottomSheetRef, videoUri, secondaryVideoUri, dualPairI
         finally {
             setLoading(false);
         }
-    }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone]);
+    }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone, savePrimaryOnce, showSecondarySaveWarning]);
     const canSaveToCurrentSection = Boolean(sessionId && sectionName);
     return (<bottom_sheet_1.default ref={bottomSheetRef} index={-1} snapPoints={snapPoints} enablePanDownToClose backgroundStyle={styles.sheet} handleIndicatorStyle={styles.handle} onChange={(idx) => {
             if (idx >= 0)
@@ -222,27 +252,23 @@ function QuickSaveSheet({ bottomSheetRef, videoUri, secondaryVideoUri, dualPairI
             setLoading(true);
             void (async () => {
                 try {
-                    const primarySavePromise = (0, saveClip_1.saveClip)(newSession.id, videoUri, 'Clip', session.access_token, undefined, dualPairId);
-                    const secondarySavePromise = dualPairId && secondaryVideoUri
-                        ? (0, saveClip_1.saveClip)(newSession.id, secondaryVideoUri, 'Clip', session.access_token, undefined, dualPairId)
-                        : null;
-                    const [primaryResult, secondaryResult] = await Promise.all([
-                        primarySavePromise,
-                        secondarySavePromise ?? Promise.resolve(null),
-                    ]);
+                    const primaryKey = `session:${newSession.id}:primary:${videoUri}:${dualPairId ?? 'none'}`;
+                    const primaryResult = await savePrimaryOnce(primaryKey, () => (0, saveClip_1.saveClip)(newSession.id, videoUri, 'Clip', session.access_token, undefined, dualPairId));
                     if (!primaryResult.ok) {
                         react_native_toast_message_1.default.show({ type: 'error', text1: 'Could not save clip' });
                         return;
                     }
-                    if (secondarySavePromise && !secondaryResult?.ok) {
-                        react_native_toast_message_1.default.show({
-                            type: 'error',
-                            text1: 'Could not save both clips',
-                            text2: 'Main clip saved, secondary clip failed',
-                        });
-                        return;
+                    let secondaryFailed = false;
+                    if (dualPairId && secondaryVideoUri) {
+                        const secondaryResult = await (0, saveClip_1.saveClip)(newSession.id, secondaryVideoUri, 'Clip', session.access_token, undefined, dualPairId);
+                        if (!secondaryResult.ok) {
+                            secondaryFailed = true;
+                            showSecondarySaveWarning('Saved with warning', 'Primary clip saved, second clip failed');
+                        }
                     }
-                    react_native_toast_message_1.default.show({ type: 'success', text1: 'Saved' });
+                    if (!secondaryFailed) {
+                        react_native_toast_message_1.default.show({ type: 'success', text1: 'Saved' });
+                    }
                     bottomSheetRef.current?.close();
                     onDone({ navigateTo: `/session/${newSession.id}` });
                 }

@@ -8,6 +8,8 @@ export interface ClipRow {
     server_id: string | null;
     session_id: string | null;
     dual_pair_id?: string | null;
+    parent_clip_id?: string | null;
+    triggered_by_note_id?: string | null;
     label: string | null;
     recorded_at: string | null;
     file_uri: string | null;
@@ -27,6 +29,8 @@ export interface InsertClipRow {
     local_id: string;
     session_id: string | null;
     dual_pair_id?: string | null;
+    parent_clip_id?: string | null;
+    triggered_by_note_id?: string | null;
     label?: string | null;
     recorded_at?: string | null;
     file_uri?: string | null;
@@ -55,6 +59,8 @@ export interface ServerClipSnapshot {
     local_id?: string | null;
     server_id?: string | null;
     session_id: string;
+    parent_clip_id?: string | null;
+    triggered_by_note_id?: string | null;
     label?: string | null;
     recorded_at?: string | null;
     file_uri?: string | null;

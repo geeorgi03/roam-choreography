@@ -480,6 +480,7 @@ function SessionProvider({ sessionId, children }) {
         }
     }, [sessionId, session?.access_token, sessionName, sessionPhrase]);
     const value = {
+        session,
         sessionId,
         sessionName,
         sessionPhrase,

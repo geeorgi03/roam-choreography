@@ -21,6 +21,7 @@ import NetInfo from '@react-native-community/netinfo';
 
 import { API_BASE } from '../../lib/api';
 import { cacheSession, getCachedSessionList } from '../../lib/sessionCache';
+import { useTranslation } from '../../lib/i18n';
 
 const homeStorage = new MMKV({ id: 'home-state' });
 const LAST_SESSION_KEY = 'last_session_id';
@@ -42,6 +43,7 @@ function mapCachedToSession(
 }
 
 export default function HomeScreen() {
+  const { t } = useTranslation();
   const { session } = useSession();
   const createSheetRef = useRef<BottomSheet | null>(null);
   const firstSessionSheetRef = useRef<BottomSheet | null>(null);
@@ -173,9 +175,9 @@ export default function HomeScreen() {
     const d = new Date(iso);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays === 0) return t('home.today');
+    if (diffDays === 1) return t('home.yesterday');
+    if (diffDays < 7) return t('home.daysAgo').replace('{count}', String(diffDays));
     return d.toLocaleDateString();
   };
 
@@ -191,11 +193,11 @@ export default function HomeScreen() {
             {loading ? (
               <>
                 <ActivityIndicator size="small" color={colors.active} style={{ marginBottom: 12 }} />
-                <Text style={styles.subtitle}>Loading…</Text>
+                <Text style={styles.subtitle}>{t('home.loading')}</Text>
               </>
             ) : (
               <>
-                <Text style={styles.title}>What do you want to do?</Text>
+                <Text style={styles.title}>{t('home.whatToDo')}</Text>
                 <View style={styles.twoDoorRow}>
                   <TouchableOpacity
                     style={styles.doorCard}
@@ -203,8 +205,8 @@ export default function HomeScreen() {
                     activeOpacity={0.85}
                   >
                     <Text style={styles.doorIcon}>📚</Text>
-                    <Text style={styles.doorTitle}>Browse library</Text>
-                    <Text style={styles.doorSub}>Explore your collection</Text>
+                    <Text style={styles.doorTitle}>{t('home.browseLibrary')}</Text>
+                    <Text style={styles.doorSub}>{t('home.exploreCollection')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.doorCard}
@@ -212,8 +214,8 @@ export default function HomeScreen() {
                     activeOpacity={0.85}
                   >
                     <Text style={styles.doorIcon}>🎵</Text>
-                    <Text style={styles.doorTitle}>Start a session</Text>
-                    <Text style={styles.doorSub}>Name it, add a video, go.</Text>
+                    <Text style={styles.doorTitle}>{t('home.startSession')}</Text>
+                    <Text style={styles.doorSub}>{t('home.startSessionSub')}</Text>
                   </TouchableOpacity>
                 </View>
                 {inboxCount > 0 ? (
@@ -223,7 +225,7 @@ export default function HomeScreen() {
                     activeOpacity={0.85}
                   >
                     <Text style={styles.inboxPillText}>
-                      {inboxCount} unorganised clips →
+                      {t('home.unorganisedClips').replace('{count}', String(inboxCount))}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -240,7 +242,9 @@ export default function HomeScreen() {
               activeOpacity={0.85}
             >
               <View style={styles.inboxDot} />
-              <Text style={styles.inboxBannerText}>{inboxCount} unorganised clips</Text>
+              <Text style={styles.inboxBannerText}>
+                {t('home.unorganisedClipsBanner').replace('{count}', String(inboxCount))}
+              </Text>
               <Text style={styles.inboxBannerChev}>›</Text>
             </TouchableOpacity>
           ) : null}
@@ -255,7 +259,18 @@ export default function HomeScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={styles.cardTitle}>{item.name}</Text>
-                <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
+                <View style={styles.cardMeta}>
+                  <Text style={styles.cardMetaText}>
+                    {(item.clip_count ?? 0) === 0 && (item.section_count ?? 0) === 0
+                      ? t('home.cardNoClips')
+                      : t('home.cardCounts')
+                          .replace('{sections}', String(item.section_count ?? 0))
+                          .replace('{clips}', String(item.clip_count ?? 0))}
+                  </Text>
+                  <Text style={[styles.cardMetaText, { flex: 1, textAlign: 'right' }]}>
+                    {formatDate(item.created_at)}
+                  </Text>
+                </View>
               </TouchableOpacity>
             )}
             ListFooterComponent={
@@ -264,7 +279,7 @@ export default function HomeScreen() {
                 onPress={() => createSheetRef.current?.snapToIndex(0)}
                 activeOpacity={0.85}
               >
-                <Text style={styles.newSessionText}>+ New session</Text>
+                <Text style={styles.newSessionText}>{t('home.newSession')}</Text>
               </TouchableOpacity>
             }
           />
@@ -297,12 +312,12 @@ export default function HomeScreen() {
   );
 }
 
-const t = theme.light;
+const themeColors = theme.light;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: t.ground,
+    backgroundColor: themeColors.ground,
   },
   emptyScroll: {
     flexGrow: 1,
@@ -381,7 +396,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#4ECDC4',
+    backgroundColor: colors.mine,
     marginRight: 10,
   },
   inboxBannerText: { color: colors.active, fontSize: 14, fontWeight: '700', flex: 1 },
@@ -400,7 +415,13 @@ const styles = StyleSheet.create({
     color: colors.active,
     marginBottom: 4,
   },
-  cardDate: {
+  cardMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  cardMetaText: {
     fontSize: 12,
     color: colors.muted,
   },
@@ -423,7 +444,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: t.capture,
+    backgroundColor: themeColors.capture,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

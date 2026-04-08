@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, Platform, ActionSheetIOS, Alert } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { Buffer } from 'buffer';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useInboxCount } from '../../lib/contexts/InboxCountContext';
 import { theme } from '../../lib/theme';
 import { router } from 'expo-router';
+import { API_BASE } from '../../lib/api';
+import { useTranslation } from '../../lib/i18n';
 
 const colors = theme.light;
 
@@ -32,7 +37,9 @@ const phraseBaseStyle = {
 };
 
 export function FeelingStrip() {
-  const { sessionName, sessionPhrase, updateSessionMeta, openSheet, qualityTarget } = useSessionContext();
+  const { t } = useTranslation();
+  const { sessionName, sessionPhrase, updateSessionMeta, openSheet, qualityTarget, sessionId, session } =
+    useSessionContext();
   const { count } = useInboxCount();
   const [phrase, setPhrase] = useState('');
   const [phraseEditing, setPhraseEditing] = useState(false);
@@ -55,7 +62,86 @@ export function FeelingStrip() {
 
   const handleNameBlur = async () => {
     setNameEditing(false);
-    await updateSessionMeta({ name: name.trim() || 'Session' });
+    await updateSessionMeta({ name: name.trim() || t('feelingStrip.sessionNameFallback') });
+  };
+
+  const handleExportPdf = async () => {
+    if (!session?.access_token) {
+      Alert.alert(t('feelingStrip.exportFailedTitle'), t('feelingStrip.exportSignInRequired'));
+      return;
+    }
+    if (!FileSystem.cacheDirectory) {
+      Alert.alert(t('feelingStrip.exportFailedTitle'), t('feelingStrip.exportNoCacheDir'));
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/sessions/${sessionId}/export/pdf`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (!response.ok) {
+        let message = t('feelingStrip.exportUnable');
+        try {
+          const err = (await response.json()) as { error?: string };
+          if (err?.error) message = err.error;
+        } catch {
+          // Keep default error message when response is not JSON.
+        }
+        Alert.alert(t('feelingStrip.exportFailedTitle'), message);
+        return;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const base64String = Buffer.from(arrayBuffer).toString('base64');
+      const filePath = `${FileSystem.cacheDirectory}session-export.pdf`;
+
+      await FileSystem.writeAsStringAsync(filePath, base64String, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert(
+          t('feelingStrip.exportCompleteTitle'),
+          t('feelingStrip.exportSavedAt').replace('{path}', filePath)
+        );
+        return;
+      }
+
+      await Sharing.shareAsync(filePath, {
+        mimeType: 'application/pdf',
+        dialogTitle: t('feelingStrip.exportDialogTitle'),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('feelingStrip.exportUnknownError');
+      Alert.alert(t('feelingStrip.exportFailedTitle'), message);
+    }
+  };
+
+  const handleOverflowMenu = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: [t('feelingStrip.exportPdfAction'), t('feelingStrip.cancelAction')],
+          cancelButtonIndex: 1,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) void handleExportPdf();
+        }
+      );
+      return;
+    }
+
+    Alert.alert(t('feelingStrip.moreActionsTitle'), undefined, [
+      {
+        text: t('feelingStrip.exportPdfAction'),
+        onPress: () => {
+          void handleExportPdf();
+        },
+      },
+      { text: t('feelingStrip.cancelAction'), style: 'cancel' },
+    ]);
   };
 
   return (
@@ -69,13 +155,13 @@ export function FeelingStrip() {
               onChangeText={setName}
               onBlur={handleNameBlur}
               autoFocus
-              placeholder='Session name...'
+              placeholder={t('feelingStrip.sessionNamePlaceholder')}
               placeholderTextColor={colors.muted}
             />
           ) : (
             <TouchableOpacity activeOpacity={0.8} onPress={() => setNameEditing(true)}>
               <Text style={styles.sessionName} numberOfLines={1}>
-                {name || 'Session'}
+                {name || t('feelingStrip.sessionNameFallback')}
               </Text>
             </TouchableOpacity>
           )}
@@ -88,13 +174,13 @@ export function FeelingStrip() {
               onChangeText={setPhrase}
               onBlur={handlePhraseBlur}
               autoFocus
-              placeholder='add a feeling phrase...'
+              placeholder={t('feelingStrip.phrasePlaceholder')}
               placeholderTextColor={colors.muted}
             />
           ) : (
             <TouchableOpacity activeOpacity={0.8} onPress={() => setPhraseEditing(true)}>
               <Text style={styles.phrase} numberOfLines={1}>
-                {phrase || 'add a feeling phrase…'}
+                {phrase || t('feelingStrip.phraseFallback')}
               </Text>
             </TouchableOpacity>
           )}
@@ -107,7 +193,7 @@ export function FeelingStrip() {
                 uri: qualityTargetThumbnailUri(qualityTarget.clip_url, qualityTarget.timestamp_ms),
               }}
             />
-            <Text style={styles.qualityTargetLabel}>what I'm reaching for</Text>
+            <Text style={styles.qualityTargetLabel}>{t('feelingStrip.qualityTargetLabel')}</Text>
           </View>
         )}
       </View>
@@ -129,7 +215,7 @@ export function FeelingStrip() {
         <TouchableOpacity style={styles.iconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
           <Text style={styles.iconText}>↗</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton} onPress={() => {}} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.iconButton} onPress={handleOverflowMenu} activeOpacity={0.8}>
           <Text style={styles.iconText}>⋮</Text>
         </TouchableOpacity>
       </View>

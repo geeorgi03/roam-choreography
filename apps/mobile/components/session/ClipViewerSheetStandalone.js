@@ -35,7 +35,7 @@ const theme_1 = require("../../lib/theme");
 const LoopChipRow_1 = __importDefault(require("./LoopChipRow"));
 const colors = theme_1.theme.light;
 const nightColors = theme_1.theme.night;
-exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipViewerSheetStandalone({ clip, sessionId, onClose }, ref) {
+exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipViewerSheetStandalone({ clip, sessionId, onClose, allClips, allNotes, onOpenClip }, ref) {
     const videoRef = (0, react_1.useRef)(null);
     const positionMsRef = (0, react_1.useRef)(0);
     const [clipSpeed, setClipSpeed] = (0, react_1.useState)(1);
@@ -103,6 +103,14 @@ exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipView
         : clip?.clip_type === 'MINE'
             ? { label: 'MINE', backgroundColor: '#e8a87c' }
             : null;
+    const selectedParentClipId = clip?.parent_clip_id ?? null;
+    const selectedTriggeredByNoteId = clip?.triggered_by_note_id ?? null;
+    const parentClip = selectedParentClipId && allClips
+        ? allClips.find((candidate) => candidate.server_id === selectedParentClipId) ?? null
+        : null;
+    const inspiredNote = selectedTriggeredByNoteId && allNotes
+        ? allNotes.find((note) => note.id === selectedTriggeredByNoteId) ?? null
+        : null;
     const renderBackdrop = (props) => (<bottom_sheet_1.BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} pressBehavior="close"/>);
     return (<bottom_sheet_1.default ref={ref} index={-1} snapPoints={['50%', '85%']} enablePanDownToClose onClose={onClose} backdropComponent={renderBackdrop}>
         {clip ? (<>
@@ -156,6 +164,18 @@ exports.ClipViewerSheetStandalone = react_1.default.forwardRef(function ClipView
             </react_native_1.View>
             {/* Light zone */}
             <react_native_1.View style={styles.lightZone}>
+              {(parentClip || inspiredNote) && (<react_native_1.View style={styles.lineageContainer}>
+                  {parentClip && (<react_native_1.TouchableOpacity style={styles.parentClipRow} onPress={() => onOpenClip?.(parentClip)} disabled={!onOpenClip}>
+                      <react_native_1.Text style={styles.parentClipText}>
+                        From: <react_native_1.Text style={styles.parentClipLabel}>{parentClip.label || 'Untitled Clip'}</react_native_1.Text> {'\u2192'}
+                      </react_native_1.Text>
+                    </react_native_1.TouchableOpacity>)}
+                  {inspiredNote && (<react_native_1.View style={styles.inspiredNoteRow}>
+                      <react_native_1.Text style={styles.inspiredNoteText}>
+                        Inspired by note: {inspiredNote.text}
+                      </react_native_1.Text>
+                    </react_native_1.View>)}
+                </react_native_1.View>)}
               {/* Loop chips - only show if clip has source_url */}
               {clip?.mux_playback_id && (<LoopChipRow_1.default sessionId={sessionId} sourceUrl={`https://stream.mux.com/${clip.mux_playback_id}`} currentPositionMs={positionMsRef.current} onSeek={handleLoopChipPress} onActiveLoopChange={setActiveLoop}/>)}
             </react_native_1.View>
@@ -298,6 +318,32 @@ const styles = react_native_1.StyleSheet.create({
         backgroundColor: colors.ground,
         padding: 16,
         paddingTop: 8,
+    },
+    lineageContainer: {
+        borderTopWidth: 0.5,
+        borderTopColor: '#e8e3dc',
+        paddingTop: 10,
+        marginBottom: 12,
+        gap: 8,
+    },
+    parentClipRow: {
+        paddingVertical: 2,
+    },
+    parentClipText: {
+        color: colors.muted,
+        fontSize: 13,
+    },
+    parentClipLabel: {
+        color: colors.ink,
+        fontWeight: '700',
+    },
+    inspiredNoteRow: {
+        paddingVertical: 2,
+    },
+    inspiredNoteText: {
+        color: colors.muted,
+        fontSize: 13,
+        fontStyle: 'italic',
     },
     emptyContainer: {
         flex: 1,

@@ -15,10 +15,12 @@
     "@roam/db": "workspace:*",
     "@roam/types": "workspace:*",
     "hono": "^4.6.0",
+    "pdfkit": "^0.17.2",
     "stripe": "^16.12.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/pdfkit": "^0.17.5",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0"
   }

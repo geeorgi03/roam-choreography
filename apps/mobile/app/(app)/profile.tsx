@@ -17,10 +17,12 @@ import type { Plan } from '@roam/types';
 type SupabaseClient = Awaited<typeof import('../../lib/supabase')>['supabase'];
 
 import { API_BASE, getApiBaseOverride, setApiBaseOverride } from '../../lib/api';
+import { useTranslation } from '../../lib/i18n';
 const SUCCESS_URL = 'https://roamdance.com/billing/success';
 const PORTAL_RETURN_URL = 'https://roamdance.com/profile';
 
 export default function ProfileScreen() {
+  const { t } = useTranslation();
   const { session } = useSession();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,13 +131,15 @@ export default function ProfileScreen() {
   const handleSaveApiUrl = () => {
     const trimmed = apiUrlInput.trim();
     if (trimmed && !trimmed.startsWith('http')) {
-      Alert.alert('Invalid URL', 'API URL must start with http:// or https://');
+      Alert.alert(t('profile.invalidUrl'), t('profile.invalidUrlMsg'));
       return;
     }
     setApiBaseOverride(trimmed || null);
     Alert.alert(
-      trimmed ? 'API URL Updated' : 'API URL Reset',
-      trimmed ? `API calls will now use:\n${trimmed}` : `Using default: ${API_BASE}`,
+      trimmed ? t('profile.apiUrlUpdated') : t('profile.apiUrlReset'),
+      trimmed
+        ? t('profile.apiCallsNowUse').replace('{url}', trimmed)
+        : t('profile.apiUrlResetBody').replace('{url}', API_BASE),
     );
   };
 
@@ -147,12 +151,21 @@ export default function ProfileScreen() {
     );
   }
 
-  const planLabel = plan === 'free' ? 'Free' : plan === 'creator' ? 'Creator' : plan === 'pro' ? 'Pro' : plan === 'studio' ? 'Studio' : 'Free';
+  const planLabel =
+    plan === 'free'
+      ? t('profile.planFree')
+      : plan === 'creator'
+        ? t('profile.planCreator')
+        : plan === 'pro'
+          ? t('profile.planPro')
+          : plan === 'studio'
+            ? t('profile.planStudio')
+            : t('profile.planFree');
 
   return (
     <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.container}>
       <View style={styles.section}>
-        <Text style={styles.label}>Current plan</Text>
+        <Text style={styles.label}>{t('profile.currentPlan')}</Text>
         <TouchableOpacity onPress={handleDevTap} activeOpacity={1}>
           <View style={[styles.planBadge, plan !== 'free' && styles.planBadgePaid]}>
             <Text style={styles.planText}>{planLabel}</Text>
@@ -169,7 +182,7 @@ export default function ProfileScreen() {
           {checkoutLoading ? (
             <ActivityIndicator color={theme.light.active} size="small" />
           ) : (
-            <Text style={styles.buttonText}>Upgrade</Text>
+            <Text style={styles.buttonText}>{t('profile.upgrade')}</Text>
           )}
         </TouchableOpacity>
       )}
@@ -183,21 +196,24 @@ export default function ProfileScreen() {
           {portalLoading ? (
             <ActivityIndicator color={theme.light.active} size="small" />
           ) : (
-            <Text style={styles.buttonText}>Manage subscription</Text>
+            <Text style={styles.buttonText}>{t('profile.manageSubscription')}</Text>
           )}
         </TouchableOpacity>
       )}
 
       {showDev && (
         <View style={styles.devSection}>
-          <Text style={styles.devTitle}>Developer Settings</Text>
-          <Text style={styles.devLabel}>API Base URL</Text>
-          <Text style={styles.devHint}>Current: {API_BASE}</Text>
+          <Text style={styles.devTitle}>{t('profile.devSettings')}</Text>
+          <Text style={styles.devLabel}>{t('profile.devApiBaseUrl')}</Text>
+          <Text style={styles.devHint}>
+            {t('profile.devCurrent')}
+            {API_BASE}
+          </Text>
           <TextInput
             style={styles.devInput}
             value={apiUrlInput}
             onChangeText={setApiUrlInput}
-            placeholder="https://your-api.railway.app"
+            placeholder={t('profile.devApiBaseUrlPlaceholder')}
             placeholderTextColor={theme.light.muted}
             autoCapitalize="none"
             autoCorrect={false}
@@ -205,13 +221,17 @@ export default function ProfileScreen() {
           />
           <View style={styles.devButtonRow}>
             <TouchableOpacity style={styles.devButton} onPress={handleSaveApiUrl}>
-              <Text style={styles.devButtonText}>Save</Text>
+              <Text style={styles.devButtonText}>{t('profile.devSave')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.devButton, styles.devButtonSecondary]}
-              onPress={() => { setApiUrlInput(''); setApiBaseOverride(null); Alert.alert('Reset', 'Using default API URL'); }}
+              onPress={() => {
+                setApiUrlInput('');
+                setApiBaseOverride(null);
+                Alert.alert(t('profile.devReset'), t('profile.devResetMsg'));
+              }}
             >
-              <Text style={styles.devButtonText}>Reset</Text>
+              <Text style={styles.devButtonText}>{t('profile.devReset')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -232,11 +252,11 @@ export default function ProfileScreen() {
 
             router.replace('/auth/sign-in');
           } catch (e) {
-            Alert.alert('Sign out failed', 'Please try again');
+            Alert.alert(t('profile.signOutFailed'), t('profile.signOutFailedMsg'));
           }
         }}
       >
-        <Text style={styles.signOutButtonText}>Sign out</Text>
+        <Text style={styles.signOutButtonText}>{t('profile.signOut')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

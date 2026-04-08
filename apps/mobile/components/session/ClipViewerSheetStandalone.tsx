@@ -4,6 +4,7 @@ import BottomSheet, { BottomSheetBackdrop } from '@gorhom/bottom-sheet';
 import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
 import type { ClipRow } from '../../lib/database';
 import type { Loop } from '@roam/types';
+import type { NotePin } from '../../lib/hooks/useNotePins';
 import { theme } from '../../lib/theme';
 import LoopChipRow from './LoopChipRow';
 
@@ -14,10 +15,13 @@ interface ClipViewerSheetStandaloneProps {
   clip: ClipRow | null;
   sessionId: string | null;
   onClose: () => void;
+  allClips?: ClipRow[];
+  allNotes?: NotePin[];
+  onOpenClip?: (clip: ClipRow) => void;
 }
 
 export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewerSheetStandaloneProps>(
-  function ClipViewerSheetStandalone({ clip, sessionId, onClose }, ref) {
+  function ClipViewerSheetStandalone({ clip, sessionId, onClose, allClips, allNotes, onOpenClip }, ref) {
     const videoRef = useRef<Video>(null);
     const positionMsRef = useRef<number>(0);
     const [clipSpeed, setClipSpeed] = useState(1);
@@ -95,6 +99,14 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
         : clip?.clip_type === 'MINE'
           ? { label: 'MINE', backgroundColor: '#e8a87c' }
           : null;
+    const selectedParentClipId = clip?.parent_clip_id ?? null;
+    const selectedTriggeredByNoteId = clip?.triggered_by_note_id ?? null;
+    const parentClip = selectedParentClipId && allClips
+      ? allClips.find((candidate) => candidate.server_id === selectedParentClipId) ?? null
+      : null;
+    const inspiredNote = selectedTriggeredByNoteId && allNotes
+      ? allNotes.find((note) => note.id === selectedTriggeredByNoteId) ?? null
+      : null;
 
     const renderBackdrop = (props: any) => (
       <BottomSheetBackdrop
@@ -187,6 +199,28 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
             </View>
             {/* Light zone */}
             <View style={styles.lightZone}>
+              {(parentClip || inspiredNote) && (
+                <View style={styles.lineageContainer}>
+                  {parentClip && (
+                    <TouchableOpacity
+                      style={styles.parentClipRow}
+                      onPress={() => onOpenClip?.(parentClip)}
+                      disabled={!onOpenClip}
+                    >
+                      <Text style={styles.parentClipText}>
+                        From: <Text style={styles.parentClipLabel}>{parentClip.label || 'Untitled Clip'}</Text> {'\u2192'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {inspiredNote && (
+                    <View style={styles.inspiredNoteRow}>
+                      <Text style={styles.inspiredNoteText}>
+                        Inspired by note: {inspiredNote.text}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
               {/* Loop chips - only show if clip has source_url */}
               {clip?.mux_playback_id && (
                 <LoopChipRow
@@ -343,6 +377,32 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ground,
     padding: 16,
     paddingTop: 8,
+  },
+  lineageContainer: {
+    borderTopWidth: 0.5,
+    borderTopColor: '#e8e3dc',
+    paddingTop: 10,
+    marginBottom: 12,
+    gap: 8,
+  },
+  parentClipRow: {
+    paddingVertical: 2,
+  },
+  parentClipText: {
+    color: colors.muted,
+    fontSize: 13,
+  },
+  parentClipLabel: {
+    color: colors.ink,
+    fontWeight: '700',
+  },
+  inspiredNoteRow: {
+    paddingVertical: 2,
+  },
+  inspiredNoteText: {
+    color: colors.muted,
+    fontSize: 13,
+    fontStyle: 'italic',
   },
   emptyContainer: {
     flex: 1,

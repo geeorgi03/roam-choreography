@@ -1,9 +1,11 @@
 import React from 'react';
 import { Audio } from 'expo-av';
+import type { Session } from '@supabase/supabase-js';
 import { ClipRow } from '../database';
 import { FormationData, Moment, QualityData, SectionClip } from '@roam/types';
 import { type ConnectionStatus } from '../hooks/useMoments';
 export interface SessionContextValue {
+    session: Session | null;
     sessionId: string;
     sessionName: string;
     sessionPhrase: string | null;

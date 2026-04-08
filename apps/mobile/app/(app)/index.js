@@ -15,6 +15,7 @@ const react_native_mmkv_1 = require("react-native-mmkv");
 const netinfo_1 = __importDefault(require("@react-native-community/netinfo"));
 const api_1 = require("../../lib/api");
 const sessionCache_1 = require("../../lib/sessionCache");
+const i18n_1 = require("../../lib/i18n");
 const homeStorage = new react_native_mmkv_1.MMKV({ id: 'home-state' });
 const LAST_SESSION_KEY = 'last_session_id';
 const colors = theme_1.theme.light;
@@ -30,6 +31,7 @@ function mapCachedToSession(cached) {
     };
 }
 function HomeScreen() {
+    const { t } = (0, i18n_1.useTranslation)();
     const { session } = (0, useSession_1.useSession)();
     const createSheetRef = (0, react_1.useRef)(null);
     const firstSessionSheetRef = (0, react_1.useRef)(null);
@@ -160,11 +162,11 @@ function HomeScreen() {
         const now = new Date();
         const diffDays = Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
         if (diffDays === 0)
-            return 'Today';
+            return t('home.today');
         if (diffDays === 1)
-            return 'Yesterday';
+            return t('home.yesterday');
         if (diffDays < 7)
-            return `${diffDays} days ago`;
+            return t('home.daysAgo').replace('{count}', String(diffDays));
         return d.toLocaleDateString();
     };
     return (<react_native_1.View style={styles.container}>
@@ -172,24 +174,24 @@ function HomeScreen() {
           <react_native_1.View style={styles.empty}>
             {loading ? (<>
                 <react_native_1.ActivityIndicator size="small" color={colors.active} style={{ marginBottom: 12 }}/>
-                <react_native_1.Text style={styles.subtitle}>Loading…</react_native_1.Text>
+                <react_native_1.Text style={styles.subtitle}>{t('home.loading')}</react_native_1.Text>
               </>) : (<>
-                <react_native_1.Text style={styles.title}>What do you want to do?</react_native_1.Text>
+                <react_native_1.Text style={styles.title}>{t('home.whatToDo')}</react_native_1.Text>
                 <react_native_1.View style={styles.twoDoorRow}>
                   <react_native_1.TouchableOpacity style={styles.doorCard} onPress={() => expo_router_1.router.push('/library')} activeOpacity={0.85}>
                     <react_native_1.Text style={styles.doorIcon}>📚</react_native_1.Text>
-                    <react_native_1.Text style={styles.doorTitle}>Browse library</react_native_1.Text>
-                    <react_native_1.Text style={styles.doorSub}>Explore your collection</react_native_1.Text>
+                    <react_native_1.Text style={styles.doorTitle}>{t('home.browseLibrary')}</react_native_1.Text>
+                    <react_native_1.Text style={styles.doorSub}>{t('home.exploreCollection')}</react_native_1.Text>
                   </react_native_1.TouchableOpacity>
                   <react_native_1.TouchableOpacity style={styles.doorCard} onPress={() => firstSessionSheetRef.current?.snapToIndex(0)} activeOpacity={0.85}>
                     <react_native_1.Text style={styles.doorIcon}>🎵</react_native_1.Text>
-                    <react_native_1.Text style={styles.doorTitle}>Start a session</react_native_1.Text>
-                    <react_native_1.Text style={styles.doorSub}>Name it, add a video, go.</react_native_1.Text>
+                    <react_native_1.Text style={styles.doorTitle}>{t('home.startSession')}</react_native_1.Text>
+                    <react_native_1.Text style={styles.doorSub}>{t('home.startSessionSub')}</react_native_1.Text>
                   </react_native_1.TouchableOpacity>
                 </react_native_1.View>
                 {inboxCount > 0 ? (<react_native_1.TouchableOpacity style={styles.inboxPill} onPress={() => expo_router_1.router.push('/inbox')} activeOpacity={0.85}>
                     <react_native_1.Text style={styles.inboxPillText}>
-                      {inboxCount} unorganised clips →
+                      {t('home.unorganisedClips').replace('{count}', String(inboxCount))}
                     </react_native_1.Text>
                   </react_native_1.TouchableOpacity>) : null}
               </>)}
@@ -197,14 +199,25 @@ function HomeScreen() {
         </react_native_1.ScrollView>) : (<react_native_1.View style={{ flex: 1 }}>
           {inboxCount > 0 ? (<react_native_1.TouchableOpacity style={styles.inboxBanner} onPress={() => expo_router_1.router.push('/inbox')} activeOpacity={0.85}>
               <react_native_1.View style={styles.inboxDot}/>
-              <react_native_1.Text style={styles.inboxBannerText}>{inboxCount} unorganised clips</react_native_1.Text>
+              <react_native_1.Text style={styles.inboxBannerText}>
+                {t('home.unorganisedClipsBanner').replace('{count}', String(inboxCount))}
+              </react_native_1.Text>
               <react_native_1.Text style={styles.inboxBannerChev}>›</react_native_1.Text>
             </react_native_1.TouchableOpacity>) : null}
           <react_native_1.FlatList data={sessions} keyExtractor={(item) => item.id} contentContainerStyle={styles.listContent} renderItem={({ item }) => (<react_native_1.TouchableOpacity style={styles.card} onPress={() => expo_router_1.router.push(`/session/${item.id}`)} activeOpacity={0.8}>
                 <react_native_1.Text style={styles.cardTitle}>{item.name}</react_native_1.Text>
-                <react_native_1.Text style={styles.cardDate}>{formatDate(item.created_at)}</react_native_1.Text>
+                <react_native_1.View style={styles.cardMeta}>
+                  <react_native_1.Text style={styles.cardMetaText}>
+                    {(item.clip_count ?? 0) === 0 && (item.section_count ?? 0) === 0
+                    ? 'No clips yet'
+                    : `${item.section_count ?? 0} sections · ${item.clip_count ?? 0} clips`}
+                  </react_native_1.Text>
+                  <react_native_1.Text style={[styles.cardMetaText, { flex: 1, textAlign: 'right' }]}>
+                    {formatDate(item.created_at)}
+                  </react_native_1.Text>
+                </react_native_1.View>
               </react_native_1.TouchableOpacity>)} ListFooterComponent={<react_native_1.TouchableOpacity style={styles.newSessionCard} onPress={() => createSheetRef.current?.snapToIndex(0)} activeOpacity={0.85}>
-                <react_native_1.Text style={styles.newSessionText}>+ New session</react_native_1.Text>
+                <react_native_1.Text style={styles.newSessionText}>{t('home.newSession')}</react_native_1.Text>
               </react_native_1.TouchableOpacity>}/>
 
           <react_native_1.TouchableOpacity style={styles.fab} onPress={() => expo_router_1.router.push('/session/camera')} activeOpacity={0.9}>
@@ -219,11 +232,11 @@ function HomeScreen() {
     </react_native_1.View>);
 }
 exports.default = HomeScreen;
-const t = theme_1.theme.light;
+const themeColors = theme_1.theme.light;
 const styles = react_native_1.StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: t.ground,
+        backgroundColor: themeColors.ground,
     },
     emptyScroll: {
         flexGrow: 1,
@@ -302,7 +315,7 @@ const styles = react_native_1.StyleSheet.create({
         width: 10,
         height: 10,
         borderRadius: 5,
-        backgroundColor: '#4ECDC4',
+        backgroundColor: colors.mine,
         marginRight: 10,
     },
     inboxBannerText: { color: colors.active, fontSize: 14, fontWeight: '700', flex: 1 },
@@ -321,7 +334,13 @@ const styles = react_native_1.StyleSheet.create({
         color: colors.active,
         marginBottom: 4,
     },
-    cardDate: {
+    cardMeta: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    cardMetaText: {
         fontSize: 12,
         color: colors.muted,
     },
@@ -344,7 +363,7 @@ const styles = react_native_1.StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: t.capture,
+        backgroundColor: themeColors.capture,
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: '#000',

@@ -6,10 +6,12 @@ const theme_1 = require("../../lib/theme");
 const ClipCard_1 = require("../../components/ClipCard");
 const useSession_1 = require("../../lib/hooks/useSession");
 const ClipViewerSheetStandalone_1 = require("../../components/session/ClipViewerSheetStandalone");
+const i18n_1 = require("../../lib/i18n");
 const api_1 = require("../../lib/api");
 const colors = theme_1.theme.light;
 const spacing = theme_1.theme.spacing;
 function LibraryScreen() {
+    const { t } = (0, i18n_1.useTranslation)();
     const { session } = (0, useSession_1.useSession)();
     const token = session?.access_token ?? null;
     const currentUserId = session?.user?.id ?? null;
@@ -168,7 +170,7 @@ function LibraryScreen() {
       <react_native_1.FlatList data={filteredClips} keyExtractor={(item) => item.local_id ?? item.id} contentContainerStyle={filteredClips.length === 0 ? styles.emptyList : styles.listContent} ListHeaderComponent={<react_native_1.View style={styles.header}>
             <react_native_1.View style={styles.searchRow}>
               <react_native_1.Text style={styles.searchIcon}>🔍</react_native_1.Text>
-              <react_native_1.TextInput style={styles.searchInput} placeholder="Search clips…" placeholderTextColor={colors.muted} value={q} onChangeText={setQ} autoCapitalize="none" autoCorrect={false}/>
+              <react_native_1.TextInput style={styles.searchInput} placeholder={t('library.searchPlaceholder')} placeholderTextColor={colors.muted} value={q} onChangeText={setQ} autoCapitalize="none" autoCorrect={false}/>
             </react_native_1.View>
 
             <react_native_1.View style={styles.segmented}>
@@ -176,7 +178,13 @@ function LibraryScreen() {
                 const active = filterSegment === seg;
                 return (<react_native_1.TouchableOpacity key={seg} style={[styles.segment, active && styles.segmentActive]} onPress={() => setFilterSegment(seg)} activeOpacity={0.85}>
                     <react_native_1.Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                      {seg}
+                      {t(`library.filter${seg === 'All'
+                        ? 'All'
+                        : seg === 'REF'
+                            ? 'Ref'
+                            : seg === 'MINE'
+                                ? 'Mine'
+                                : 'Shared'}`)}
                     </react_native_1.Text>
                   </react_native_1.TouchableOpacity>);
             })}
@@ -185,16 +193,16 @@ function LibraryScreen() {
               <react_native_1.ActivityIndicator color={colors.active}/>
             </react_native_1.View>) : (<react_native_1.View style={styles.emptyWarm}>
               <react_native_1.Text style={styles.emptyIcon}>📂</react_native_1.Text>
-              <react_native_1.Text style={styles.emptyTitle}>No clips yet</react_native_1.Text>
+              <react_native_1.Text style={styles.emptyTitle}>{t('library.noClips')}</react_native_1.Text>
               <react_native_1.TouchableOpacity style={styles.emptyCta} onPress={() => { }} activeOpacity={0.85}>
-                <react_native_1.Text style={styles.emptyCtaText}>Start recording</react_native_1.Text>
+                <react_native_1.Text style={styles.emptyCtaText}>{t('library.startRecording')}</react_native_1.Text>
               </react_native_1.TouchableOpacity>
             </react_native_1.View>)} renderItem={({ item }) => {
             const clipRow = toClipRow(item);
             return (<ClipCard_1.ClipCard clip={clipRow} onPress={() => openClipSheet(item)} onLongPress={() => { }}/>);
         }} ListFooterComponent={nextCursor ? (<react_native_1.View style={styles.footer}>
               <react_native_1.TouchableOpacity style={[styles.loadMoreBtn, loadingMore && styles.loadMoreBtnDisabled]} onPress={loadMore} disabled={loadingMore} activeOpacity={0.8}>
-                {loadingMore ? (<react_native_1.ActivityIndicator color={colors.active} size="small"/>) : (<react_native_1.Text style={styles.loadMoreText}>Load more</react_native_1.Text>)}
+                {loadingMore ? (<react_native_1.ActivityIndicator color={colors.active} size="small"/>) : (<react_native_1.Text style={styles.loadMoreText}>{t('library.loadMore')}</react_native_1.Text>)}
               </react_native_1.TouchableOpacity>
             </react_native_1.View>) : (<react_native_1.View style={{ height: 24 }}/>)}/>
       
@@ -202,11 +210,11 @@ function LibraryScreen() {
     </react_native_1.View>);
 }
 exports.default = LibraryScreen;
-const t = theme_1.theme.light;
+const themeColors = theme_1.theme.light;
 const styles = react_native_1.StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: t.ground,
+        backgroundColor: themeColors.ground,
     },
     header: {
         paddingHorizontal: 16,
