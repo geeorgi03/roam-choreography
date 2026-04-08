@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { theme } from '../../lib/theme';
 import type { Session } from '@roam/types';
 import { useSession } from '../../lib/hooks/useSession';
+import { FirstSessionSheet } from '../../components/FirstSessionSheet';
 import { CreateSessionSheet } from '../../components/CreateSessionSheet';
 import { PaywallSheet } from '../../components/PaywallSheet';
 import BottomSheet from '@gorhom/bottom-sheet';
@@ -43,6 +44,7 @@ function mapCachedToSession(
 export default function HomeScreen() {
   const { session } = useSession();
   const createSheetRef = useRef<BottomSheet | null>(null);
+  const firstSessionSheetRef = useRef<BottomSheet | null>(null);
   const paywallSheetRef = useRef<BottomSheet | null>(null);
   const redirected = useRef<boolean>(false);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -206,12 +208,12 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.doorCard}
-                    onPress={() => createSheetRef.current?.snapToIndex(0)}
+                    onPress={() => firstSessionSheetRef.current?.snapToIndex(0)}
                     activeOpacity={0.85}
                   >
                     <Text style={styles.doorIcon}>🎵</Text>
                     <Text style={styles.doorTitle}>Start a session</Text>
-                    <Text style={styles.doorSub}>I have a song to work with</Text>
+                    <Text style={styles.doorSub}>Name it, add a video, go.</Text>
                   </TouchableOpacity>
                 </View>
                 {inboxCount > 0 ? (
@@ -278,6 +280,11 @@ export default function HomeScreen() {
       )}
       {sheetsReady && (
         <>
+          <FirstSessionSheet
+            bottomSheetRef={firstSessionSheetRef}
+            onCreated={handleCreated}
+            onPaywallRequired={() => paywallSheetRef.current?.snapToIndex(0)}
+          />
           <CreateSessionSheet
             bottomSheetRef={createSheetRef}
             onCreated={handleCreated}
