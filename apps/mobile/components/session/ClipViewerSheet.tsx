@@ -236,6 +236,13 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     setPlayheadFraction(status.durationMillis ? status.positionMillis / status.durationMillis : 0);
   };
 
+  const clipTypeBadge =
+    selectedClipForSheet.clip_type === 'REF'
+      ? { label: 'REF', backgroundColor: '#7db9a8' }
+      : selectedClipForSheet.clip_type === 'MINE'
+        ? { label: 'MINE', backgroundColor: '#e8a87c' }
+        : null;
+
   return (
     <BottomSheet
       ref={ref}
@@ -249,6 +256,11 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.clipLabel}>{selectedClipForSheet.label || 'Untitled Clip'}</Text>
+          {clipTypeBadge && (
+            <View style={[styles.typeBadge, { backgroundColor: clipTypeBadge.backgroundColor }]}>
+              <Text style={styles.typeBadgeText}>{clipTypeBadge.label}</Text>
+            </View>
+          )}
           <View style={styles.mirrorPill}>
             <Text style={styles.mirrorPillText}>mirror</Text>
           </View>
@@ -448,6 +460,18 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  typeBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  typeBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: theme.typography.monoFamily,
   },
   videoContainer: {
     height: 200,

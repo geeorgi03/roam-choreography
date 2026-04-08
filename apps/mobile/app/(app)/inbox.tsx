@@ -12,6 +12,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import Toast from 'react-native-toast-message';
 import { theme } from '../../lib/theme';
 import { useInbox, type InboxClip } from '../../lib/hooks/useInbox';
+import { useInboxCount } from '../../lib/contexts/InboxCountContext';
 import { AssignPickerSheet, type SessionListItem } from '../../components/AssignPickerSheet';
 import { CreateSessionSheet } from '../../components/CreateSessionSheet';
 
@@ -33,6 +34,7 @@ export default function InboxScreen() {
   const { sessionId: originSessionId, sectionName: originSectionName } =
     useLocalSearchParams<{ sessionId?: string; sectionName?: string }>();
   const { clips, loading, staleClips, assignClip, deleteClip, refresh } = useInbox();
+  const { refreshCount } = useInboxCount();
   const assignSheetRef = useRef<BottomSheet | null>(null);
   const createSheetRef = useRef<BottomSheet | null>(null);
   const [selectedClip, setSelectedClip] = useState<InboxClip | null>(null);
@@ -55,7 +57,10 @@ export default function InboxScreen() {
   const onPickSession = async (s: SessionListItem) => {
     if (!selectedClip) return false;
     const ok = await assignClip(selectedClip.id, s.id);
-    if (ok) Toast.show({ type: 'success', text1: `Added to ${s.name}` });
+    if (ok) {
+      Toast.show({ type: 'success', text1: `Added to ${s.name}` });
+      refreshCount().catch(() => {});
+    }
     return ok;
   };
 
@@ -104,6 +109,7 @@ export default function InboxScreen() {
                     type: 'success',
                     text1: `Added to ${sectionContext.sectionName}`,
                   });
+                  refreshCount().catch(() => {});
                   router.replace({
                     pathname: `/session/${sectionContext.sessionId}`,
                     params: { sectionName: sectionContext.sectionName },
@@ -120,7 +126,11 @@ export default function InboxScreen() {
             style={[styles.actionBtn, styles.deleteBtn]}
             onPress={async () => {
               const ok = await deleteClip(item.id);
-              if (!ok) Toast.show({ type: 'error', text1: 'Failed to delete' });
+              if (!ok) {
+                Toast.show({ type: 'error', text1: 'Failed to delete' });
+                return;
+              }
+              refreshCount().catch(() => {});
             }}
           >
             <Text style={styles.actionText}>🗑</Text>
@@ -133,7 +143,6 @@ export default function InboxScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.handle} />
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>
             {sectionContext ? `Pick for ${sectionContext.sectionName}` : 'Inbox'}
@@ -155,14 +164,17 @@ export default function InboxScreen() {
       {sectionContext ? (
         <View style={styles.nudge}>
           <Text style={styles.nudgeText}>
-            Picking for <Text style={{ color: theme.textPrimary, fontWeight: '800' }}>{sectionContext.sectionName}</Text>
+            Picking for{' '}
+            <Text style={{ color: theme.light.active, fontWeight: '800' }}>
+              {sectionContext.sectionName}
+            </Text>
           </Text>
         </View>
       ) : null}
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={theme.textPrimary} />
+          <ActivityIndicator color={theme.light.active} />
         </View>
       ) : clips.length === 0 ? (
         <View style={styles.empty}>
@@ -192,7 +204,11 @@ export default function InboxScreen() {
         onCreated={(s) => {
           Toast.show({ type: 'success', text1: 'Session created' });
           if (!selectedClip) return;
-          assignClip(selectedClip.id, s.id).catch(() => {});
+          assignClip(selectedClip.id, s.id)
+            .then((ok) => {
+              if (ok) refreshCount().catch(() => {});
+            })
+            .catch(() => {});
         }}
       />
     </View>
@@ -200,38 +216,29 @@ export default function InboxScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.background },
+  container: { flex: 1, backgroundColor: theme.light.ground },
   header: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 8 },
-  handle: {
-    alignSelf: 'center',
-    width: 48,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: theme.textSecondary,
-    marginBottom: 10,
-    opacity: 0.6,
-  },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: theme.textPrimary },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: theme.light.active },
   badge: {
-    backgroundColor: '#222',
+    backgroundColor: theme.light.chrome,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: theme.light.border,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  badgeText: { color: theme.textPrimary, fontWeight: '700' },
+  badgeText: { color: theme.light.active, fontWeight: '700' },
   nudge: {
     marginHorizontal: 16,
     marginBottom: 10,
     padding: 12,
     borderRadius: theme.borderRadius,
     borderWidth: 1,
-    borderColor: '#2A2A32',
-    backgroundColor: '#1B1B22',
+    borderColor: theme.light.border,
+    backgroundColor: theme.light.chrome,
   },
-  nudgeText: { color: theme.textSecondary, fontSize: 14 },
+  nudgeText: { color: theme.light.muted, fontSize: 14 },
   listContent: { padding: 16, paddingTop: 8, gap: 10 },
   row: {
     flexDirection: 'row',
@@ -241,31 +248,31 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: theme.borderRadius,
     borderWidth: 1,
-    borderColor: '#2A2A32',
-    backgroundColor: '#1B1B22',
+    borderColor: theme.light.border,
+    backgroundColor: theme.light.chrome,
   },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   typeIcon: { fontSize: 18 },
-  rowTitle: { color: theme.textPrimary, fontSize: 15, fontWeight: '700' },
-  rowMeta: { color: theme.textSecondary, fontSize: 12, marginTop: 2 },
+  rowTitle: { color: theme.light.active, fontSize: 15, fontWeight: '700' },
+  rowMeta: { color: theme.light.muted, fontSize: 12, marginTop: 2 },
   actions: { flexDirection: 'row', gap: 8 },
   actionBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
-    backgroundColor: '#222',
+    borderColor: theme.light.border,
+    backgroundColor: theme.light.chrome,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionBtnDisabled: { opacity: 0.4 },
-  deleteBtn: { borderColor: '#e57373' },
-  actionText: { color: theme.textPrimary, fontSize: 14 },
+  deleteBtn: { borderColor: theme.light.capture },
+  actionText: { color: theme.light.active, fontSize: 14 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyIcon: { fontSize: 42, marginBottom: 12 },
-  emptyTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: '800', marginBottom: 8 },
-  emptySub: { color: theme.textSecondary, fontSize: 14, textAlign: 'center' },
+  emptyTitle: { color: theme.light.active, fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  emptySub: { color: theme.light.muted, fontSize: 14, textAlign: 'center' },
 });
 

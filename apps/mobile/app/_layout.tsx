@@ -24,6 +24,7 @@ import { drainQueue } from '../lib/writeQueue';
 import OfflineBanner from '../components/OfflineBanner';
 import NetInfo from '@react-native-community/netinfo';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { InboxCountProvider } from '../lib/contexts/InboxCountContext';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -367,7 +368,9 @@ function RootNavigator() {
   return (
     <>
       <ErrorBoundary>
-        <Stack screenOptions={{ headerShown: false }} />
+        <InboxCountProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </InboxCountProvider>
       </ErrorBoundary>
       <Toast />
       <OfflineBanner />

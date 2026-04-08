@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
-  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { theme } from '../../lib/theme';
@@ -20,13 +19,10 @@ import { API_BASE } from '../../lib/api';
 const colors = theme.light;
 const spacing = theme.spacing;
 
-const STYLES = ['Hip-hop', 'Contemporary', 'Ballet', 'Jazz', 'Fusion', 'Other'] as const;
-const ENERGY_LEVELS = ['Low', 'Medium', 'High', 'Explosive'] as const;
-const DIFFICULTY_LEVELS = ['Beginner', 'Intermediate', 'Advanced'] as const;
-
 export default function LibraryScreen() {
   const { session } = useSession();
   const token = session?.access_token ?? null;
+  const currentUserId = session?.user?.id ?? null;
 
   const [clips, setClips] = useState<Clip[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -36,11 +32,7 @@ export default function LibraryScreen() {
 
   const [q, setQ] = useState<string>('');
   const [debouncedQ, setDebouncedQ] = useState<string>('');
-  const [filterStyle, setFilterStyle] = useState<string | null>(null);
-  const [filterEnergy, setFilterEnergy] = useState<string | null>(null);
-  const [filterDifficulty, setFilterDifficulty] = useState<string | null>(null);
-  const [bpmMin, setBpmMin] = useState<string>('');
-  const [bpmMax, setBpmMax] = useState<string>('');
+  const [filterSegment, setFilterSegment] = useState<'All' | 'REF' | 'MINE' | 'Shared'>('All');
 
   const clipSheetRef = useRef<any>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,11 +58,6 @@ export default function LibraryScreen() {
       const params = new URLSearchParams();
       params.set('limit', '20');
       if (debouncedQ.trim()) params.set('q', debouncedQ.trim());
-      if (filterStyle) params.set('style', filterStyle);
-      if (filterEnergy) params.set('energy', filterEnergy);
-      if (filterDifficulty) params.set('difficulty', filterDifficulty);
-      if (bpmMin.trim()) params.set('bpm_min', bpmMin.trim());
-      if (bpmMax.trim()) params.set('bpm_max', bpmMax.trim());
       if (cursor) params.set('cursor', cursor);
 
       const res = await fetch(`${API_BASE}/library?${params.toString()}`, {
@@ -86,7 +73,7 @@ export default function LibraryScreen() {
       if (append) setClips((prev) => [...prev, ...incoming]);
       else setClips(incoming);
     },
-    [token, debouncedQ, filterStyle, filterEnergy, filterDifficulty, bpmMin, bpmMax]
+    [token, debouncedQ]
   );
 
   useEffect(() => {
@@ -176,20 +163,33 @@ export default function LibraryScreen() {
     clipSheetRef.current?.close();
   };
 
-  const anyFilter =
-    !!debouncedQ.trim() ||
-    !!filterStyle ||
-    !!filterEnergy ||
-    !!filterDifficulty ||
-    !!bpmMin.trim() ||
-    !!bpmMax.trim();
+  const filteredClips = useMemo((): Clip[] => {
+    if (filterSegment === 'All') return clips;
+    if (filterSegment === 'REF') {
+      return clips.filter((item) => (item as unknown as { clip_type?: string | null }).clip_type === 'REF');
+    }
+    if (filterSegment === 'Shared') {
+      return clips.filter((item) => {
+        const userId = (item as unknown as { user_id?: string | null }).user_id ?? null;
+        return !!currentUserId && !!userId && userId !== currentUserId;
+      });
+    }
+
+    // 'MINE'
+    return clips.filter((item) => {
+      const clipType = (item as unknown as { clip_type?: string | null }).clip_type ?? null;
+      const userId = (item as unknown as { user_id?: string | null }).user_id ?? null;
+      const mineType = clipType === 'MINE' || clipType === null;
+      return mineType && !!currentUserId && !!userId && userId === currentUserId;
+    });
+  }, [clips, filterSegment, currentUserId]);
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={clips}
+        data={filteredClips}
         keyExtractor={(item) => (item as unknown as { local_id?: string; id: string }).local_id ?? (item as unknown as { id: string }).id}
-        contentContainerStyle={clips.length === 0 ? styles.emptyList : styles.listContent}
+        contentContainerStyle={filteredClips.length === 0 ? styles.emptyList : styles.listContent}
         ListHeaderComponent={
           <View style={styles.header}>
             <View style={styles.searchRow}>
@@ -205,90 +205,22 @@ export default function LibraryScreen() {
               />
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
-              {STYLES.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[styles.chip, filterStyle === option && styles.chipSelected]}
-                  onPress={() =>
-                    setFilterStyle((prev) => (prev === option ? null : option))
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      filterStyle === option && styles.chipTextSelected,
-                    ]}
+            <View style={styles.segmented}>
+              {(['All', 'REF', 'MINE', 'Shared'] as const).map((seg) => {
+                const active = filterSegment === seg;
+                return (
+                  <TouchableOpacity
+                    key={seg}
+                    style={[styles.segment, active && styles.segmentActive]}
+                    onPress={() => setFilterSegment(seg)}
+                    activeOpacity={0.85}
                   >
-                    {option}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-
-              {ENERGY_LEVELS.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[styles.chip, filterEnergy === option && styles.chipSelected]}
-                  onPress={() =>
-                    setFilterEnergy((prev) => (prev === option ? null : option))
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      filterEnergy === option && styles.chipTextSelected,
-                    ]}
-                  >
-                    {option}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-
-              {DIFFICULTY_LEVELS.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={[
-                    styles.chip,
-                    filterDifficulty === option && styles.chipSelected,
-                  ]}
-                  onPress={() =>
-                    setFilterDifficulty((prev) => (prev === option ? null : option))
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      filterDifficulty === option && styles.chipTextSelected,
-                    ]}
-                  >
-                    {option}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <View style={styles.bpmRow}>
-              <Text style={styles.bpmLabel}>BPM:</Text>
-              <TextInput
-                style={styles.bpmInput}
-                placeholder="min"
-                placeholderTextColor={colors.muted}
-                value={bpmMin}
-                onChangeText={setBpmMin}
-                keyboardType="numeric"
-              />
-              <Text style={styles.bpmDash}>–</Text>
-              <TextInput
-                style={styles.bpmInput}
-                placeholder="max"
-                placeholderTextColor={colors.muted}
-                value={bpmMax}
-                onChangeText={setBpmMax}
-                keyboardType="numeric"
-              />
+                    <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                      {seg}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         }
@@ -297,16 +229,13 @@ export default function LibraryScreen() {
             <View style={styles.center}>
               <ActivityIndicator color={colors.active} />
             </View>
-          ) : anyFilter ? (
-            <View style={styles.center}>
-              <Text style={styles.icon}>📦</Text>
-              <Text style={styles.title}>No clips match your search</Text>
-            </View>
           ) : (
-            <View style={styles.center}>
-              <Text style={styles.icon}>📦</Text>
-              <Text style={styles.title}>No tagged clips yet</Text>
-              <Text style={styles.subtitle}>Start tagging to build your library</Text>
+            <View style={styles.emptyWarm}>
+              <Text style={styles.emptyIcon}>📂</Text>
+              <Text style={styles.emptyTitle}>No clips yet</Text>
+              <TouchableOpacity style={styles.emptyCta} onPress={() => {}} activeOpacity={0.85}>
+                <Text style={styles.emptyCtaText}>Start recording</Text>
+              </TouchableOpacity>
             </View>
           )
         }
@@ -384,54 +313,31 @@ const styles = StyleSheet.create({
     color: colors.active,
     fontSize: 16,
   },
-  filtersRow: {
-    paddingTop: 10,
-    paddingBottom: 6,
-    gap: 10,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: spacing.radiusMd,
-    backgroundColor: colors.chrome,
+  segmented: {
+    marginTop: 10,
+    flexDirection: 'row',
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
+    overflow: 'hidden',
   },
-  chipSelected: {
+  segment: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.chrome,
+  },
+  segmentActive: {
     backgroundColor: colors.mine,
   },
-  chipText: {
-    color: colors.muted,
+  segmentText: {
     fontSize: 13,
-    fontWeight: '600',
-  },
-  chipTextSelected: {
-    color: colors.active,
-  },
-  bpmRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingTop: 8,
-  },
-  bpmLabel: {
+    fontWeight: '700',
     color: colors.muted,
-    fontSize: 13,
-    fontWeight: '600',
   },
-  bpmInput: {
-    width: 80,
-    backgroundColor: colors.chrome,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: spacing.radiusMd,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  segmentTextActive: {
     color: colors.active,
-  },
-  bpmDash: {
-    color: colors.muted,
-    fontSize: 16,
   },
   listContent: {
     paddingBottom: 24,
@@ -446,21 +352,35 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
     paddingHorizontal: 24,
   },
-  icon: {
+  emptyWarm: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    backgroundColor: colors.amberBg,
+  },
+  emptyIcon: {
     fontSize: 48,
     marginBottom: 12,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
+  emptyTitle: {
+    fontFamily: theme.typography.displayFamily,
+    fontSize: 20,
     color: colors.active,
-    marginBottom: 8,
+    marginBottom: 14,
     textAlign: 'center',
   },
-  subtitle: {
+  emptyCta: {
+    backgroundColor: colors.mine,
+    borderRadius: spacing.radiusMd,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  emptyCtaText: {
+    color: colors.chrome,
     fontSize: 14,
-    color: colors.muted,
-    textAlign: 'center',
+    fontWeight: '800',
   },
   footer: {
     paddingHorizontal: 16,

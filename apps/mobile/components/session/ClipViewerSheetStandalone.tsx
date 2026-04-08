@@ -89,6 +89,13 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
       }
     };
 
+    const clipTypeBadge =
+      clip?.clip_type === 'REF'
+        ? { label: 'REF', backgroundColor: '#7db9a8' }
+        : clip?.clip_type === 'MINE'
+          ? { label: 'MINE', backgroundColor: '#e8a87c' }
+          : null;
+
     const renderBackdrop = (props: any) => (
       <BottomSheetBackdrop
         {...props}
@@ -113,6 +120,11 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
             <View style={styles.darkZone}>
               <View style={styles.header}>
                 <Text style={styles.clipLabel}>{clip.label || 'Untitled Clip'}</Text>
+                {clipTypeBadge && (
+                  <View style={[styles.typeBadge, { backgroundColor: clipTypeBadge.backgroundColor }]}>
+                    <Text style={styles.typeBadgeText}>{clipTypeBadge.label}</Text>
+                  </View>
+                )}
                 <View style={styles.libraryPill}>
                   <Text style={styles.libraryPillText}>library</Text>
                 </View>
@@ -225,6 +237,18 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  typeBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  typeBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: theme.typography.monoFamily,
   },
   videoContainer: {
     height: 200,

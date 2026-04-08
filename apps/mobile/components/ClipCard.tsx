@@ -80,7 +80,7 @@ export function ClipCard({ clip, onPress, onLongPress, onRetry, commentCount }: 
           )}
           {clip.upload_status === 'uploading' && (
             <View style={styles.pillRow}>
-              <ActivityIndicator size="small" color={theme.textSecondary} />
+              <ActivityIndicator size="small" color={theme.light.muted} />
               <Text style={styles.pillText}>{clip.upload_progress}%</Text>
             </View>
           )}
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#222',
+    borderBottomColor: theme.light.border,
   },
   thumbWrap: {
     width: 56,
@@ -138,19 +138,21 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 6,
-    backgroundColor: '#333',
+    backgroundColor: theme.light.chrome,
+    borderWidth: 1,
+    borderColor: theme.light.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   thumbIcon: {
-    color: theme.textSecondary,
+    color: theme.light.muted,
     fontSize: 20,
   },
   voiceMemoThumb: {
     width: 56,
     height: 56,
     borderRadius: 6,
-    backgroundColor: theme.capture,
+    backgroundColor: theme.light.capture,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -163,7 +165,8 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.textPrimary,
+    fontFamily: theme.typography.displayFamily,
+    color: theme.light.active,
     marginBottom: 4,
   },
   meta: {
@@ -174,13 +177,16 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 12,
-    color: theme.textSecondary,
+    fontFamily: theme.typography.monoFamily,
+    color: theme.light.muted,
   },
   pill: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: '#333',
+    backgroundColor: theme.light.chrome,
+    borderWidth: 1,
+    borderColor: theme.light.border,
   },
   pillRow: {
     flexDirection: 'row',
@@ -189,11 +195,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: '#333',
+    backgroundColor: theme.light.chrome,
+    borderWidth: 1,
+    borderColor: theme.light.border,
   },
   pillText: {
     fontSize: 12,
-    color: theme.textSecondary,
+    fontFamily: theme.typography.monoFamily,
+    color: theme.light.muted,
   },
   pillRetry: {
     backgroundColor: 'transparent',
@@ -203,11 +212,11 @@ const styles = StyleSheet.create({
     color: '#e57373',
   },
   pillUntagged: {
-    backgroundColor: theme.untaggedBg,
+    backgroundColor: theme.light.amberBg,
   },
   pillUntaggedText: {
     fontSize: 12,
-    color: theme.untaggedText,
+    color: theme.light.amber,
   },
   pillComment: {
     backgroundColor: 'rgba(184, 134, 11, 0.3)',

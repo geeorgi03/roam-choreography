@@ -2,8 +2,11 @@ import { router, Tabs } from 'expo-router';
 import { TouchableOpacity, Text } from 'react-native';
 import { getActiveSessionId } from '../../lib/storage';
 import { theme } from '../../lib/theme';
+import { useInboxCount } from '../../lib/contexts/InboxCountContext';
 
 export default function AppStackLayout() {
+  const { count } = useInboxCount();
+
   return (
     <Tabs
       screenOptions={{
@@ -41,14 +44,25 @@ export default function AppStackLayout() {
       />
       <Tabs.Screen name="library" options={{ title: 'Library' }} />
       <Tabs.Screen
-        name="profile"
+        name="inbox"
         options={{
-          href: null,
-          headerShown: false,
+          title: 'Inbox',
+          headerShown: true,
+          tabBarIcon: ({ focused }) => (
+            <Text
+              style={{
+                color: focused ? theme.light.active : theme.light.muted,
+                fontSize: 18,
+              }}
+            >
+              🔔
+            </Text>
+          ),
+          tabBarBadge: count > 0 ? count : undefined,
         }}
       />
       <Tabs.Screen
-        name="inbox"
+        name="profile"
         options={{
           href: null,
           headerShown: false,
