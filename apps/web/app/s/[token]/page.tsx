@@ -120,7 +120,7 @@ export default async function SharedSessionPage({
                   {sections?.map((section, i) => (
                     <span
                       key={i}
-                      className="text-xs px-2 py-1 rounded-full bg-roam-border text-roam-active"
+                      className="text-xs px-2 py-1 rounded-full bg-roam-chrome border border-roam-border text-roam-active"
                     >
                       {section.label} · {formatSectionTime(section.start_ms)}
                     </span>
@@ -148,7 +148,7 @@ export default async function SharedSessionPage({
                   {sections.map((section, i) => (
                     <span
                       key={i}
-                      className="text-xs px-2 py-1 rounded-full bg-roam-border text-roam-active"
+                      className="text-xs px-2 py-1 rounded-full bg-roam-chrome border border-roam-border text-roam-active"
                     >
                       {section.label} · {formatSectionTime(section.start_ms)}
                     </span>
