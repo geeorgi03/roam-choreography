@@ -46,7 +46,7 @@ export default function SignUpScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.content}>
-          <ActivityIndicator size="large" color={theme.textPrimary} />
+          <ActivityIndicator size="large" color={theme.light.active} />
         </View>
       </View>
     );
@@ -77,7 +77,7 @@ export default function SignUpScreen() {
                 router.replace('/(app)');
               }}
             >
-              <Text style={[styles.linkText, { color: theme.brandGreen }]}>Open app (dev only)</Text>
+              <Text style={[styles.linkText, { color: theme.light.mine }]}>Open app (dev only)</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -98,7 +98,7 @@ export default function SignUpScreen() {
           <TextInput
             style={styles.input}
             placeholder="you@example.com"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.light.muted}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -109,7 +109,7 @@ export default function SignUpScreen() {
           <TextInput
             style={styles.input}
             placeholder="••••••••"
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={theme.light.muted}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -138,7 +138,7 @@ export default function SignUpScreen() {
               router.replace('/(app)');
             }}
           >
-            <Text style={[styles.linkText, { color: theme.brandGreen }]}>Open app (dev only)</Text>
+            <Text style={[styles.linkText, { color: theme.light.mine }]}>Open app (dev only)</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -149,7 +149,7 @@ export default function SignUpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: theme.light.ground,
   },
   content: {
     flex: 1,
@@ -159,47 +159,47 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: 36,
     fontWeight: '700',
-    color: theme.brandGreen,
+    color: theme.light.active,
     marginBottom: 8,
   },
   tagline: {
     fontSize: 14,
-    color: theme.textSecondary,
+    color: theme.light.muted,
     marginBottom: 32,
   },
   form: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: theme.light.chrome,
     borderRadius: theme.borderRadius,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#222',
+    borderColor: theme.light.border,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: theme.light.active,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#222',
+    backgroundColor: theme.light.ground,
     borderRadius: theme.borderRadius,
     padding: 16,
     fontSize: 16,
-    color: theme.textPrimary,
+    color: theme.light.active,
     marginBottom: 20,
   },
   error: {
-    color: '#e74c3c',
+    color: theme.light.amber,
     fontSize: 14,
     marginBottom: 16,
   },
   message: {
-    color: theme.textSecondary,
+    color: theme.light.muted,
     fontSize: 14,
     marginBottom: 16,
   },
   button: {
-    backgroundColor: theme.brandGreen,
+    backgroundColor: theme.light.mine,
     borderRadius: theme.borderRadius,
     padding: 16,
     alignItems: 'center',
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#111',
+    color: theme.light.ground,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   linkText: {
-    color: theme.textSecondary,
+    color: theme.light.muted,
     fontSize: 14,
   },
 });

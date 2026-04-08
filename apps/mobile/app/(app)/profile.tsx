@@ -10,6 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import { router } from 'expo-router';
 import { theme } from '../../lib/theme';
 import { useSession } from '../../lib/hooks/useSession';
 import type { Plan } from '@roam/types';
@@ -141,7 +142,7 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator color={theme.textPrimary} size="large" />
+        <ActivityIndicator color={theme.light.active} size="large" />
       </View>
     );
   }
@@ -166,7 +167,7 @@ export default function ProfileScreen() {
           disabled={checkoutLoading}
         >
           {checkoutLoading ? (
-            <ActivityIndicator color={theme.textPrimary} size="small" />
+            <ActivityIndicator color={theme.light.active} size="small" />
           ) : (
             <Text style={styles.buttonText}>Upgrade</Text>
           )}
@@ -180,7 +181,7 @@ export default function ProfileScreen() {
           disabled={portalLoading}
         >
           {portalLoading ? (
-            <ActivityIndicator color={theme.textPrimary} size="small" />
+            <ActivityIndicator color={theme.light.active} size="small" />
           ) : (
             <Text style={styles.buttonText}>Manage subscription</Text>
           )}
@@ -197,7 +198,7 @@ export default function ProfileScreen() {
             value={apiUrlInput}
             onChangeText={setApiUrlInput}
             placeholder="https://your-api.railway.app"
-            placeholderTextColor="#555"
+            placeholderTextColor={theme.light.muted}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -215,6 +216,15 @@ export default function ProfileScreen() {
           </View>
         </View>
       )}
+      <TouchableOpacity
+        style={styles.signOutButton}
+        onPress={async () => {
+          await supabaseRef.current?.auth.signOut();
+          router.replace('/auth/sign-in');
+        }}
+      >
+        <Text style={styles.signOutButtonText}>Sign out</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -222,7 +232,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: theme.light.ground,
   },
   container: {
     padding: 20,
@@ -236,30 +246,30 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: theme.textSecondary,
+    color: theme.light.muted,
     marginBottom: 8,
   },
   planBadge: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: theme.borderRadius,
+    borderRadius: theme.spacing.radiusMd,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
+    borderColor: theme.light.muted,
   },
   planBadgePaid: {
-    borderColor: theme.accent,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: theme.light.mine,
+    backgroundColor: theme.light.mineBg,
   },
   planText: {
     fontSize: 18,
     fontWeight: '700',
-    color: theme.textPrimary,
+    color: theme.light.active,
   },
   button: {
-    backgroundColor: theme.accent,
+    backgroundColor: theme.light.mine,
     borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
+    borderColor: theme.light.muted,
+    borderRadius: theme.spacing.radiusMd,
     paddingVertical: 14,
     paddingHorizontal: 24,
     minWidth: 200,
@@ -271,42 +281,42 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.textPrimary,
+    color: theme.light.active,
   },
   devSection: {
     marginTop: 40,
     width: '100%',
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: theme.light.border,
     paddingTop: 20,
   },
   devTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: theme.textSecondary,
+    color: theme.light.muted,
     marginBottom: 16,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   devLabel: {
     fontSize: 14,
-    color: theme.textPrimary,
+    color: theme.light.active,
     marginBottom: 4,
   },
   devHint: {
     fontSize: 12,
-    color: theme.textSecondary,
+    color: theme.light.muted,
     marginBottom: 8,
   },
   devInput: {
-    backgroundColor: '#222',
-    color: theme.textPrimary,
+    backgroundColor: theme.light.ground,
+    color: theme.light.active,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: theme.light.border,
     marginBottom: 12,
   },
   devButtonRow: {
@@ -315,19 +325,35 @@ const styles = StyleSheet.create({
   },
   devButton: {
     flex: 1,
-    backgroundColor: '#333',
+    backgroundColor: theme.light.border,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
   },
   devButtonSecondary: {
-    backgroundColor: '#222',
+    backgroundColor: theme.light.ground,
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: theme.light.border,
   },
   devButtonText: {
-    color: theme.textPrimary,
+    color: theme.light.active,
     fontSize: 14,
+    fontWeight: '600',
+  },
+  signOutButton: {
+    marginTop: 40,
+    borderWidth: 1,
+    borderColor: theme.light.mine,
+    backgroundColor: theme.light.ground,
+    borderRadius: theme.spacing.radiusMd,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    minWidth: 200,
+    alignItems: 'center',
+  },
+  signOutButtonText: {
+    color: theme.light.active,
+    fontSize: 16,
     fontWeight: '600',
   },
 });

@@ -23,6 +23,7 @@ import { API_BASE } from '../lib/api';
 import { drainQueue } from '../lib/writeQueue';
 import OfflineBanner from '../components/OfflineBanner';
 import NetInfo from '@react-native-community/netinfo';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -88,15 +89,20 @@ class RootErrorBoundary extends React.Component<
 const errorStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#330000',
+    backgroundColor: theme.light.ground,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
-  title: { fontSize: 18, fontWeight: '700', color: '#ffcccc', marginBottom: 8 },
-  message: { fontSize: 14, color: '#ffaaaa', textAlign: 'center', marginBottom: 16 },
-  button: { marginTop: 16, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: '#555' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  title: { fontSize: 18, fontWeight: '700', color: theme.light.active, marginBottom: 8 },
+  message: { fontSize: 14, color: theme.light.muted, textAlign: 'center', marginBottom: 16 },
+  button: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: theme.light.mine,
+  },
+  buttonText: { color: theme.light.ground, fontSize: 16, fontWeight: '600' },
 });
 
 // --- Safe first frame: View + Text only, no GHR, no theme (inline styles) ---
@@ -360,7 +366,9 @@ function RootNavigator() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }} />
+      <ErrorBoundary>
+        <Stack screenOptions={{ headerShown: false }} />
+      </ErrorBoundary>
       <Toast />
       <OfflineBanner />
       

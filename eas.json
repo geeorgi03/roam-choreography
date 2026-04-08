@@ -11,6 +11,12 @@
     "preview": {
       "distribution": "internal"
     },
+    "beta": {
+      "distribution": "internal",
+      "env": {
+        "ROAM_BETA_UNLOCK": "true"
+      }
+    },
     "production": {
       "autoIncrement": true
     }
