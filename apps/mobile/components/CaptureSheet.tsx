@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    backgroundColor: '#222',
+    backgroundColor: theme.light.border,
     borderWidth: 1,
     borderColor: theme.textSecondary,
     borderRadius: theme.borderRadius,

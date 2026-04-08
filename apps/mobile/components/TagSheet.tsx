@@ -278,7 +278,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   input: {
-    backgroundColor: '#222',
+    backgroundColor: theme.light.border,
     borderWidth: 1,
     borderColor: theme.textSecondary,
     borderRadius: theme.borderRadius,
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: theme.borderRadius,
-    backgroundColor: '#222',
+    backgroundColor: theme.light.border,
     borderWidth: 1,
     borderColor: theme.textSecondary,
   },

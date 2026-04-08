@@ -22,6 +22,7 @@ import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { theme } from '../../lib/theme';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { VoiceNoteRow } from './VoiceNoteRow';
 
 const colors = theme.light;
 const spacing = theme.spacing;
@@ -98,6 +99,7 @@ export function WorkbenchTab() {
   const waveformWidth = useRef(0);
   const [waveformWidthPx, setWaveformWidthPx] = useState(0);
   const [notePinTimecodeMs, setNotePinTimecodeMs] = useState<number | null>(null);
+  const [activeVoiceNoteId, setActiveVoiceNoteId] = useState<string | null>(null);
 
   // ── Derived values ───────────────────────────────────────────────────────
   const timelineDurationMs = durationMs > 0 ? durationMs : FALLBACK_DURATION_MS;
@@ -228,9 +230,12 @@ export function WorkbenchTab() {
   );
 
   const handleDeleteNote = useCallback(async (noteId: string) => {
+    if (activeVoiceNoteId === noteId) {
+      setActiveVoiceNoteId(null);
+    }
     const ok = await deleteNote(noteId);
     if (ok) Toast.show({ type: 'success', text1: 'Note deleted' });
-  }, [deleteNote]);
+  }, [activeVoiceNoteId, deleteNote]);
 
   // ── Clip filtering by active section ────────────────────────────────────
   const hasActiveMusicSection = useMemo(
@@ -590,8 +595,27 @@ export function WorkbenchTab() {
               ) : (
                 <View style={styles.notesContent}>
                   {notes.map((note) => (
-                    <View key={note.id} style={styles.noteItem}>
+                    <View
+                      key={note.id}
+                      style={[
+                        styles.noteItem,
+                        activeVoiceNoteId === note.id && styles.noteItemActivePlayback,
+                      ]}
+                    >
                       <Text style={styles.noteTime}>{formatTimecode(note.timecode_ms)}</Text>
+                      {note.audio_storage_path ? (
+                        <VoiceNoteRow
+                          noteId={note.id}
+                          audioStoragePath={note.audio_storage_path}
+                          isActive={activeVoiceNoteId === note.id}
+                          onRequestPlay={setActiveVoiceNoteId}
+                          onPlaybackEnded={(noteId) => {
+                            setActiveVoiceNoteId((current) =>
+                              current === noteId ? null : current
+                            );
+                          }}
+                        />
+                      ) : null}
                       <Text style={styles.noteText}>{note.text}</Text>
                       <TouchableOpacity
                         style={styles.noteDelete}
@@ -1007,6 +1031,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  noteItemActivePlayback: {
+    borderLeftWidth: 2,
+    borderLeftColor: colors.mine,
   },
   noteTime: {
     color: colors.muted,
