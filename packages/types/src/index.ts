@@ -118,6 +118,18 @@ export interface FeedbackRequest {
   created_at: ISODateTime;
 }
 
+export interface StructuredFeedback {
+  id: UUID;
+  session_id: UUID;
+  clip_id: UUID;
+  user_id: UUID;
+  statement: string | null;
+  questions: string | null;
+  observations: string | null;
+  opinions: string | null;
+  created_at: ISODateTime;
+}
+
 export type TextPayload = { x: number; y: number; text: string };
 export type ArrowPayload = { x1: number; y1: number; x2: number; y2: number };
 export type CirclePayload = { cx: number; cy: number; r: number };

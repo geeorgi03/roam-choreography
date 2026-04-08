@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   parentClipLabel: {
-    color: colors.ink,
+    color: colors.active,
     fontWeight: '700',
   },
   inspiredNoteRow: {
