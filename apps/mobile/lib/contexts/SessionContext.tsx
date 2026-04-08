@@ -133,6 +133,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const diskClipsSnapshotRef = useRef<ClipRow[]>([]);
   /** True after seed effect has applied cached clips for the current sessionId (avoids write-before-seed overwrite). */
   const hasSeeded = useRef(false);
+  const loopHydratedRef = useRef<Record<string, boolean>>({});
   const prevIsOnlineRef = useRef<boolean | null>(null);
   const activeSheetIdRef = useRef<string | null>(null);
   const wasPlayingBeforeSheetRef = useRef(false);
@@ -395,20 +396,22 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
 
   // Hydrate loop state when sessionId changes
   useEffect(() => {
+    loopHydratedRef.current[sessionId] = false;
     const storedLoopRegion = getLoopState(sessionId);
     setLoopRegion(storedLoopRegion ?? null);
-
-    const storedLoopOpenAt = getLoopOpenAt(sessionId);
-    setLoopOpenAt(storedLoopOpenAt ?? null);
+    setLoopOpenAt(getLoopOpenAt(sessionId) ?? null);
+    loopHydratedRef.current[sessionId] = true;
   }, [sessionId]);
 
   // Persist loop region changes
   useEffect(() => {
+    if (!loopHydratedRef.current[sessionId]) return;
     setLoopStateStorage(sessionId, loopRegion);
   }, [loopRegion, sessionId]);
 
   // Persist loop open-at changes
   useEffect(() => {
+    if (!loopHydratedRef.current[sessionId]) return;
     setLoopOpenAtStorage(sessionId, loopOpenAt);
   }, [loopOpenAt, sessionId]);
 
@@ -473,8 +476,10 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const handleClearLoop = useCallback(() => {
     setLoopRegion(null);
     setLoopOpenAt(null);
+    setLoopStateStorage(sessionId, null);
+    setLoopOpenAtStorage(sessionId, null);
     soundRef.current?.setIsLoopingAsync(false);
-  }, []);
+  }, [sessionId]);
 
   // Sheet functions
   const openSheet = useCallback((id: string) => {
