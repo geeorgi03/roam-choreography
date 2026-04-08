@@ -568,10 +568,10 @@ export function WorkbenchTab() {
                             ]}
                           >
                             {item.clip_type === 'voice_memo'
-                              ? 'VOICE'
+                              ? t('workbench.clipBadgeVoice')
                               : isReferenceClip(item)
-                                ? 'REF'
-                                : 'MINE'}
+                                ? t('workbench.clipBadgeRef')
+                                : t('workbench.clipBadgeMine')}
                           </Text>
                         </View>
                         {item.upload_status === 'failed' ? (

@@ -101,5 +101,8 @@
   "workbench.clipAvailableOnce": "Available once clip is ready.",
   "workbench.noteDeleted": "Note deleted",
   "workbench.emptyPrompt": "Add a reference video or start recording.",
-  "workbench.addVideo": "Add video →"
+  "workbench.addVideo": "Add video →",
+  "workbench.clipBadgeVoice": "VOICE",
+  "workbench.clipBadgeRef": "REF",
+  "workbench.clipBadgeMine": "MINE"
 }

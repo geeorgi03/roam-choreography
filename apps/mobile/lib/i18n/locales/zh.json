@@ -101,5 +101,8 @@
   "workbench.clipAvailableOnce": "",
   "workbench.noteDeleted": "",
   "workbench.emptyPrompt": "",
-  "workbench.addVideo": ""
+  "workbench.addVideo": "",
+  "workbench.clipBadgeVoice": "",
+  "workbench.clipBadgeRef": "",
+  "workbench.clipBadgeMine": ""
 }
