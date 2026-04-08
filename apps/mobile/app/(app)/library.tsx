@@ -164,6 +164,7 @@ export default function LibraryScreen() {
   };
 
   const filteredClips = useMemo((): Clip[] => {
+    // Segment rules: REF is by `clip_type`; MINE is `clip_type` ('MINE' or null); Shared is "other users" by `user_id`.
     if (filterSegment === 'All') return clips;
     if (filterSegment === 'REF') {
       return clips.filter((item) => (item as unknown as { clip_type?: string | null }).clip_type === 'REF');
@@ -178,9 +179,8 @@ export default function LibraryScreen() {
     // 'MINE'
     return clips.filter((item) => {
       const clipType = (item as unknown as { clip_type?: string | null }).clip_type ?? null;
-      const userId = (item as unknown as { user_id?: string | null }).user_id ?? null;
       const mineType = clipType === 'MINE' || clipType === null;
-      return mineType && !!currentUserId && !!userId && userId === currentUserId;
+      return mineType;
     });
   }, [clips, filterSegment, currentUserId]);
 
