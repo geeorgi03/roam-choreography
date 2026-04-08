@@ -1343,4 +1343,63 @@ app.get('/:id/export/pdf', async (c) => {
   });
 });
 
+app.post('/:id/clips/:clipId/feedback', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const clipId = c.req.param('clipId');
+
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+
+  const parsedBody = await safeReqJson<{
+    statement?: unknown;
+    questions?: unknown;
+    observations?: unknown;
+    opinions?: unknown;
+  }>(c);
+  if (!parsedBody.ok) {
+    return c.json({ error: 'Malformed JSON' }, 400);
+  }
+
+  const { data: clipRow, error: clipError } = await supabase
+    .from('clips')
+    .select('id')
+    .eq('id', clipId)
+    .eq('session_id', sessionId)
+    .maybeSingle();
+
+  if (clipError) {
+    if (isInvalidUuidCastError(clipError)) {
+      return c.json({ error: 'Not found' }, 404);
+    }
+    return c.json({ error: clipError.message }, 500);
+  }
+  if (!clipRow) {
+    return c.json({ error: 'Not found' }, 404);
+  }
+
+  const body = parsedBody.data ?? {};
+  const { data, error } = await supabase
+    .from('structured_feedback')
+    .insert({
+      session_id: sessionId,
+      clip_id: clipId,
+      user_id: userId,
+      statement: typeof body.statement === 'string' ? body.statement : null,
+      questions: typeof body.questions === 'string' ? body.questions : null,
+      observations: typeof body.observations === 'string' ? body.observations : null,
+      opinions: typeof body.opinions === 'string' ? body.opinions : null,
+    })
+    .select('id, created_at')
+    .single();
+
+  if (error) {
+    return c.json({ error: error.message }, 500);
+  }
+
+  return c.json(data, 201);
+});
+
 export const sessionsRoutes = app;
