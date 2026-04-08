@@ -256,12 +256,15 @@ export function WorkbenchTab() {
     return counts;
   }, [sectionClips]);
 
+  const isFullyEmpty = sectionClips.length === 0 && musicTrack === null;
+
   return (
     <Pressable
       style={styles.container}
       onPress={!sessionMode ? () => setSessionMode(true) : undefined}
     >
-      <>
+      {!isFullyEmpty && (
+        <>
         {musicTrack ? (
           <ScrollView
             horizontal={false}
@@ -603,7 +606,37 @@ export function WorkbenchTab() {
             </View>
           )}
         </View>
+        </>
+      )}
 
+      {isFullyEmpty && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStatePrompt}>Add a reference video or start recording.</Text>
+          <View style={styles.emptyStateActions}>
+            <TouchableOpacity
+              style={styles.emptyVideoBtn}
+              onPress={() =>
+                router.push({ pathname: './youtube-player', params: { sessionId } })
+              }
+            >
+              <Text style={styles.emptyVideoBtnText}>Add video →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.emptyRecordBtn}
+              onPress={() =>
+                router.push({
+                  pathname: './camera',
+                  params: { id: sessionId, sectionName: activeSection },
+                })
+              }
+            >
+              <View style={styles.recordFabInner} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {!isFullyEmpty && (
         <TouchableOpacity
           style={styles.recordFab}
           activeOpacity={0.85}
@@ -616,7 +649,7 @@ export function WorkbenchTab() {
         >
           <View style={styles.recordFabInner} />
         </TouchableOpacity>
-      </>
+      )}
     </Pressable>
   );
 }
@@ -1040,6 +1073,39 @@ const styles = StyleSheet.create({
   },
   sectionPillZone: {
     // No special layout needed - semantic wrapper only
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 24,
+    paddingHorizontal: 32,
+  },
+  emptyStatePrompt: {
+    color: colors.muted,
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  emptyStateActions: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  emptyVideoBtn: {
+    backgroundColor: colors.active,
+    borderRadius: spacing.pill,
+  },
+  emptyVideoBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  emptyRecordBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.capture,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   workspaceZone: {
     flex: 1,
