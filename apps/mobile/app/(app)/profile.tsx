@@ -219,8 +219,21 @@ export default function ProfileScreen() {
       <TouchableOpacity
         style={styles.signOutButton}
         onPress={async () => {
-          await supabaseRef.current?.auth.signOut();
-          router.replace('/auth/sign-in');
+          try {
+            if (!supabaseRef.current) {
+              const { supabase } = await import('../../lib/supabase');
+              supabaseRef.current = supabase;
+            }
+
+            if (!supabaseRef.current) throw new Error('Supabase client is not available.');
+
+            const { error } = await supabaseRef.current.auth.signOut();
+            if (error) throw error;
+
+            router.replace('/auth/sign-in');
+          } catch (e) {
+            Alert.alert('Sign out failed', 'Please try again');
+          }
         }}
       >
         <Text style={styles.signOutButtonText}>Sign out</Text>

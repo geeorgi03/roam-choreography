@@ -174,6 +174,8 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: theme.light.ground,
     borderRadius: theme.borderRadius,
+    borderWidth: 1,
+    borderColor: theme.light.border,
     padding: 16,
     fontSize: 16,
     color: theme.light.active,
