@@ -15,8 +15,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import { QuickSaveSheet } from '../../../components/QuickSaveSheet';
 import { useSession } from '../../../lib/hooks/useSession';
 import { saveClip } from '../../../lib/saveClip';
-import { API_BASE } from '../../../lib/api';
-import { getCachedSession } from '../../../lib/sessionCache';
+import { supabase } from '../../../lib/supabase';
 
 const colors = theme.light;
 const spacing = theme.spacing;
@@ -39,8 +38,7 @@ export default function CameraScreen() {
   const [voiceMemoNotice, setVoiceMemoNotice] = useState(false);
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
-  const [sessionName, setSessionName] = useState('Session');
-  const [isSessionNameLoading, setIsSessionNameLoading] = useState(true);
+  const [sessionName, setSessionName] = useState<string | null>(null);
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const frontRecordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const audioRecordingRef = useRef<Audio.Recording | null>(null);
@@ -67,46 +65,32 @@ export default function CameraScreen() {
   useEffect(() => {
     const id = typeof sessionId === 'string' ? sessionId : null;
     if (!id) {
-      setSessionName('Session');
-      setIsSessionNameLoading(false);
+      setSessionName(null);
       return;
     }
-
-    const cached = getCachedSession(id);
-    if (cached?.session?.name) {
-      setSessionName(cached.session.name);
-      setIsSessionNameLoading(false);
-    } else {
-      setIsSessionNameLoading(true);
-    }
-
-    if (!session?.access_token) return;
 
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`${API_BASE}/sessions/${id}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (!res.ok) return;
-        const data = await res.json() as { session?: { name?: string } };
-        const name = data.session?.name?.trim();
-        if (!cancelled && name) {
+        if (!supabase) return;
+        const { data } = await supabase
+          .from('sessions')
+          .select('name')
+          .eq('id', id)
+          .single<{ name: string | null }>();
+        const name = data?.name?.trim() ?? null;
+        if (!cancelled) {
           setSessionName(name);
         }
       } catch {
-        // keep cached value when request fails
-      } finally {
-        if (!cancelled) {
-          setIsSessionNameLoading(false);
-        }
+        if (!cancelled) setSessionName(null);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [sessionId, session?.access_token]);
+  }, [sessionId]);
 
   useEffect(() => {
     if (dualEnabled && facing !== 'back') {
@@ -477,14 +461,18 @@ export default function CameraScreen() {
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
         <View style={styles.sessionLabelWrap}>
-          <Text style={styles.sessionLabel}>{isSessionNameLoading ? 'Session' : sessionName}</Text>
+          <Text style={styles.sessionLabel}>{sessionName ?? (sessionId ? '…' : 'Session')}</Text>
           {sectionName ? <Text style={styles.sectionLabel}>{sectionName}</Text> : null}
         </View>
         <TouchableOpacity
           style={[styles.dualChip, dualEnabled && styles.dualChipActive]}
           onPress={() => {
             if (dualEnabled && isRecording) stopFpsMonitor();
-            setDualEnabled((prev) => !prev);
+            setDualEnabled((prev) => {
+              const nextDualEnabled = !prev;
+              if (nextDualEnabled) setFacing('back');
+              return nextDualEnabled;
+            });
           }}
           activeOpacity={0.85}
         >
@@ -547,7 +535,7 @@ export default function CameraScreen() {
             onPress={handleRecordPress}
             activeOpacity={0.8}
           >
-            <View style={[styles.recordButtonInner, isRecording && styles.recordButtonInnerActive]} />
+            <View style={isRecording ? styles.recordButtonStopIcon : styles.recordButtonIcon} />
           </TouchableOpacity>
         </LongPressGestureHandler>
       </View>
@@ -719,16 +707,17 @@ const styles = StyleSheet.create({
     borderColor: t.active,
     borderWidth: 2,
   },
-  recordButtonInner: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  recordButtonIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: t.chrome,
   },
-  recordButtonInnerActive: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
+  recordButtonStopIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    backgroundColor: t.chrome,
   },
   controlsRow: {
     position: 'absolute',
