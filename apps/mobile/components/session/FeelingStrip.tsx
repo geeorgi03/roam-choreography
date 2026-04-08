@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useInboxCount } from '../../lib/contexts/InboxCountContext';
 import { theme } from '../../lib/theme';
+import { router } from 'expo-router';
 
 const colors = theme.light;
 
@@ -31,6 +33,7 @@ const phraseBaseStyle = {
 
 export function FeelingStrip() {
   const { sessionName, sessionPhrase, updateSessionMeta, openSheet, qualityTarget } = useSessionContext();
+  const { count } = useInboxCount();
   const [phrase, setPhrase] = useState('');
   const [phraseEditing, setPhraseEditing] = useState(false);
   const [nameEditing, setNameEditing] = useState(false);
@@ -109,6 +112,20 @@ export function FeelingStrip() {
         )}
       </View>
       <View style={styles.iconRow}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => router.push('/(app)/inbox')}
+          activeOpacity={0.8}
+        >
+          <View style={{ position: 'relative' }}>
+            <Text style={styles.iconText}>🔔</Text>
+            {count > 0 && (
+              <View style={styles.inboxBadge}>
+                <Text style={styles.inboxBadgeText}>{count}</Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.iconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
           <Text style={styles.iconText}>↗</Text>
         </TouchableOpacity>
@@ -175,5 +192,22 @@ const styles = StyleSheet.create({
   iconText: {
     fontSize: 14,
     color: colors.muted,
+  },
+  inboxBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.capture,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  inboxBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
   },
 });
