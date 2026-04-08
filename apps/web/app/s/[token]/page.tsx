@@ -74,10 +74,10 @@ export default async function SharedSessionPage({
     : null;
 
   return (
-    <div className="min-h-screen bg-[#111] text-white">
-      <header className="p-4 border-b border-[#333]">
-        <h1 className="text-xl font-bold">{session.name}</h1>
-        <p className="text-gray-400 text-sm mt-1">
+    <div className="min-h-screen bg-roam-ground text-roam-active">
+      <header className="p-4 border-b border-roam-border">
+        <h1 className="text-xl font-bold font-serif">{session.name}</h1>
+        <p className="text-roam-muted text-sm mt-1">
           {new Date(session.created_at).toLocaleDateString('en-US', {
             month: 'long',
             year: 'numeric',
@@ -97,7 +97,7 @@ export default async function SharedSessionPage({
                   {sections?.map((section, i) => (
                     <span
                       key={i}
-                      className="text-xs px-2 py-1 rounded bg-[#222] text-gray-300"
+                      className="text-xs px-2 py-1 rounded-full bg-roam-chrome border border-roam-border text-roam-active"
                     >
                       {section.label} · {formatSectionTime(section.start_ms)}
                     </span>
@@ -107,7 +107,7 @@ export default async function SharedSessionPage({
             )}
           {music_track?.source_type === 'upload' &&
             (music_track?.analysis_status !== 'complete' || !uploadedAudioUrl) && (
-              <div className="rounded-lg bg-[#222] p-6 text-gray-400 text-center max-w-2xl">
+              <div className="rounded-lg bg-roam-chrome border border-roam-border p-6 text-roam-muted text-center max-w-2xl">
                 Music processing…
               </div>
             )}
@@ -125,7 +125,7 @@ export default async function SharedSessionPage({
                   {sections.map((section, i) => (
                     <span
                       key={i}
-                      className="text-xs px-2 py-1 rounded bg-[#222] text-gray-300"
+                      className="text-xs px-2 py-1 rounded-full bg-roam-chrome border border-roam-border text-roam-active"
                     >
                       {section.label} · {formatSectionTime(section.start_ms)}
                     </span>
@@ -135,7 +135,7 @@ export default async function SharedSessionPage({
             </>
           )}
           {!music_track && (
-            <div className="rounded-lg bg-[#222] p-6 text-gray-400 text-center max-w-2xl">
+            <div className="rounded-lg bg-roam-chrome border border-roam-border p-6 text-roam-muted text-center max-w-2xl">
               No music added
             </div>
           )}
@@ -164,7 +164,7 @@ export default async function SharedSessionPage({
               ) : clip.upload_status === 'processing' ? (
                 <div
                   key={clip.id}
-                  className="rounded-lg bg-[#222] aspect-video flex items-center justify-center text-gray-400 text-sm"
+                  className="rounded-lg bg-roam-chrome border border-roam-border aspect-video flex items-center justify-center text-roam-muted text-sm"
                 >
                   Processing…
                 </div>
@@ -174,7 +174,7 @@ export default async function SharedSessionPage({
         </section>
       </main>
 
-      <footer className="py-6 text-center text-gray-500 text-sm">
+      <footer className="py-6 text-center text-roam-muted text-sm">
         Made with Roam
       </footer>
     </div>

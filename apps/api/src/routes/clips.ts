@@ -18,6 +18,37 @@ async function getSessionForUser(sessionId: string, userId: string): Promise<str
   return data?.id ?? null;
 }
 
+async function hasSessionAccessForClips(sessionId: string, userId: string): Promise<boolean> {
+  const { data: ownedSession, error: ownedError } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (ownedError) return false;
+  if (ownedSession) return true;
+
+  const { data: participant, error: participantError } = await supabase
+    .from('group_participants')
+    .select('id')
+    .eq('session_id', sessionId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (participantError) return false;
+  return Boolean(participant);
+}
+
+async function safeReqJson<T>(
+  c: { req: { json: <U>() => Promise<U> } } | any
+): Promise<{ ok: true; data: T } | { ok: false }> {
+  try {
+    const data = await c.req.json();
+    return { ok: true, data: data as T };
+  } catch {
+    return { ok: false };
+  }
+}
+
 /** GET /sessions/:sessionId/clips — list clips for a session */
 app.get('/:sessionId/clips', async (c) => {
   const userId = c.get('userId');
@@ -324,6 +355,52 @@ app.post('/:sessionId/clips/:clipId/trim', async (c) => {
   return c.json({ clip: newClip, sectionClip }, 201);
 });
 
+/** POST /sessions/:sessionId/clips/:clipId/feedback — create structured feedback */
+app.post('/:sessionId/clips/:clipId/feedback', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('sessionId');
+  const clipId = c.req.param('clipId');
+
+  const allowed = await hasSessionAccessForClips(sessionId, userId);
+  if (!allowed) return c.json({ error: 'Forbidden' }, 403);
+
+  const { data: clip, error: clipError } = await supabase
+    .from('clips')
+    .select('id')
+    .eq('id', clipId)
+    .eq('session_id', sessionId)
+    .maybeSingle();
+  if (clipError) return c.json({ error: clipError.message }, 500);
+  if (!clip) return c.json({ error: 'Not found' }, 404);
+
+  const parsed = await safeReqJson<{
+    statement?: string;
+    questions?: string;
+    observations?: string;
+    opinions?: string;
+  }>(c);
+  if (!parsed.ok) return c.json({ error: 'Invalid JSON body' }, 400);
+
+  const body = parsed.data ?? {};
+
+  const { data, error } = await supabase
+    .from('structured_feedback')
+    .insert({
+      session_id: sessionId,
+      clip_id: clipId,
+      user_id: userId,
+      statement: typeof body.statement === 'string' ? body.statement : null,
+      questions: typeof body.questions === 'string' ? body.questions : null,
+      observations: typeof body.observations === 'string' ? body.observations : null,
+      opinions: typeof body.opinions === 'string' ? body.opinions : null,
+    })
+    .select('id, created_at')
+    .single();
+
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json(data as { id: string; created_at: string }, 201);
+});
+
 /** POST /sessions/:sessionId/section_clips — assign clip to section */
 app.post('/:sessionId/section_clips', async (c) => {
   const userId = c.get('userId');
@@ -346,7 +423,7 @@ app.post('/:sessionId/section_clips', async (c) => {
   }
 
   // Verify clip belongs to the session
-  const { data: clip, error: clipError } = await supabase
+  const { error: clipError } = await supabase
     .from('clips')
     .select('id')
     .eq('id', body.clip_id)

@@ -123,7 +123,7 @@ export function ClipPlayer({
       <button
         type="button"
         onClick={() => setExpanded(true)}
-        className="rounded-lg overflow-hidden bg-[#222] text-left w-full aspect-video flex flex-col"
+        className="rounded-lg overflow-hidden bg-roam-chrome text-left w-full aspect-video flex flex-col"
       >
         <img
           src={thumbnailUrl}
@@ -131,14 +131,14 @@ export function ClipPlayer({
           className="w-full flex-1 object-cover"
         />
         <div className="p-2">
-          {label && <p className="text-white font-medium truncate">{label}</p>}
+          {label && <p className="text-roam-active font-medium truncate">{label}</p>}
           <div className="flex flex-wrap gap-1 mt-1">
             {[tags.style, tags.energy, tags.difficulty]
               .filter(Boolean)
               .map((t) => (
                 <span
                   key={t!}
-                  className="text-xs px-2 py-0.5 rounded bg-[#333] text-gray-300"
+                  className="text-xs px-2 py-0.5 rounded bg-roam-border text-roam-muted"
                 >
                   {t}
                 </span>
@@ -164,7 +164,7 @@ export function ClipPlayer({
         />
       </div>
       {feedbackOpen && clipId && (
-        <div className="p-4 bg-[#222] rounded-lg">
+        <div className="p-4 bg-roam-chrome border border-roam-border rounded-lg">
           {!feedbackRevealed ? (
             <button
               type="button"
@@ -175,7 +175,7 @@ export function ClipPlayer({
             </button>
           ) : (
             <>
-              <h3 className="text-sm font-semibold text-gray-300 mb-3">Leave Feedback</h3>
+              <h3 className="text-sm font-semibold text-roam-active mb-3">Leave Feedback</h3>
               {thanksShown && (
                 <p className="text-amber-400 text-sm mb-3">Thanks for your feedback!</p>
               )}
@@ -185,7 +185,7 @@ export function ClipPlayer({
                   placeholder="Your name (optional)"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 rounded bg-[#333] text-white text-sm placeholder-gray-500 border border-[#444]"
+                  className="w-full px-3 py-2 rounded bg-roam-border text-roam-active text-sm placeholder:text-roam-muted border border-roam-border"
                 />
                 <div className="flex gap-2">
                   <input
@@ -193,12 +193,12 @@ export function ClipPlayer({
                     placeholder="Timecode (ms)"
                     value={timecodeMs}
                     onChange={(e) => setTimecodeMs(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded bg-[#333] text-white text-sm placeholder-gray-500 border border-[#444]"
+                    className="flex-1 px-3 py-2 rounded bg-roam-border text-roam-active text-sm placeholder:text-roam-muted border border-roam-border"
                   />
                   <button
                     type="button"
                     onClick={handleUseCurrentTime}
-                    className="px-3 py-2 rounded bg-[#444] text-gray-300 text-sm hover:bg-[#555]"
+                    className="px-3 py-2 rounded bg-roam-border text-roam-muted text-sm hover:bg-roam-chrome border border-roam-border"
                   >
                     Use current time
                   </button>
@@ -209,7 +209,7 @@ export function ClipPlayer({
                   onChange={(e) => setText(e.target.value)}
                   required
                   rows={3}
-                  className="w-full px-3 py-2 rounded bg-[#333] text-white text-sm placeholder-gray-500 border border-[#444] resize-none"
+                  className="w-full px-3 py-2 rounded bg-roam-border text-roam-active text-sm placeholder:text-roam-muted border border-roam-border resize-none"
                 />
                 {error && <p className="text-red-400 text-sm">{error}</p>}
                 <button
@@ -224,14 +224,14 @@ export function ClipPlayer({
           )}
 
           {(persistedComments.length > 0 || submittedComments.length > 0) && (
-            <div className="mt-4 pt-3 border-t border-[#333]">
-              <p className="text-xs text-gray-400 mb-2">Comments:</p>
+            <div className="mt-4 pt-3 border-t border-roam-border">
+              <p className="text-xs text-roam-muted mb-2">Comments:</p>
               <ul className="space-y-2">
                 {persistedComments.map((c) => (
-                  <li key={c.id} className="text-sm text-gray-300">
+                  <li key={c.id} className="text-sm text-roam-active">
                     <span className="font-medium">{c.commenter_name || 'Anonymous'}</span>
                     {c.timecode_ms > 0 && (
-                      <span className="text-gray-500 ml-2">@ {Math.floor(c.timecode_ms / 1000)}s</span>
+                      <span className="text-roam-muted ml-2">@ {Math.floor(c.timecode_ms / 1000)}s</span>
                     )}
                     : {c.text}
                   </li>
@@ -239,10 +239,10 @@ export function ClipPlayer({
                 {submittedComments
                   .filter((c) => !persistedComments.some((p) => p.id === c.id))
                   .map((c) => (
-                    <li key={c.id} className="text-sm text-gray-300">
+                    <li key={c.id} className="text-sm text-roam-active">
                       <span className="font-medium">{c.commenter_name || 'Anonymous'}</span>
                       {c.timecode_ms > 0 && (
-                        <span className="text-gray-500 ml-2">@ {Math.floor(c.timecode_ms / 1000)}s</span>
+                        <span className="text-roam-muted ml-2">@ {Math.floor(c.timecode_ms / 1000)}s</span>
                       )}
                       : {c.text}
                     </li>

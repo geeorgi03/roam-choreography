@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase';
 import { API_BASE } from '../../lib/api';
 import Toast from 'react-native-toast-message';
 import LoopChipRow from './LoopChipRow';
+import { FeedbackSheet, type FeedbackSheetHandle } from '../FeedbackSheet';
 
 const colors = theme.light;
 const nightColors = theme.night;
@@ -37,6 +38,8 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
   } = useSessionContext();
   const { session } = useSession();
   const videoRef = useRef<Video>(null);
+  const feedbackSheetRef = useRef<BottomSheet>(null);
+  const feedbackSheetHandleRef = useRef<FeedbackSheetHandle>(null);
   const positionMsRef = useRef<number>(0);
   const [clipSpeed, setClipSpeed] = useState(1);
   const [playheadFraction, setPlayheadFraction] = useState(0);
@@ -143,6 +146,16 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     if (videoRef.current) {
       videoRef.current.setPositionAsync(start);
     }
+  };
+
+  const handleFeedbackSheetClose = () => {
+    feedbackSheetRef.current?.close();
+  };
+
+  const handleClipViewerClose = () => {
+    feedbackSheetHandleRef.current?.reset();
+    feedbackSheetRef.current?.close();
+    onClose();
   };
 
   const isClipInSession = selectedClipForSheet.server_id && 
@@ -276,13 +289,14 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
         : null;
 
   return (
-    <BottomSheet
-      ref={ref}
-      index={-1}
-      snapPoints={['50%', '85%']}
-      enablePanDownToClose
-      onClose={onClose}
-    >
+    <>
+      <BottomSheet
+        ref={ref}
+        index={-1}
+        snapPoints={['50%', '85%']}
+        enablePanDownToClose
+        onClose={handleClipViewerClose}
+      >
       {/* Dark zone */}
       <View style={styles.darkZone}>
         {/* Header */}
@@ -394,7 +408,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       </View>
 
       {/* Light zone */}
-      <View style={styles.lightZone}>
+        <View style={styles.lightZone}>
         {(parentClip || inspiredNote) && (
           <View style={styles.lineageContainer}>
             {parentClip && (
@@ -423,7 +437,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
         />
 
         {/* Save row */}
-        <View style={styles.saveRow}>
+          <View style={styles.saveRow}>
           <TouchableOpacity
             style={[
               styles.saveButton,
@@ -452,31 +466,50 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
           </TouchableOpacity>
           
           {/* Trim controls */}
-          {isMineClip && (
-            <>
-              {trimStart === null && trimEnd === null ? (
-                <TouchableOpacity style={styles.setTrimButton} onPress={handleInitializeTrim}>
-                  <Text style={styles.setTrimButtonText}>set trim</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[
-                    styles.saveSegmentButton,
-                    isSavingSegment && styles.saveSegmentButtonDisabled
-                  ]}
-                  onPress={handleSaveSegment}
-                  disabled={isSavingSegment}
-                >
-                  <Text style={styles.saveSegmentButtonText}>
-                    {saveSuccess ? 'saved ✓' : (isSavingSegment ? 'saving...' : 'save segment')}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </>
-          )}
+            {isMineClip && (
+              <>
+                {trimStart === null && trimEnd === null ? (
+                  <TouchableOpacity style={styles.setTrimButton} onPress={handleInitializeTrim}>
+                    <Text style={styles.setTrimButtonText}>set trim</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[
+                      styles.saveSegmentButton,
+                      isSavingSegment && styles.saveSegmentButtonDisabled
+                    ]}
+                    onPress={handleSaveSegment}
+                    disabled={isSavingSegment}
+                  >
+                    <Text style={styles.saveSegmentButtonText}>
+                      {saveSuccess ? 'saved ✓' : (isSavingSegment ? 'saving...' : 'save segment')}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.feedbackButton,
+                !selectedClipForSheet.server_id && styles.momentButtonDisabled,
+              ]}
+              onPress={() => feedbackSheetRef.current?.expand()}
+              disabled={!selectedClipForSheet.server_id}
+            >
+              <Text style={styles.feedbackButtonText}>Give feedback</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </BottomSheet>
+      </BottomSheet>
+      <FeedbackSheet
+        ref={feedbackSheetHandleRef}
+        bottomSheetRef={feedbackSheetRef}
+        sessionId={sessionId}
+        clipId={selectedClipForSheet.server_id ?? ''}
+        onClose={handleFeedbackSheetClose}
+      />
+    </>
   );
 });
 
@@ -681,6 +714,18 @@ const styles = StyleSheet.create({
     color: colors.amber,
     fontSize: 14,
     fontStyle: 'italic',
+    fontWeight: '600',
+  },
+  feedbackButton: {
+    borderWidth: 1,
+    borderColor: colors.mine,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  feedbackButtonText: {
+    color: colors.mine,
+    fontSize: 14,
     fontWeight: '600',
   },
   trimHandle: {

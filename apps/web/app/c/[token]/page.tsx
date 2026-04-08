@@ -30,10 +30,10 @@ export default async function SharedClipPage({
   const feedbackOpen = status === 'open';
 
   return (
-    <div className="min-h-screen bg-[#111] text-white">
-      <header className="p-4 border-b border-[#333]">
-        <h1 className="text-xl font-bold">{clip.move_name ?? clip.label ?? 'Clip'}</h1>
-        <p className="text-gray-400 text-sm mt-1">{session?.name ?? 'Session'}</p>
+    <div className="min-h-screen bg-roam-ground text-roam-active">
+      <header className="p-4 border-b border-roam-border">
+        <h1 className="text-xl font-bold font-serif">{clip.move_name ?? clip.label ?? 'Clip'}</h1>
+        <p className="text-roam-muted text-sm mt-1">{session?.name ?? 'Session'}</p>
       </header>
 
       <main className="p-4 space-y-6 max-w-3xl">
@@ -52,17 +52,17 @@ export default async function SharedClipPage({
             shareToken={token}
           />
         ) : clip.upload_status === 'processing' ? (
-          <div className="rounded-lg bg-[#222] aspect-video flex items-center justify-center text-gray-400 text-sm">
+          <div className="rounded-lg bg-roam-chrome border border-roam-border aspect-video flex items-center justify-center text-roam-muted text-sm">
             Processing…
           </div>
         ) : (
-          <div className="rounded-lg bg-[#222] p-6 text-gray-400 text-center">
+          <div className="rounded-lg bg-roam-chrome border border-roam-border p-6 text-roam-muted text-center">
             Clip not ready yet
           </div>
         )}
       </main>
 
-      <footer className="py-6 text-center text-gray-500 text-sm">Made with Roam</footer>
+      <footer className="py-6 text-center text-roam-muted text-sm">Made with Roam</footer>
     </div>
   );
 }

@@ -7,7 +7,6 @@ import React, {
 } from 'react';
 import {
   FlatList,
-  GestureResponderEvent,
   Image,
   PanResponder,
   Pressable,
@@ -69,6 +68,8 @@ export function WorkbenchTab() {
     durationMs,
     musicUrl,
     loopRegion,
+    setLoopRegion,
+    setLoopOpenAt,
     clips,
     musicTrack,
     isAnalysing,
@@ -100,6 +101,10 @@ export function WorkbenchTab() {
   const { height: windowHeight } = useWindowDimensions();
   const waveformWidth = useRef(0);
   const [waveformWidthPx, setWaveformWidthPx] = useState(0);
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [dragCurrentX, setDragCurrentX] = useState<number | null>(null);
+  const dragStartXRef = useRef<number | null>(null);
+  const dragCurrentXRef = useRef<number | null>(null);
   const [notePinTimecodeMs, setNotePinTimecodeMs] = useState<number | null>(null);
   const [activeVoiceNoteId, setActiveVoiceNoteId] = useState<string | null>(null);
 
@@ -221,18 +226,93 @@ export function WorkbenchTab() {
     [handleSectionSwipe]
   );
 
-  // ── Note handlers ────────────────────────────────────────────────────────
-  const handleWaveformTap = useCallback(
-    (event: GestureResponderEvent) => {
-      const width = waveformWidth.current;
-      if (width <= 0 || timelineDurationMs <= 0) return;
-      const fraction = Math.max(0, Math.min(1, event.nativeEvent.locationX / width));
-      const targetMs = fraction * timelineDurationMs;
-      setNotePinTimecodeMs(targetMs);
-      soundRef.current?.setPositionAsync(targetMs).catch(() => {});
-    },
-    [timelineDurationMs, soundRef]
+  const waveformDragPan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt) => {
+          const x = evt.nativeEvent.locationX;
+          dragStartXRef.current = x;
+          dragCurrentXRef.current = x;
+          setDragStartX(x);
+          setDragCurrentX(x);
+        },
+        onPanResponderMove: (evt) => {
+          const x = evt.nativeEvent.locationX;
+          dragCurrentXRef.current = x;
+          setDragCurrentX(x);
+        },
+        onPanResponderRelease: (evt) => {
+          const releaseX = evt.nativeEvent.locationX;
+          if (Number.isFinite(releaseX)) {
+            dragCurrentXRef.current = releaseX;
+            setDragCurrentX(releaseX);
+          }
+          const startX = dragStartXRef.current;
+          const currentX = dragCurrentXRef.current;
+          if (
+            startX === null ||
+            currentX === null ||
+            waveformWidthPx <= 0 ||
+            timelineDurationMs <= 0
+          ) {
+            dragStartXRef.current = null;
+            dragCurrentXRef.current = null;
+            setDragStartX(null);
+            setDragCurrentX(null);
+            return;
+          }
+
+          const distance = Math.abs(currentX - startX);
+          const threshold = waveformWidthPx * 0.1;
+
+          if (distance < threshold) {
+            const fraction = Math.max(0, Math.min(1, startX / waveformWidthPx));
+            const targetMs = fraction * timelineDurationMs;
+            setNotePinTimecodeMs(targetMs);
+            soundRef.current?.setPositionAsync(targetMs).catch(() => {});
+            dragStartXRef.current = null;
+            dragCurrentXRef.current = null;
+            setDragStartX(null);
+            setDragCurrentX(null);
+            return;
+          }
+
+          const startFrac = Math.max(
+            0,
+            Math.min(1, Math.min(startX, currentX) / waveformWidthPx)
+          );
+          const endFrac = Math.max(
+            0,
+            Math.min(1, Math.max(startX, currentX) / waveformWidthPx)
+          );
+          setLoopRegion({
+            start: startFrac * timelineDurationMs,
+            end: endFrac * timelineDurationMs,
+          });
+          setLoopOpenAt(null);
+          dragStartXRef.current = null;
+          dragCurrentXRef.current = null;
+          setDragStartX(null);
+          setDragCurrentX(null);
+        },
+        onPanResponderTerminate: () => {
+          dragStartXRef.current = null;
+          dragCurrentXRef.current = null;
+          setDragStartX(null);
+          setDragCurrentX(null);
+        },
+      }),
+    [
+      waveformWidthPx,
+      timelineDurationMs,
+      setLoopRegion,
+      setLoopOpenAt,
+      soundRef,
+    ]
   );
+
+  // ── Note handlers ────────────────────────────────────────────────────────
   const handleOpenNotePin = useCallback(
     (timecodeMs: number = playheadMs) => {
       setNotePinTimecodeMs(timecodeMs);
@@ -301,10 +381,9 @@ export function WorkbenchTab() {
                 setWaveformWidthPx(measuredWidth);
               }}
             >
-              <TouchableOpacity
+              <View
                 style={styles.waveformTapArea}
-                activeOpacity={1}
-                onPress={handleWaveformTap}
+                {...waveformDragPan.panHandlers}
               >
                 <View style={[styles.waveformBarsRow, { width: waveformContentWidth }]}>
                   {waveformBars.map((bar) => {
@@ -328,7 +407,19 @@ export function WorkbenchTab() {
                     );
                   })}
                 </View>
-              </TouchableOpacity>
+                {dragStartX !== null && dragCurrentX !== null ? (
+                  <View
+                    style={[
+                      styles.waveformDragBand,
+                      {
+                        left: Math.min(dragStartX, dragCurrentX),
+                        width: Math.abs(dragCurrentX - dragStartX),
+                        backgroundColor: 'rgba(232, 168, 124, 0.30)',
+                      },
+                    ]}
+                  />
+                ) : null}
+              </View>
               {loopRegion ? (
                 <>
                   <View
@@ -731,6 +822,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: WAVEFORM_BAR_GAP,
     height: '100%',
+  },
+  waveformDragBand: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    pointerEvents: 'none',
   },
   waveformBar: {
     borderRadius: 2,
