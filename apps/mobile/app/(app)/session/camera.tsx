@@ -13,9 +13,10 @@ import { LongPressGestureHandler, State, type HandlerStateChangeEvent, type Long
 import { theme } from '../../../lib/theme';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { QuickSaveSheet } from '../../../components/QuickSaveSheet';
-import { CreateSessionSheet } from '../../../components/CreateSessionSheet';
 import { useSession } from '../../../lib/hooks/useSession';
 import { saveClip } from '../../../lib/saveClip';
+import { API_BASE } from '../../../lib/api';
+import { getCachedSession } from '../../../lib/sessionCache';
 
 const colors = theme.light;
 const spacing = theme.spacing;
@@ -38,6 +39,8 @@ export default function CameraScreen() {
   const [voiceMemoNotice, setVoiceMemoNotice] = useState(false);
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
+  const [sessionName, setSessionName] = useState('Session');
+  const [isSessionNameLoading, setIsSessionNameLoading] = useState(true);
   const recordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const frontRecordingPromiseRef = useRef<Promise<{ uri: string } | undefined> | null>(null);
   const audioRecordingRef = useRef<Audio.Recording | null>(null);
@@ -45,7 +48,6 @@ export default function CameraScreen() {
   const didConsumeLongPressRef = useRef(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const quickSaveRef = useRef<BottomSheet | null>(null);
-  const createSessionSheetRef = useRef<BottomSheet | null>(null);
   const frontCameraRef = useRef<CameraView>(null);
   const fpsFramesRef = useRef<number[]>([]);
   const lowFpsStartRef = useRef<number | null>(null);
@@ -61,6 +63,56 @@ export default function CameraScreen() {
     if (!cameraPermission?.granted) requestCameraPermission();
     if (!micPermission?.granted) requestMicPermission();
   }, [cameraPermission?.granted, micPermission?.granted, requestCameraPermission, requestMicPermission]);
+
+  useEffect(() => {
+    const id = typeof sessionId === 'string' ? sessionId : null;
+    if (!id) {
+      setSessionName('Session');
+      setIsSessionNameLoading(false);
+      return;
+    }
+
+    const cached = getCachedSession(id);
+    if (cached?.session?.name) {
+      setSessionName(cached.session.name);
+      setIsSessionNameLoading(false);
+    } else {
+      setIsSessionNameLoading(true);
+    }
+
+    if (!session?.access_token) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/sessions/${id}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json() as { session?: { name?: string } };
+        const name = data.session?.name?.trim();
+        if (!cancelled && name) {
+          setSessionName(name);
+        }
+      } catch {
+        // keep cached value when request fails
+      } finally {
+        if (!cancelled) {
+          setIsSessionNameLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, session?.access_token]);
+
+  useEffect(() => {
+    if (dualEnabled && facing !== 'back') {
+      setFacing('back');
+    }
+  }, [dualEnabled, facing]);
 
   const stopFpsMonitor = useCallback(() => {
     if (rafRef.current != null) {
@@ -269,6 +321,7 @@ export default function CameraScreen() {
   };
 
   const handleFlipPress = () => {
+    if (dualEnabled || isRecording) return;
     setFacing((prev) => (prev === 'back' ? 'front' : 'back'));
   };
 
@@ -288,6 +341,8 @@ export default function CameraScreen() {
       voiceMemoTimerRef.current = null;
     }, 2000);
   };
+
+  const isFlipDisabled = dualEnabled || isRecording;
 
   const handleLongPressStateChange = async (event: HandlerStateChangeEvent<LongPressGestureHandlerEventPayload>) => {
     if (isRecording) return; // Guard against video recording conflicts
@@ -403,47 +458,12 @@ export default function CameraScreen() {
           dualPairId={dualPairId}
           sessionId={typeof sessionId === 'string' ? sessionId : null}
           sectionName={typeof sectionName === 'string' ? sectionName : null}
-          onNewSession={() => {
-            createSessionSheetRef.current?.snapToIndex(0);
-          }}
           onDone={(next) => {
             if (next?.navigateTo) {
               router.replace(next.navigateTo);
             } else {
               router.back();
             }
-          }}
-        />
-        <CreateSessionSheet
-          bottomSheetRef={createSessionSheetRef}
-          onCreated={(newSession) => {
-            if (!session?.access_token || !recordedUri) return;
-            void (async () => {
-              const section = typeof sectionName === 'string' ? sectionName : undefined;
-              const primaryResult = await saveClip(
-                newSession.id,
-                recordedUri,
-                'Clip',
-                session.access_token,
-                section,
-                dualPairId
-              );
-              if (!primaryResult.ok) return;
-
-              if (dualPairId && frontRecordedUri) {
-                const secondaryResult = await saveClip(
-                  newSession.id,
-                  frontRecordedUri,
-                  'Clip',
-                  session.access_token,
-                  section,
-                  dualPairId
-                );
-                if (!secondaryResult.ok) return;
-              }
-
-              router.replace(`/session/${newSession.id}`);
-            })();
           }}
         />
       </View>
@@ -457,7 +477,7 @@ export default function CameraScreen() {
           <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
         <View style={styles.sessionLabelWrap}>
-          <Text style={styles.sessionLabel}>{session?.name ?? 'Session'}</Text>
+          <Text style={styles.sessionLabel}>{isSessionNameLoading ? 'Session' : sessionName}</Text>
           {sectionName ? <Text style={styles.sectionLabel}>{sectionName}</Text> : null}
         </View>
         <TouchableOpacity
@@ -478,7 +498,7 @@ export default function CameraScreen() {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         mode="video"
-        facing={facing}
+        facing={dualEnabled ? 'back' : facing}
         flash={flashMode}
       />
       {dualEnabled ? (
@@ -502,8 +522,13 @@ export default function CameraScreen() {
         </View>
       ) : null}
       <View style={styles.controlsRow}>
-        <TouchableOpacity style={styles.controlBtn} onPress={handleFlipPress} activeOpacity={0.85}>
-          <Text style={styles.controlBtnIcon}>🔄</Text>
+        <TouchableOpacity
+          style={[styles.controlBtn, isFlipDisabled && styles.controlBtnDisabled]}
+          onPress={handleFlipPress}
+          activeOpacity={isFlipDisabled ? 1 : 0.85}
+          disabled={isFlipDisabled}
+        >
+          <Text style={[styles.controlBtnIcon, isFlipDisabled && styles.controlBtnIconDisabled]}>🔄</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.controlBtn} onPress={handleFlashPress} activeOpacity={0.85}>
           <Text style={styles.controlBtnIcon}>⚡</Text>
@@ -521,7 +546,9 @@ export default function CameraScreen() {
             style={[styles.recordButton, isRecording && styles.recordButtonActive]}
             onPress={handleRecordPress}
             activeOpacity={0.8}
-          />
+          >
+            <View style={[styles.recordButtonInner, isRecording && styles.recordButtonInnerActive]} />
+          </TouchableOpacity>
         </LongPressGestureHandler>
       </View>
     </View>
@@ -684,11 +711,24 @@ const styles = StyleSheet.create({
     backgroundColor: t.capture,
     borderWidth: 4,
     borderColor: 'rgba(255,255,255,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   recordButtonActive: {
     backgroundColor: t.capture,
     borderColor: t.active,
     borderWidth: 2,
+  },
+  recordButtonInner: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: t.chrome,
+  },
+  recordButtonInnerActive: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
   },
   controlsRow: {
     position: 'absolute',
@@ -709,9 +749,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  controlBtnDisabled: {
+    opacity: 0.45,
+  },
   controlBtnIcon: {
     fontSize: 18,
     color: t.active,
+  },
+  controlBtnIconDisabled: {
+    color: t.inactive,
   },
   previewControls: {
     position: 'absolute',

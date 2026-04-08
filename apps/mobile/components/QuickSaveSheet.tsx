@@ -11,6 +11,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import Toast from 'react-native-toast-message';
 import { theme } from '../lib/theme';
 import { useSession } from '../lib/hooks/useSession';
+import { API_BASE } from '../lib/api';
 import { saveClip, saveInboxClip } from '../lib/saveClip';
 import type { Session as SessionType } from '@roam/types';
 import { CreateSessionSheet } from './CreateSessionSheet';
@@ -34,7 +35,6 @@ export function QuickSaveSheet({
   dualPairId,
   sessionId,
   sectionName,
-  onNewSession,
   onDone,
 }: QuickSaveSheetProps) {
   const snapPoints = useMemo(() => ['55%'], []);
@@ -295,7 +295,7 @@ export function QuickSaveSheet({
           setLoading(true);
           void (async () => {
             try {
-              const primaryResult = await saveClip(
+              const primarySavePromise = saveClip(
                 newSession.id,
                 videoUri,
                 'Clip',
@@ -303,23 +303,32 @@ export function QuickSaveSheet({
                 undefined,
                 dualPairId
               );
+              const secondarySavePromise =
+                dualPairId && secondaryVideoUri
+                  ? saveClip(
+                      newSession.id,
+                      secondaryVideoUri,
+                      'Clip',
+                      session.access_token,
+                      undefined,
+                      dualPairId
+                    )
+                  : null;
+              const [primaryResult, secondaryResult] = await Promise.all([
+                primarySavePromise,
+                secondarySavePromise ?? Promise.resolve(null),
+              ]);
               if (!primaryResult.ok) {
                 Toast.show({ type: 'error', text1: 'Could not save clip' });
                 return;
               }
-              if (dualPairId && secondaryVideoUri) {
-                const secondaryResult = await saveClip(
-                  newSession.id,
-                  secondaryVideoUri,
-                  'Clip',
-                  session.access_token,
-                  undefined,
-                  dualPairId
-                );
-                if (!secondaryResult.ok) {
-                  Toast.show({ type: 'error', text1: 'Could not save clip' });
-                  return;
-                }
+              if (secondarySavePromise && !secondaryResult?.ok) {
+                Toast.show({
+                  type: 'error',
+                  text1: 'Could not save both clips',
+                  text2: 'Main clip saved, secondary clip failed',
+                });
+                return;
               }
               Toast.show({ type: 'success', text1: 'Saved' });
               bottomSheetRef.current?.close();
