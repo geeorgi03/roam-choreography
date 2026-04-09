@@ -740,7 +740,7 @@ export function WorkbenchTab() {
             <TouchableOpacity
               style={styles.emptyVideoBtn}
               onPress={() =>
-                router.push({ pathname: './youtube-player', params: { sessionId } })
+                router.push({ pathname: './music-setup', params: { sessionId } })
               }
             >
               <Text style={styles.emptyVideoBtnText}>{t('workbench.addVideo')}</Text>

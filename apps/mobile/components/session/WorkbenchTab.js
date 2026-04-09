@@ -486,7 +486,7 @@ function WorkbenchTab() {
       {isFullyEmpty && (<react_native_1.View style={styles.emptyState}>
           <react_native_1.Text style={styles.emptyStatePrompt}>{t('workbench.emptyPrompt')}</react_native_1.Text>
           <react_native_1.View style={styles.emptyStateActions}>
-            <react_native_1.TouchableOpacity style={styles.emptyVideoBtn} onPress={() => router.push({ pathname: './youtube-player', params: { sessionId } })}>
+            <react_native_1.TouchableOpacity style={styles.emptyVideoBtn} onPress={() => router.push({ pathname: './music-setup', params: { sessionId } })}>
               <react_native_1.Text style={styles.emptyVideoBtnText}>{t('workbench.addVideo')}</react_native_1.Text>
             </react_native_1.TouchableOpacity>
             <react_native_1.TouchableOpacity style={styles.emptyRecordBtn} onPress={() => router.push({

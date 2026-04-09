@@ -35,7 +35,8 @@ const MIME_TO_EXT: Record<string, string> = {
   'audio/mp3': 'mp3',
 };
 
-const YOUTUBE_URL_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/;
+const YOUTUBE_URL_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i;
+const BILIBILI_URL_REGEX = /^(https?:\/\/)?(www\.)?(bilibili\.com\/video\/|b23\.tv\/)[\w/-]+/i;
 
 /** POST /sessions/:id/music — upload file or submit YouTube URL */
 app.post('/:id/music', async (c) => {
@@ -152,9 +153,11 @@ app.post('/:id/music', async (c) => {
   // JSON / YouTube branch
   const body = await c.req.json<{ youtube_url?: string }>();
   const youtube_url = body?.youtube_url;
-  if (typeof youtube_url !== 'string' || !YOUTUBE_URL_REGEX.test(youtube_url)) {
+  const isYouTubeUrl = typeof youtube_url === 'string' && YOUTUBE_URL_REGEX.test(youtube_url);
+  const isBilibiliUrl = typeof youtube_url === 'string' && BILIBILI_URL_REGEX.test(youtube_url);
+  if (typeof youtube_url !== 'string' || (!isYouTubeUrl && !isBilibiliUrl)) {
     return c.json(
-      { error: 'Invalid or missing youtube_url. Must be a youtube.com/watch or youtu.be/ URL.' },
+      { error: 'Invalid or missing youtube_url. Must be a YouTube or Bilibili URL.' },
       400
     );
   }

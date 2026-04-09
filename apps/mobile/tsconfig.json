@@ -6,7 +6,9 @@
     "paths": {
       "@roam/db": ["../../packages/db/dist"],
       "@roam/types": ["../../packages/types/src"]
-    }
+    },
+    "noEmit": true,
+    "jsx": "react-jsx"
   },
   "include": ["**/*.ts", "**/*.tsx"]
 }

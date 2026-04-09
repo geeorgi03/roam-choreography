@@ -15,10 +15,12 @@ import { PaywallSheet } from '../../../components/PaywallSheet';
 import { useState, useRef } from 'react';
 import { API_BASE } from '../../../lib/api';
 
-const YOUTUBE_URL_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/;
+const YOUTUBE_URL_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i;
+const BILIBILI_URL_REGEX = /^(https?:\/\/)?(www\.)?(bilibili\.com\/video\/|b23\.tv\/)[\w/-]+/i;
 
 export default function MusicSetupScreen() {
-  const { id: sessionId } = useLocalSearchParams<{ id: string }>();
+  const { id, sessionId: sessionIdParam } = useLocalSearchParams<{ id?: string; sessionId?: string }>();
+  const sessionId = id ?? sessionIdParam ?? null;
   const router = useRouter();
   const { session } = useSession();
   const { refetch } = useMusicTrackStatus(sessionId ?? null);
@@ -67,10 +69,15 @@ export default function MusicSetupScreen() {
   };
 
   const handleYoutubeValidate = async () => {
-    if (!sessionId || !session?.access_token) return;
+    if (!sessionId || !session?.access_token) {
+      setError('Session not ready. Please go back and reopen music setup.');
+      return;
+    }
     const url = youtubeUrl.trim();
-    if (!YOUTUBE_URL_REGEX.test(url)) {
-      setError('Please enter a valid YouTube URL (youtube.com/watch or youtu.be/)');
+    const isYouTubeUrl = YOUTUBE_URL_REGEX.test(url);
+    const isBilibiliUrl = BILIBILI_URL_REGEX.test(url);
+    if (!isYouTubeUrl && !isBilibiliUrl) {
+      setError('Please enter a valid YouTube or Bilibili URL.');
       return;
     }
     setError(null);
@@ -93,10 +100,15 @@ export default function MusicSetupScreen() {
         throw new Error((data as { error?: string }).error ?? res.statusText);
       }
       const data = (await res.json()) as { music_track_id: string };
-      router.replace({
-        pathname: './youtube-player',
-        params: { sessionId, musicTrackId: data.music_track_id },
-      });
+      if (isYouTubeUrl) {
+        router.replace({
+          pathname: './youtube-player',
+          params: { sessionId, musicTrackId: data.music_track_id },
+        });
+      } else {
+        // Quick support path for Bilibili: save link and return to session workbench.
+        router.replace({ pathname: './[id]', params: { id: sessionId } });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Request failed');
     } finally {
