@@ -8,14 +8,18 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { theme } from '../lib/theme';
 import { useSession } from '../lib/hooks/useSession';
-import { API_BASE } from '../lib/api';
+import { apiRequest, ApiRequestError } from '../lib/api';
 import type { Session } from '@roam/types';
+import { RetryPrompt } from './RetryPrompt';
 
 const colors = theme.night;
 const spacing = theme.spacing;
+const YOUTUBE_URL_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i;
+const BILIBILI_URL_REGEX = /^(https?:\/\/)?(www\.)?(bilibili\.com\/video\/|b23\.tv\/)[\w/-]+/i;
 
 export interface FirstSessionSheetProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
@@ -37,12 +41,14 @@ export function FirstSessionSheet({
   const [musicUrl, setMusicUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryable, setRetryable] = useState(false);
 
   const reset = () => {
     setStep(1);
     setName('');
     setMusicUrl('');
     setError(null);
+    setRetryable(false);
   };
 
   const parseJsonSafe = async (res: Response): Promise<unknown> => {
@@ -56,13 +62,14 @@ export function FirstSessionSheet({
   };
 
   const postCreateSession = async (path: string, body: unknown) => {
-    return fetch(`${API_BASE}${path}`, {
+    return apiRequest(`${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session!.access_token}`,
       },
       body: JSON.stringify(body),
+      retries: 0,
     });
   };
 
@@ -75,7 +82,15 @@ export function FirstSessionSheet({
       return;
     }
 
+    const connectivity = await NetInfo.fetch();
+    if (!connectivity.isConnected) {
+      setRetryable(false);
+      setError("You're offline. Connect and try again.");
+      return;
+    }
+
     setError(null);
+    setRetryable(false);
     setLoading(true);
     try {
       const body = {
@@ -91,28 +106,46 @@ export function FirstSessionSheet({
 
       const data = await parseJsonSafe(res);
 
-      if (res.status === 403 && (data as { error?: string })?.error === 'plan_limit_reached') {
-        bottomSheetRef.current?.close();
-        onPaywallRequired?.();
-        return;
-      }
-
-      if (!res.ok) {
-        const msg =
-          (data as { error?: string })?.error ??
-          `HTTP ${res.status} ${res.statusText}`;
-        throw new Error(msg || 'Request failed');
-      }
-
       onCreated(data as Session);
       bottomSheetRef.current?.close();
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to create session';
-      setError(message);
-      Alert.alert('Create session failed', message);
+      if (e instanceof ApiRequestError) {
+        if (e.reason === 'http' && e.status === 403) {
+          try {
+            const parsed = e.bodyText ? (JSON.parse(e.bodyText) as { error?: string }) : null;
+            if (parsed?.error === 'plan_limit_reached') {
+              bottomSheetRef.current?.close();
+              onPaywallRequired?.();
+              return;
+            }
+          } catch {
+            // ignore parse failures
+          }
+        }
+        if (e.reason === 'timeout' || e.reason === 'network') {
+          setRetryable(true);
+          setError('Connection issue while creating session.');
+        } else {
+          const message = e.message || 'Failed to create session';
+          setRetryable(false);
+          setError(message);
+          Alert.alert('Create session failed', message);
+        }
+      } else {
+        const message = e instanceof Error ? e.message : 'Failed to create session';
+        setRetryable(false);
+        setError(message);
+        Alert.alert('Create session failed', message);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const validateMusicUrl = (url: string): boolean => {
+    const trimmed = url.trim();
+    if (!trimmed) return true;
+    return YOUTUBE_URL_REGEX.test(trimmed) || BILIBILI_URL_REGEX.test(trimmed);
   };
 
   return (
@@ -150,7 +183,11 @@ export function FirstSessionSheet({
               editable={!loading}
             />
 
-            {error ? <Text style={[styles.errorText, { color: colors.capture }]}>{error}</Text> : null}
+            {retryable && error ? (
+              <RetryPrompt message={error} onRetry={handleCreate} loading={loading} />
+            ) : error ? (
+              <Text style={[styles.errorText, { color: colors.capture }]}>{error}</Text>
+            ) : null}
 
             <TouchableOpacity
               style={[
@@ -199,6 +236,11 @@ export function FirstSessionSheet({
                   loading && styles.buttonDisabled,
                 ]}
                 onPress={() => {
+                  if (!validateMusicUrl(musicUrl)) {
+                    setRetryable(false);
+                    setError('Invalid URL — paste a YouTube or Bilibili link');
+                    return;
+                  }
                   handleCreate();
                 }}
                 disabled={loading}

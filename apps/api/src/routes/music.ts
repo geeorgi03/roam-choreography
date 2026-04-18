@@ -77,6 +77,22 @@ async function tryFetchLyrics(artist: string, title: string): Promise<{
   return { artist, title, lyrics };
 }
 
+async function tryFetchLyricsLrclib(artist: string, title: string): Promise<{
+  artist: string;
+  title: string;
+  lyrics: string;
+} | null> {
+  const res = await fetchWithTimeout(
+    `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,
+    4_000
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { plainLyrics?: string };
+  const lyrics = (data.plainLyrics ?? '').trim();
+  if (!lyrics) return null;
+  return { artist, title, lyrics };
+}
+
 /** GET /sessions/:id/music/lyrics?query=artist%20-%20title */
 app.get('/:id/music/lyrics', async (c) => {
   const userId = c.get('userId');
@@ -90,36 +106,83 @@ app.get('/:id/music/lyrics', async (c) => {
   }
 
   try {
+    let lyricsProviderAttempted = false;
+    let lrclibProviderAttempted = false;
+    let lyricsProviderErrored = false;
+    let lrclibProviderErrored = false;
+
     const direct = splitArtistAndTitle(query);
     if (direct.artist && direct.title) {
-      const exact = await tryFetchLyrics(direct.artist, direct.title);
+      let exact: Awaited<ReturnType<typeof tryFetchLyrics>> = null;
+      try {
+        lyricsProviderAttempted = true;
+        exact = await tryFetchLyrics(direct.artist, direct.title);
+      } catch {
+        lyricsProviderErrored = true;
+      }
       if (exact) return c.json({ ...exact, provider: 'lyrics.ovh' }, 200);
+
+      try {
+        lrclibProviderAttempted = true;
+        const exactLrclib = await tryFetchLyricsLrclib(direct.artist, direct.title);
+        if (exactLrclib) return c.json({ ...exactLrclib, provider: 'lrclib' }, 200);
+      } catch {
+        lrclibProviderErrored = true;
+      }
     }
 
-    const suggestRes = await fetchWithTimeout(
-      `https://api.lyrics.ovh/suggest/${encodeURIComponent(query)}`,
-      4_000
-    );
-    if (!suggestRes.ok) {
+    let suggestRes: Response | null = null;
+    try {
+      lyricsProviderAttempted = true;
+      suggestRes = await fetchWithTimeout(
+        `https://api.lyrics.ovh/suggest/${encodeURIComponent(query)}`,
+        4_000
+      );
+    } catch {
+      lyricsProviderErrored = true;
+    }
+    if (suggestRes && suggestRes.ok) {
+      const suggestJson = (await suggestRes.json()) as {
+        data?: Array<{ title?: string; artist?: { name?: string } }>;
+      };
+      const candidates = Array.isArray(suggestJson.data) ? suggestJson.data.slice(0, 8) : [];
+      for (const item of candidates) {
+        const artist = item.artist?.name?.trim();
+        const title = item.title?.trim();
+        if (!artist || !title) continue;
+        try {
+          lyricsProviderAttempted = true;
+          const hit = await tryFetchLyrics(artist, title);
+          if (hit) return c.json({ ...hit, provider: 'lyrics.ovh' }, 200);
+        } catch {
+          lyricsProviderErrored = true;
+        }
+      }
+    } else if (suggestRes && !suggestRes.ok) {
+      lyricsProviderErrored = true;
+    }
+
+    try {
+      lrclibProviderAttempted = true;
+      const fallback = await tryFetchLyricsLrclib(
+        direct.artist ?? query,
+        direct.title ?? query
+      );
+      if (fallback) return c.json({ ...fallback, provider: 'lrclib' }, 200);
+    } catch {
+      lrclibProviderErrored = true;
+    }
+
+    if (
+      lyricsProviderAttempted &&
+      lrclibProviderAttempted &&
+      lyricsProviderErrored &&
+      lrclibProviderErrored
+    ) {
       return c.json({ error: 'lyrics provider unavailable', reason: 'provider_error' }, 503);
     }
-    const suggestJson = (await suggestRes.json()) as {
-      data?: Array<{ title?: string; artist?: { name?: string } }>;
-    };
-    const candidates = Array.isArray(suggestJson.data) ? suggestJson.data.slice(0, 8) : [];
-    for (const item of candidates) {
-      const artist = item.artist?.name?.trim();
-      const title = item.title?.trim();
-      if (!artist || !title) continue;
-      const hit = await tryFetchLyrics(artist, title);
-      if (hit) return c.json({ ...hit, provider: 'lyrics.ovh' }, 200);
-    }
-  } catch (error) {
-    const isTimeout = error instanceof Error && error.name === 'AbortError';
-    return c.json(
-      { error: isTimeout ? 'lyrics lookup timeout' : 'lyrics lookup failed', reason: isTimeout ? 'timeout' : 'provider_error' },
-      isTimeout ? 504 : 503
-    );
+  } catch {
+    return c.json({ error: 'lyrics lookup failed', reason: 'provider_error' }, 500);
   }
 
   return c.json({ error: 'lyrics not found' }, 404);

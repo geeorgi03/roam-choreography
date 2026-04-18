@@ -3,7 +3,7 @@ import { Linking, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSession } from './useSession';
 import { getActiveSessionId, getActiveSection, getActiveSectionId } from '../storage';
-import { API_BASE } from '../api';
+import { apiRequest, ApiRequestError } from '../api';
 import Toast from 'react-native-toast-message';
 
 interface OEmbedMetadata {
@@ -73,26 +73,23 @@ export function useShareIntent() {
       start_ms: 0,
     };
 
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}/clips`, {
+    const response = await apiRequest(`/sessions/${sessionId}/clips`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify(payload),
+      timeoutMs: 10_000,
+      retries: 2,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to create clip: ${response.status} ${errorText}`);
-    }
 
     const clip = await response.json();
 
     // If active section provided, assign clip to that section
     if (activeSection) {
       try {
-        const assignResponse = await fetch(`${API_BASE}/sessions/${sessionId}/assembly/section-clip`, {
+        await apiRequest(`/sessions/${sessionId}/assembly/section-clip`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -102,11 +99,10 @@ export function useShareIntent() {
             clip_id: clip.id,
             section_label: activeSection,
           }),
+          timeoutMs: 8_000,
+          retries: 1,
+          shouldRetry: ({ error }) => error.reason !== 'http' || error.status === 409,
         });
-
-        if (!assignResponse.ok) {
-          console.warn('Failed to assign clip to section:', assignResponse.status, await assignResponse.text());
-        }
       } catch (error) {
         console.warn('Error assigning clip to section:', error);
       }
@@ -144,10 +140,20 @@ export function useShareIntent() {
       }
     } catch (error) {
       console.error('Error handling share URL:', error);
+      const errorMessage =
+        error instanceof ApiRequestError
+          ? error.reason === 'timeout'
+            ? 'Network timeout while adding clip.'
+            : error.reason === 'network'
+              ? 'Network error while adding clip.'
+              : 'Unable to add clip right now.'
+          : error instanceof Error
+            ? error.message
+            : 'Unknown error';
       Toast.show({
         type: 'error',
         text1: 'Failed to add clip',
-        text2: error instanceof Error ? error.message : 'Unknown error',
+        text2: errorMessage,
       });
     }
   };

@@ -100,6 +100,14 @@ Pass: full round-trip feedback works with correct clip/time context.
 
 Pass: no data loss and no blocking interaction errors.
 
+### K. Structured feedback roundtrip
+1. Open a session with at least one clip.
+2. Submit structured feedback via the Liz Lerman 4-step flow.
+3. In Supabase Studio (or via `SELECT * FROM structured_feedback WHERE session_id = '<id>'`), verify a row exists with the correct `clip_id`, `step`, and `content`.
+4. Verify the feedback count badge in the app refreshes.
+
+Pass: structured_feedback row exists in DB; count badge updates within 2 s.
+
 ## Evidence template
 
 For each criterion, record:

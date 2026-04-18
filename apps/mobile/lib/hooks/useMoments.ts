@@ -16,6 +16,8 @@ export interface ConnectionStatus {
   errorMessage?: string;
 }
 
+type FormationUpdateResult = { formation: FormationData | null; last_modified_at: string | null };
+
 export default function useMoments(sessionId: string | null) {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -339,8 +341,8 @@ export default function useMoments(sessionId: string | null) {
   );
 
   const updateFormation = useCallback(
-    async (momentId: string, formation: FormationData | null): Promise<void> => {
-      if (!sessionId) return;
+    async (momentId: string, formation: FormationData | null): Promise<FormationUpdateResult | null> => {
+      if (!sessionId) return null;
       // Capture the exact pre-mutation payload so rollback can restore `null` precisely.
       const prevMoment = moments.find((m) => m.id === momentId);
       const momentExistedBeforeUpdate = Boolean(prevMoment);
@@ -359,12 +361,15 @@ export default function useMoments(sessionId: string | null) {
         });
 
         if (!res.ok) throw new Error('Failed to update formation');
+        const data = (await res.json()) as FormationUpdateResult;
+        return data;
       } catch {
         setMoments((p) =>
           momentExistedBeforeUpdate
             ? p.map((m) => (m.id === momentId ? { ...m, formation: prevFormation } : m))
             : p
         );
+        return null;
       }
     },
     [sessionId, moments, token]

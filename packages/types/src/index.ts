@@ -182,6 +182,7 @@ export interface Moment {
   quality: QualityData | null;
   position: number;
   created_at: ISODateTime;
+  last_modified_at?: ISODateTime;
 }
 
 export interface Loop {

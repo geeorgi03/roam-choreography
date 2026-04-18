@@ -109,6 +109,7 @@ export function SpatialTab() {
   // Prevent rehydration/reset from firing on same-moment optimistic updates.
   // We only want to fully reset transient interaction state when the active moment identity changes.
   const prevActiveMomentIdRef = useRef<string | null>(null);
+  const lastSyncedAtRef = useRef<string | null>(null);
   
   // Canvas state
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -162,7 +163,10 @@ export function SpatialTab() {
     };
     setSyncStatus('pending');
     try {
-      await updateFormation(momentId, payload);
+      const result = await updateFormation(momentId, payload);
+      if (result?.last_modified_at) {
+        lastSyncedAtRef.current = result.last_modified_at;
+      }
       setSyncStatus(momentsConnectionStatus.hasError ? 'conflict' : 'synced');
     } catch {
       setSyncStatus('conflict');
@@ -203,6 +207,11 @@ export function SpatialTab() {
     };
 
     const formation = activeMomentRecord.formation as PersistedFormation | null;
+    const incomingLastModifiedAt = activeMomentRecord.last_modified_at ?? null;
+    const shouldApplySpatialHydration =
+      !incomingLastModifiedAt ||
+      !lastSyncedAtRef.current ||
+      new Date(incomingLastModifiedAt).getTime() >= new Date(lastSyncedAtRef.current).getTime();
     const hydratedDancers =
       Array.isArray(formation?.dancers) && formation.dancers.length > 0
         ? formation.dancers
@@ -216,9 +225,12 @@ export function SpatialTab() {
     if (identityChanged) {
       isDraggingDancerRef.current = false;
     }
-    if (identityChanged || !isDraggingDancerRef.current) {
+    if ((identityChanged || !isDraggingDancerRef.current) && shouldApplySpatialHydration) {
       setDancers(hydratedDancers);
       setPathsByDancer(hydratedPathsByDancer);
+    }
+    if (shouldApplySpatialHydration && incomingLastModifiedAt) {
+      lastSyncedAtRef.current = incomingLastModifiedAt;
     }
 
     const quality = activeMomentRecord.quality;
@@ -607,6 +619,16 @@ export function SpatialTab() {
     );
   };
 
+  const retrySync = () => {
+    const targetMomentId = activeMomentRef.current;
+    if (!targetMomentId) return;
+    void persistFormation(targetMomentId, {
+      dancers: latestDancersRef.current,
+      pathsByDancer,
+      toolState,
+    });
+  };
+
   return (
     <View style={styles.container}>
       {/* Canvas zone */}
@@ -653,22 +675,23 @@ export function SpatialTab() {
           </TouchableOpacity>
         </ScrollView>
 
-        {!momentsConnectionStatus.hasError ? (
-          <View style={styles.formationHint}>
-            <Text style={styles.formationHintText}>{t('spatial.formationAutoSave')}</Text>
-            <Text style={styles.syncStatusText}>
-              {syncStatus === 'pending'
+        <View style={styles.formationHint}>
+          <Text style={styles.formationHintText}>{t('spatial.formationAutoSave')}</Text>
+          <Text style={styles.syncStatusText}>
+            {momentsConnectionStatus.hasError || syncStatus === 'conflict'
+              ? 'Sync: conflict'
+              : syncStatus === 'pending'
                 ? 'Sync: pending'
-                : syncStatus === 'conflict'
-                  ? 'Sync: conflict'
-                  : 'Sync: synced'}
-            </Text>
-          </View>
-        ) : null}
+                : 'Sync: synced'}
+          </Text>
+        </View>
 
         {momentsConnectionStatus.hasError && (
           <View style={styles.connectionErrorBanner}>
             <Text style={styles.connectionErrorText}>{t('spatial.connectionLost')}</Text>
+            <TouchableOpacity style={styles.connectionRetryButton} onPress={retrySync}>
+              <Text style={styles.connectionRetryText}>{t('home.retry')}</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1246,6 +1269,21 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     color: connectionText,
     textAlign: 'center',
     fontFamily: 'JetBrainsMono',
+  },
+  connectionRetryButton: {
+    marginTop: 8,
+    alignSelf: 'center',
+    borderWidth: 0.5,
+    borderColor: connectionText,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  connectionRetryText: {
+    fontSize: 11,
+    color: connectionText,
+    fontFamily: 'JetBrainsMono',
+    fontWeight: '600',
   },
 });
 }

@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
 import Slider from '@react-native-community/slider';
 import Toast from 'react-native-toast-message';
-import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS, useFrameCallback } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
 // Lazy require: a native-module init failure must not prevent route discovery
 let GestureDetector: React.ComponentType<{ gesture: unknown; children: React.ReactNode }> =
@@ -72,7 +72,7 @@ import type { ClipComment, ClipAnnotation, AnnotationType } from '@roam/types';
 import { AnnotationOverlay } from '../../../components/AnnotationOverlay';
 import type { VideoContentRect } from '../../../components/AnnotationOverlay';
 
-import { API_BASE } from '../../../lib/api';
+import { apiRequest } from '../../../lib/api';
 import { useTranslation } from '../../../lib/i18n';
 import { MMKV } from 'react-native-mmkv';
 
@@ -300,6 +300,7 @@ export default function ClipPlayerScreen() {
   // Loupe state
   const [loupeActive, setLoupeActive] = useState(false);
   const [loupeZoom, setLoupeZoom] = useState(2.5);
+  const [loupePausedForPerformance, setLoupePausedForPerformance] = useState(false);
   const loupeX = useSharedValue(0);
   const loupeY = useSharedValue(0);
   const loupeActiveShared = useSharedValue(0); // 0 = inactive, 1 = active
@@ -307,6 +308,8 @@ export default function ClipPlayerScreen() {
   const loupeLastX = useRef(0);
   const loupeLastY = useRef(0);
   const loupeLastZoom = useRef(0);
+  const fpsWindowRef = useRef<number[]>([]);
+  const lowFpsStreakRef = useRef(0);
   const loupeVideoRef = useRef<Video>(null);
   
   // Animated style for loupe positioning
@@ -357,10 +360,10 @@ export default function ClipPlayerScreen() {
     (async () => {
       try {
         const [commentsRes, feedbackRes] = await Promise.all([
-          fetch(`${API_BASE}/clips/${clipServerId}/comments`, {
+          apiRequest(`/clips/${clipServerId}/comments`, {
             headers: { Authorization: `Bearer ${session.access_token}` },
           }),
-          fetch(`${API_BASE}/clips/${clipServerId}/feedback-requests`, {
+          apiRequest(`/clips/${clipServerId}/feedback-requests`, {
             headers: { Authorization: `Bearer ${session.access_token}` },
           }),
         ]);
@@ -425,7 +428,7 @@ export default function ClipPlayerScreen() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/clips/${clipServerId}/annotations`, {
+        const res = await apiRequest(`/clips/${clipServerId}/annotations`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         if (mounted && res.ok) {
@@ -444,7 +447,7 @@ export default function ClipPlayerScreen() {
   const handleRequestFeedback = useCallback(async () => {
     if (!clipServerId || !session?.access_token) return;
     try {
-      const res = await fetch(`${API_BASE}/clips/${clipServerId}/feedback-requests`, {
+      const res = await apiRequest(`/clips/${clipServerId}/feedback-requests`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -457,7 +460,7 @@ export default function ClipPlayerScreen() {
   const handleCloseFeedback = useCallback(async () => {
     if (!clipServerId || !session?.access_token) return;
     try {
-      const res = await fetch(`${API_BASE}/clips/${clipServerId}/feedback-requests`, {
+      const res = await apiRequest(`/clips/${clipServerId}/feedback-requests`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -489,6 +492,36 @@ export default function ClipPlayerScreen() {
       setMirrorActive(false);
     };
   }, []);
+
+  useEffect(() => {
+    if (!loupePausedForPerformance) return;
+    const timeoutId = setTimeout(() => setLoupePausedForPerformance(false), 2000);
+    return () => clearTimeout(timeoutId);
+  }, [loupePausedForPerformance]);
+
+  useFrameCallback((frameInfo) => {
+    'worklet';
+    if (loupeActiveShared.value !== 1) return;
+    runOnJS((timestamp: number) => {
+      fpsWindowRef.current.push(timestamp);
+      if (fpsWindowRef.current.length > 10) fpsWindowRef.current.shift();
+      if (fpsWindowRef.current.length < 2) return;
+      const durationMs = fpsWindowRef.current[fpsWindowRef.current.length - 1] - fpsWindowRef.current[0];
+      if (durationMs <= 0) return;
+      const fps = ((fpsWindowRef.current.length - 1) / durationMs) * 1000;
+      if (fps < 30) {
+        lowFpsStreakRef.current += 1;
+        if (lowFpsStreakRef.current >= 3) {
+          lowFpsStreakRef.current = 0;
+          setLoupeActive(false);
+          loupeActiveShared.value = 0;
+          setLoupePausedForPerformance(true);
+        }
+      } else {
+        lowFpsStreakRef.current = 0;
+      }
+    })(frameInfo.timestamp);
+  }, true);
 
   const nextCaptureDelayMs = useCallback(() => {
     if (!playing) return YOUTUBE_CAPTURE_IDLE_MS;
@@ -1019,7 +1052,7 @@ export default function ClipPlayerScreen() {
 
     for (const p of pendingAnnotations) {
       try {
-        const res = await fetch(`${API_BASE}/clips/${clipServerId}/annotations`, {
+        const res = await apiRequest(`/clips/${clipServerId}/annotations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1058,7 +1091,7 @@ export default function ClipPlayerScreen() {
 
     if (needsRefresh) {
       try {
-        const res = await fetch(`${API_BASE}/clips/${clipServerId}/annotations`, {
+        const res = await apiRequest(`/clips/${clipServerId}/annotations`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         if (res.ok) {
@@ -1103,7 +1136,7 @@ export default function ClipPlayerScreen() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/clips/${clipServerId}/trim`, {
+      const res = await apiRequest(`/sessions/${sessionId}/clips/${clipServerId}/trim`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1274,6 +1307,11 @@ export default function ClipPlayerScreen() {
               }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.loupeDismissBtnText}>✕</Text>
               </TouchableOpacity>
+            )}
+            {loupePausedForPerformance && (
+              <View style={styles.loupePerfNotice}>
+                <Text style={styles.loupePerfNoticeText}>Loupe paused for performance.</Text>
+              </View>
             )}
             {!loupeActive && loupeLastZoom.current > 0 && (
               <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { 
@@ -1583,6 +1621,11 @@ export default function ClipPlayerScreen() {
             }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.loupeDismissBtnText}>✕</Text>
             </TouchableOpacity>
+          )}
+          {loupePausedForPerformance && (
+            <View style={styles.loupePerfNotice}>
+              <Text style={styles.loupePerfNoticeText}>Loupe paused for performance.</Text>
+            </View>
           )}
           {!loupeActive && loupeLastZoom.current > 0 && (
             <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { 
@@ -2277,6 +2320,22 @@ const styles = StyleSheet.create({
   loupeRestoreBtnText: {
     color: '#fff',
     fontSize: 20,
+  },
+  loupePerfNotice: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    zIndex: 30,
+  },
+  loupePerfNoticeText: {
+    color: '#fff',
+    fontSize: 12,
+    textAlign: 'center',
   },
   speedRow: {
     flexDirection: 'row',

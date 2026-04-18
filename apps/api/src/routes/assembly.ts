@@ -7,16 +7,21 @@ const app = new Hono<{ Variables: { userId: string } }>()
   .use('*', requireAuth);
 
 async function getAssemblyRevision(sessionId: string): Promise<string> {
-  const { data, error } = await supabase
+  const { count, error: countError } = await supabase
+    .from('section_clips')
+    .select('*', { count: 'exact', head: true })
+    .eq('session_id', sessionId);
+  if (countError) return '0:none';
+
+  const { data, error: latestError } = await supabase
     .from('section_clips')
     .select('created_at')
     .eq('session_id', sessionId)
     .order('created_at', { ascending: false })
     .limit(1);
-  if (error) return '0:none';
+  if (latestError) return `${count ?? 0}:none`;
   const latest = data?.[0]?.created_at ?? 'none';
-  const count = data?.length ?? 0;
-  return `${count}:${latest}`;
+  return `${count ?? 0}:${latest}`;
 }
 
 /** Verify session belongs to user */
@@ -47,7 +52,7 @@ app.get('/:id/assembly', async (c) => {
   if (error) return c.json({ error: error.message }, 500);
   const revision = await getAssemblyRevision(id);
   c.header('x-assembly-revision', revision);
-  return c.json({ assignments: data as SectionClip[], revision });
+  return c.json(data as SectionClip[]);
 });
 
 /** PUT /sessions/:id/assembly — replace section clips atomically */
@@ -81,7 +86,7 @@ app.put('/:id/assembly', async (c) => {
   if (error) return c.json({ error: error.message }, 500);
   const revision = await getAssemblyRevision(id);
   c.header('x-assembly-revision', revision);
-  return c.json({ assignments: (data ?? []) as SectionClip[], revision });
+  return c.json((data ?? []) as SectionClip[]);
 });
 
 /** POST /sessions/:id/assembly/section-clip — append a single clip to a section */
@@ -155,7 +160,7 @@ app.post('/:id/assembly/section-clip', async (c) => {
   if (error) return c.json({ error: error.message }, 500);
   const revision = await getAssemblyRevision(id);
   c.header('x-assembly-revision', revision);
-  return c.json({ assignment: data as SectionClip, revision }, 201);
+  return c.json(data as SectionClip, 201);
 });
 
 export const assemblyRoutes = app;

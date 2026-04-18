@@ -57,3 +57,15 @@ export const AnalyzeMusicResponseSchema = z.object({
   bpm: z.number().positive().optional(),
   beats: z.array(z.number().int().nonnegative()).optional()
 });
+
+export const MomentSchema = z.object({
+  id: IdSchema,
+  session_id: IdSchema,
+  name: z.string(),
+  beat_position_ms: z.number().int(),
+  formation: z.record(z.string(), z.unknown()).nullable(),
+  quality: z.record(z.string(), z.unknown()).nullable(),
+  position: z.number().int(),
+  created_at: z.string(),
+  last_modified_at: z.string().optional(),
+});

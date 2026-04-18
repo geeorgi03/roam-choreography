@@ -890,7 +890,7 @@ app.put('/:id/moments/:momentId/formation', async (c) => {
     .update({ formation: formationInput ?? null })
     .eq('id', momentId)
     .eq('session_id', sessionId)
-    .select('formation')
+    .select('formation, last_modified_at')
     .maybeSingle();
 
   if (error) {
@@ -898,7 +898,10 @@ app.put('/:id/moments/:momentId/formation', async (c) => {
     return c.json({ error: error.message }, 500);
   }
   if (!data) return c.json({ error: 'Not found' }, 404);
-  return c.json({ formation: data.formation as FormationData | null });
+  return c.json({
+    formation: data.formation as FormationData | null,
+    last_modified_at: (data as { last_modified_at?: string | null }).last_modified_at ?? null,
+  });
 });
 
 /** GET /sessions/:id/moments/:momentId/quality — fetch moment quality */

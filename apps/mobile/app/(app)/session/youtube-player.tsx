@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import BottomSheet from '@gorhom/bottom-sheet';
 import YoutubeIframe, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
-import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS, useFrameCallback } from 'react-native-reanimated';
 // Lazy require: a native-module init failure must not prevent route discovery
 let GestureDetector: React.ComponentType<{ gesture: unknown; children: React.ReactNode }> =
   ({ children }) => <>{children}</>;
@@ -123,6 +123,8 @@ export default function YoutubePlayerScreen() {
   const playerRef = useRef<YoutubeIframeRef | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
+  const uploadInProgressRef = useRef(false);
+  const lastUploadAtRef = useRef(0);
   
   // A/B Loop state
   const [loopStartSec, setLoopStartSec] = useState<number | null>(null);
@@ -137,6 +139,7 @@ export default function YoutubePlayerScreen() {
   const [loupeActive, setLoupeActive] = useState(false);
   const [loupeZoom, setLoupeZoom] = useState(2.5);
   const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
+  const [loupePausedForPerformance, setLoupePausedForPerformance] = useState(false);
   const loupeX = useSharedValue(0);
   const loupeY = useSharedValue(0);
   const loupeActiveShared = useSharedValue(0); // 0 = inactive, 1 = active
@@ -144,6 +147,8 @@ export default function YoutubePlayerScreen() {
   const loupeLastX = useRef(0);
   const loupeLastY = useRef(0);
   const loupeLastZoom = useRef(0);
+  const fpsWindowRef = useRef<number[]>([]);
+  const lowFpsStreakRef = useRef(0);
 
   // Capture frame when loupe becomes active - simplified approach
   const captureCurrentFrame = async () => {
@@ -232,6 +237,36 @@ export default function YoutubePlayerScreen() {
     if (!musicTrack) return;
     setSections(normalizeSections(musicTrack.sections ?? []));
   }, [musicTrack]);
+
+  useEffect(() => {
+    if (!loupePausedForPerformance) return;
+    const timeoutId = setTimeout(() => setLoupePausedForPerformance(false), 2000);
+    return () => clearTimeout(timeoutId);
+  }, [loupePausedForPerformance]);
+
+  useFrameCallback((frameInfo) => {
+    'worklet';
+    if (loupeActiveShared.value !== 1) return;
+    runOnJS((timestamp: number) => {
+      fpsWindowRef.current.push(timestamp);
+      if (fpsWindowRef.current.length > 10) fpsWindowRef.current.shift();
+      if (fpsWindowRef.current.length < 2) return;
+      const durationMs = fpsWindowRef.current[fpsWindowRef.current.length - 1] - fpsWindowRef.current[0];
+      if (durationMs <= 0) return;
+      const fps = ((fpsWindowRef.current.length - 1) / durationMs) * 1000;
+      if (fps < 30) {
+        lowFpsStreakRef.current += 1;
+        if (lowFpsStreakRef.current >= 3) {
+          lowFpsStreakRef.current = 0;
+          setLoupeActive(false);
+          loupeActiveShared.value = 0;
+          setLoupePausedForPerformance(true);
+        }
+      } else {
+        lowFpsStreakRef.current = 0;
+      }
+    })(frameInfo.timestamp);
+  }, true);
 
   const videoId = musicTrack ? extractVideoId(musicTrack.source_url) : null;
   const loupePersistKey = musicTrack?.source_url ? `loupe:${musicTrack.source_url}` : null;
@@ -405,6 +440,9 @@ export default function YoutubePlayerScreen() {
 
   const handleSaveSections = async () => {
     if (!sessionId || !session?.access_token) return;
+    if (uploadInProgressRef.current || Date.now() - lastUploadAtRef.current < 2000) return;
+    uploadInProgressRef.current = true;
+    lastUploadAtRef.current = Date.now();
     setSaving(true);
     try {
       const res = await fetch(`${API_BASE}/sessions/${sessionId}/music`, {
@@ -439,6 +477,8 @@ export default function YoutubePlayerScreen() {
       }
       if (__DEV__) console.warn(e);
       setSaving(false);
+    } finally {
+      uploadInProgressRef.current = false;
     }
   };
 
@@ -574,6 +614,11 @@ export default function YoutubePlayerScreen() {
             }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.loupeDismissBtnText}>✕</Text>
             </TouchableOpacity>
+          )}
+          {loupePausedForPerformance && (
+            <View style={styles.loupePerfNotice}>
+              <Text style={styles.loupePerfNoticeText}>Loupe paused for performance.</Text>
+            </View>
           )}
           {!loupeActive && loupeLastZoom.current > 0 && (
             <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { 
@@ -906,6 +951,22 @@ const styles = StyleSheet.create({
   loupeRestoreBtnText: {
     color: '#fff',
     fontSize: 20,
+  },
+  loupePerfNotice: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    zIndex: 30,
+  },
+  loupePerfNoticeText: {
+    color: '#fff',
+    fontSize: 12,
+    textAlign: 'center',
   },
   videoControlsRow: {
     flexDirection: 'row',

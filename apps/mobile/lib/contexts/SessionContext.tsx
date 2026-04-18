@@ -97,7 +97,7 @@ export interface SessionContextValue {
   deleteMoment: (momentId: string) => Promise<boolean>;
   mergeMoment: (row: Moment) => void;
   removeMoment: (momentId: string) => void;
-  updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
+  updateFormation: (momentId: string, formation: FormationData | null) => Promise<{ formation: FormationData | null; last_modified_at: string | null } | null>;
   updateQuality: (momentId: string, quality: QualityData | null) => Promise<void>;
   sessionMode: boolean;
   setSessionMode: (mode: boolean) => void;

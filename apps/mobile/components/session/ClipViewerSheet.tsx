@@ -8,7 +8,7 @@ import { useSession } from '../../lib/hooks/useSession';
 import type { NotePin } from '../../lib/hooks/useNotePins';
 import { theme } from '../../lib/theme';
 import { supabase } from '../../lib/supabase';
-import { API_BASE } from '../../lib/api';
+import { apiRequest } from '../../lib/api';
 import Toast from 'react-native-toast-message';
 import LoopChipRow from './LoopChipRow';
 import { FeedbackSheet, type FeedbackSheetHandle } from '../FeedbackSheet';
@@ -119,7 +119,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       const timestamp_ms = positionMsRef.current;
       const source_clip_id = selectedClipForSheet.server_id;
       
-      const response = await fetch(`${API_BASE}/sessions/${sessionId}/quality-target`, {
+      const response = await apiRequest(`/sessions/${sessionId}/quality-target`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -183,7 +183,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     if (!selectedClipForSheet.server_id || !session?.access_token) return;
     
     try {
-      const response = await fetch(`${API_BASE}/sessions/${sessionId}/assembly/section-clip`, {
+      const response = await apiRequest(`/sessions/${sessionId}/assembly/section-clip`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -213,7 +213,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       const startMs = Math.round(trimStart * durationMs);
       const endMs = Math.round(trimEnd * durationMs);
       
-      const response = await fetch(`${API_BASE}/sessions/${sessionId}/clips/${selectedClipForSheet.server_id}/trim`, {
+      const response = await apiRequest(`/sessions/${sessionId}/clips/${selectedClipForSheet.server_id}/trim`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
