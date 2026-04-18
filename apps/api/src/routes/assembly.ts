@@ -61,7 +61,7 @@ app.put('/:id/assembly', async (c) => {
   const expectedRevision = c.req.header('x-assembly-revision') ?? null;
   const currentRevision = await getAssemblyRevision(id);
   if (expectedRevision && expectedRevision !== currentRevision) {
-    return c.json({ error: 'Assembly revision conflict', revision: currentRevision }, 409);
+    return c.json({ error: 'conflict', revision: currentRevision }, 409);
   }
 
   const userId = c.get('userId');
@@ -95,7 +95,7 @@ app.post('/:id/assembly/section-clip', async (c) => {
   const expectedRevision = c.req.header('x-assembly-revision') ?? null;
   const currentRevision = await getAssemblyRevision(id);
   if (expectedRevision && expectedRevision !== currentRevision) {
-    return c.json({ error: 'Assembly revision conflict', revision: currentRevision }, 409);
+    return c.json({ error: 'conflict', revision: currentRevision }, 409);
   }
 
   const userId = c.get('userId');
