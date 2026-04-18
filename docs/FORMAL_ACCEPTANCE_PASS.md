@@ -12,7 +12,7 @@
 
 Reason:
 - Build + package lint gates for `@roam/mobile`, `@roam/api`, and `@roam/web` are now passing at error level.
-- Phase 2-5 features are wired in code, but runtime acceptance remains incomplete.
+- Phase 2-5 features plus friction hardening (retry/timeout UX, lyrics fallback statuses, feedback category structuring, spatial sync status, loupe instrumentation) are wired in code.
 - Formal device runtime/performance artifacts (timings, recordings, multi-device persistence runs) are still required before production ship sign-off.
 
 ---
@@ -28,6 +28,10 @@ Reason:
 2. `pnpm exec turbo run lint --filter=@roam/mobile --filter=@roam/api --filter=@roam/web`
    - **Status:** PASS (0 errors; warnings remain)
    - **Notes:** Warnings are non-blocking and mostly pre-existing unused-variable hygiene.
+
+3. Friction hardening scope executed
+   - **Status:** PASS (implementation complete; runtime evidence pending)
+   - **Notes:** Shared `apiRequest` retries/timeouts added across Home/Workbench/Music setup; lyrics API now returns explicit provider timeout/unavailable statuses; feedback category normalization is now structured in API responses; spatial sync UI now exposes `synced/pending/conflict`; loupe capture cadence now adapts to playback + zoom and emits periodic diagnostics.
 
 ### Code-level flow verification (static)
 

@@ -38,6 +38,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     notes,
     openClipSheet,
     setSelectedClipForSheet,
+    refreshCount,
   } = useSessionContext();
   const { session } = useSession();
   const videoRef = useRef<Video>(null);
@@ -155,6 +156,8 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
 
   const handleFeedbackSheetClose = () => {
     feedbackSheetRef.current?.close();
+    // Reconcile any new feedback/comments after submit to keep sheet state fresh.
+    refreshCount().catch(() => {});
   };
 
   const handleClipViewerClose = () => {

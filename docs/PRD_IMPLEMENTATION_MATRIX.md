@@ -25,12 +25,12 @@ Status legend:
 | Share create/revoke | Mobile + API share routes | Yes | Yes | Partial | N/A | Partial | Needs re-test with live deployed web share URL. |
 | Public feedback submission | Web share + feedback public API | Yes | Yes | Partial | N/A | Partial | Validate open/close request states and comment rendering. |
 | Profile/plan entry points | Mobile + billing routes | Yes | Partial | Partial | N/A | Partial | Billing deferred for soft launch; verify non-crashing UX. |
-| Offline/retry behavior | Mobile cache + write/upload queues | Yes | Partial | Partial | No | Partial | Queue behavior exists; runtime reliability benchmark still required. |
-| Error/loading/empty states | Mobile/web key screens | Partial | Partial | Partial | N/A | Partial | Standardization in progress; audit per screen required. |
+| Offline/retry behavior | Mobile cache + write/upload queues | Yes | Yes | Partial | No | Partial | Shared retry/timeout pipeline now wired in Home/Workbench/Music setup; runtime reliability benchmark still required. |
+| Error/loading/empty states | Mobile/web key screens | Yes | Partial | Partial | N/A | Partial | Standardized recoverable timeout/offline/retry copy added for key flows; audit per screen still required. |
 | Phase 2 micro-cycle (loop->capture->tag) | Workbench + camera | Yes | Yes | Partial | No | Partial | Formal engineering evidence attached (build/lint/type + flow wiring). Device runtime timing run still required for full `Done`. |
 | Phase 3 cleaning/review depth | `clip-player.tsx` | Yes | Yes | Partial | No | Partial | Loupe/review tooling wired and stabilized; formal device replay/timing evidence still required for full `Done`. |
-| Phase 4 structured collaboration | Web `ClipPlayer` + feedback API | Yes | Yes | Partial | N/A | Partial | Structured feedback categories and API roundtrip path verified. Live end-user roundtrip capture still required for full `Done`. Cross-ref: [W9-C] b0936641-2685-4c72-bcca-4d9e848842db. |
-| Phase 5 formation mapping | `SpatialTab` + moments | Yes | Yes | Partial | No | Partial | Formation persistence/sync path implemented and typed; multi-device runtime persistence run still required for full `Done`. |
+| Phase 4 structured collaboration | Web `ClipPlayer` + feedback API | Yes | Yes | Partial | N/A | Partial | Structured feedback categories now normalized server-side and exposed in response payload for roundtrip consistency. Live end-user roundtrip capture still required for full `Done`. Cross-ref: [W9-C] b0936641-2685-4c72-bcca-4d9e848842db. |
+| Phase 5 formation mapping | `SpatialTab` + moments | Yes | Yes | Partial | No | Partial | Formation persistence path now surfaces `synced/pending/conflict` status and assembly endpoints include revision tokens for conflict detection. Multi-device runtime persistence run still required for full `Done`. |
 
 ## Current release interpretation
 

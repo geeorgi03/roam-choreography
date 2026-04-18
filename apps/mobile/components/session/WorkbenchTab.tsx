@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
-import { API_BASE } from '../../lib/api';
+import { apiRequest, ApiRequestError } from '../../lib/api';
 import { theme } from '../../lib/theme';
 import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
@@ -283,29 +283,31 @@ export function WorkbenchTab() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/music`, {
+      const res = await apiRequest(`/sessions/${sessionId}/music`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ youtube_url: musicTrack.source_url }),
+        timeoutMs: 12_000,
+        retries: 2,
       });
       if (res.ok) {
         setStallResetKey((k) => k + 1);
       } else {
         Toast.show({
           type: 'error',
-          text1: 'Could not retry analysis. Please try again.',
+          text1: t('workbench.analysisRetryFailed'),
         });
       }
     } catch {
       Toast.show({
         type: 'error',
-        text1: 'Could not retry analysis. Please try again.',
+        text1: t('workbench.analysisRetryFailed'),
       });
     }
-  }, [sessionId, session?.access_token, musicTrack?.source_type, musicTrack?.source_url]);
+  }, [sessionId, session?.access_token, musicTrack?.source_type, musicTrack?.source_url, t]);
 
   const handleFetchLyrics = useCallback(async () => {
     if (!sessionId || !session?.access_token) return;
@@ -317,9 +319,14 @@ export function WorkbenchTab() {
     setLyricsLoading(true);
     setLyricsError(null);
     try {
-      const res = await fetch(
-        `${API_BASE}/sessions/${sessionId}/music/lyrics?query=${encodeURIComponent(query)}`,
-        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      const res = await apiRequest(
+        `/sessions/${sessionId}/music/lyrics?query=${encodeURIComponent(query)}`,
+        {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          retries: 1,
+          timeoutMs: 8_000,
+          shouldRetry: ({ error }) => error.reason !== 'http',
+        }
       );
       const data = (await res.json()) as {
         artist?: string;
@@ -342,9 +349,13 @@ export function WorkbenchTab() {
         title: data.title,
         lyrics: data.lyrics,
       });
-    } catch {
+    } catch (error) {
       setLyricsResult(null);
-      setLyricsError(t('workbench.lyricsLookupFailed'));
+      if (error instanceof ApiRequestError && error.reason === 'timeout') {
+        setLyricsError(t('workbench.lyricsLookupTimeout'));
+      } else {
+        setLyricsError(t('workbench.lyricsLookupFailed'));
+      }
     } finally {
       setLyricsLoading(false);
     }
@@ -820,14 +831,14 @@ export function WorkbenchTab() {
                 activeOpacity={0.75}
               >
                 <Text style={styles.drillChevron}>{drillExpanded ? '▼' : '▶'}</Text>
-                <Text style={styles.drillTitle}>Drill sequence</Text>
+                <Text style={styles.drillTitle}>{t('workbench.drillTitle')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.drillPlayBtn, drillPlayMode && styles.drillPlayBtnActive]}
                 onPress={handleToggleDrillPlayMode}
               >
                 <Text style={[styles.drillPlayBtnText, drillPlayMode && styles.drillPlayBtnTextActive]}>
-                  {drillPlayMode ? 'Stop sequence' : 'Play sequence'}
+                  {drillPlayMode ? t('workbench.drillStop') : t('workbench.drillPlay')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -838,12 +849,12 @@ export function WorkbenchTab() {
                   disabled={!loopRegion}
                   onPress={handleAddCurrentLoopToDrill}
                 >
-                  <Text style={styles.drillAddBtnText}>Add current loop region</Text>
+                  <Text style={styles.drillAddBtnText}>{t('workbench.drillAddLoop')}</Text>
                 </TouchableOpacity>
                 {drillLoading ? (
-                  <Text style={styles.drillHintText}>Loading…</Text>
+                  <Text style={styles.drillHintText}>{t('workbench.drillLoading')}</Text>
                 ) : drillSequence.length === 0 ? (
-                  <Text style={styles.drillHintText}>No drill regions yet.</Text>
+                  <Text style={styles.drillHintText}>{t('workbench.drillEmpty')}</Text>
                 ) : (
                   drillSequence.map((item, index) => (
                     <View

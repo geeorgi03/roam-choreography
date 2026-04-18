@@ -6,6 +6,17 @@ import type { ClipComment } from '@roam/types';
 const app = new Hono<{ Variables: { userId: string } }>()
   .use('*', requireAuth);
 
+const FEEDBACK_CATEGORY_REGEX = /^\[(Idea|Timing|Spacing|Energy)\]\s*/i;
+
+function withFeedbackCategory<T extends { text: string }>(row: T) {
+  const m = row.text.match(FEEDBACK_CATEGORY_REGEX);
+  return {
+    ...row,
+    feedback_category: m?.[1] ?? null,
+    feedback_text: row.text.replace(FEEDBACK_CATEGORY_REGEX, '').trim(),
+  };
+}
+
 /** Verify clip belongs to user via session; returns clip_id or null */
 async function getClipForUser(
   clipId: string,
@@ -92,7 +103,8 @@ app.get('/:id/comments', async (c) => {
     .order('timecode_ms', { ascending: true });
 
   if (error) return c.json({ error: error.message }, 500);
-  return c.json(data as ClipComment[]);
+  const mapped = (data as ClipComment[]).map(withFeedbackCategory);
+  return c.json(mapped);
 });
 
 export const feedbackRoutes = app;

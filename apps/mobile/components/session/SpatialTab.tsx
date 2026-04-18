@@ -130,6 +130,7 @@ export function SpatialTab() {
   const [initiation, setInitiation] = useState('');
   const [relationshipQuality, setRelationshipQuality] = useState('');
   const [note, setNote] = useState('');
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'pending' | 'conflict'>('synced');
 
   // Persist the quality edits without dropping deferred/forward-compatible fields.
   // Server `PUT /quality` replaces the entire JSONB payload, so we merge the existing
@@ -145,7 +146,7 @@ export function SpatialTab() {
     void updateQuality(activeMoment, mergedQuality);
   };
 
-  const persistFormation = (
+  const persistFormation = async (
     momentId: string,
     overrides?: {
       dancers?: Dancer[];
@@ -159,7 +160,13 @@ export function SpatialTab() {
       paths: overrides?.pathsByDancer ?? pathsByDancer,
       toolState: overrides?.toolState ?? toolState,
     };
-    void updateFormation(momentId, payload);
+    setSyncStatus('pending');
+    try {
+      await updateFormation(momentId, payload);
+      setSyncStatus(momentsConnectionStatus.hasError ? 'conflict' : 'synced');
+    } catch {
+      setSyncStatus('conflict');
+    }
   };
 
   useEffect(() => {
@@ -349,7 +356,9 @@ export function SpatialTab() {
 
     setPathsByDancer(nextPathsByDancer);
     unlockRelationshipOnFirstPathCreation();
-    if (targetMomentId) persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
+    if (targetMomentId) {
+      void persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
+    }
   };
 
   const createPathForSelectedDancer = (event: GestureResponderEvent) => {
@@ -393,7 +402,9 @@ export function SpatialTab() {
 
     setPathsByDancer(nextPathsByDancer);
     unlockRelationshipOnFirstPathCreation();
-    if (targetMomentId) persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
+    if (targetMomentId) {
+      void persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
+    }
   };
 
   const handleCanvasTap = (event: GestureResponderEvent) => {
@@ -448,7 +459,9 @@ export function SpatialTab() {
       const nextToolState: ToolState = !hasDot ? { ...toolState, path: 'active' } : toolState;
 
       unlockPathOnFirstDotInteraction();
-      if (targetMomentId) persistFormation(targetMomentId, { dancers: latestDancersRef.current, toolState: nextToolState });
+      if (targetMomentId) {
+        void persistFormation(targetMomentId, { dancers: latestDancersRef.current, toolState: nextToolState });
+      }
     }
     isDraggingDancerRef.current = false;
     delete dragStartRef.current[dancerId];
@@ -643,6 +656,13 @@ export function SpatialTab() {
         {!momentsConnectionStatus.hasError ? (
           <View style={styles.formationHint}>
             <Text style={styles.formationHintText}>{t('spatial.formationAutoSave')}</Text>
+            <Text style={styles.syncStatusText}>
+              {syncStatus === 'pending'
+                ? 'Sync: pending'
+                : syncStatus === 'conflict'
+                  ? 'Sync: conflict'
+                  : 'Sync: synced'}
+            </Text>
           </View>
         ) : null}
 
@@ -1206,6 +1226,12 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
   formationHintText: {
     fontSize: 11,
     color: colors.muted,
+    fontFamily: 'JetBrainsMono',
+  },
+  syncStatusText: {
+    marginTop: 2,
+    fontSize: 10,
+    color: colors.inactive,
     fontFamily: 'JetBrainsMono',
   },
   connectionErrorBanner: {

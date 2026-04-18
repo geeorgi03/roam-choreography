@@ -20,7 +20,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import { MMKV } from 'react-native-mmkv';
 import NetInfo from '@react-native-community/netinfo';
 
-import { API_BASE } from '../../lib/api';
+import { apiRequest, ApiRequestError } from '../../lib/api';
 import { cacheSession, cacheSessionList, getCachedSessionList } from '../../lib/sessionCache';
 import { useTranslation } from '../../lib/i18n';
 import { getRuntimeDiagnosticsSnapshot, probeApiHealth } from '../../lib/runtimeDiagnostics';
@@ -82,14 +82,18 @@ export default function HomeScreen() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10_000);
     try {
-      let res = await fetch(`${API_BASE}/sessions/`, {
+      let res = await apiRequest(`/sessions/`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
         signal: controller.signal,
+        retries: 2,
+        timeoutMs: 10_000,
       });
       if (res.status === 404) {
-        res = await fetch(`${API_BASE}/sessions`, {
+        res = await apiRequest(`/sessions`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
           signal: controller.signal,
+          retries: 1,
+          timeoutMs: 8_000,
         });
       }
       clearTimeout(timeoutId);
@@ -124,16 +128,23 @@ export default function HomeScreen() {
           homeStorage.delete(LAST_SESSION_KEY);
         }
       }
-    } catch {
+    } catch (error) {
       // API unreachable, timeout, or network error
       const apiHealthy = await probeApiHealth();
       const diag = getRuntimeDiagnosticsSnapshot();
       const cachedSessions = getCachedSessionList().map(mapCachedToSession);
       setSessions(cachedSessions.length > 0 ? cachedSessions : []);
+      const reason = error instanceof ApiRequestError ? error.reason : 'unknown';
       if (cachedSessions.length === 0) {
-        setLoadError(
-          `${t('home.unableToLoadSessions')} (${apiHealthy ? 'api_auth_issue' : 'api_unreachable'})`
-        );
+        if (reason === 'timeout') {
+          setLoadError(`${t('home.unableToLoadSessions')} (${t('home.timeoutLabel')})`);
+        } else if (reason === 'network' || reason === 'offline') {
+          setLoadError(`${t('home.unableToLoadSessions')} (${t('home.offlineLabel')})`);
+        } else {
+          setLoadError(
+            `${t('home.unableToLoadSessions')} (${apiHealthy ? 'api_auth_issue' : 'api_unreachable'})`
+          );
+        }
       }
       console.warn('[Home] session load fallback', {
         apiHealthy,
@@ -156,9 +167,11 @@ export default function HomeScreen() {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const res = await fetch(`${API_BASE}/inbox/count`, {
+      const res = await apiRequest(`/inbox/count`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
         signal: controller.signal,
+        retries: 1,
+        timeoutMs: 6_000,
       });
       clearTimeout(timeoutId);
       if (!res.ok) return;

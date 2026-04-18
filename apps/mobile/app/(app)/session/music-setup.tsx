@@ -3,14 +3,16 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import BottomSheet from '@gorhom/bottom-sheet';
 
-import { API_BASE } from '../../../lib/api';
+import { apiRequest, ApiRequestError } from '../../../lib/api';
 import { useSession } from '../../../lib/hooks/useSession';
 import { theme } from '../../../lib/theme';
 import { PaywallSheet } from '../../../components/PaywallSheet';
+import { useTranslation } from '../../../lib/i18n';
 
 const colors = theme.light;
 
 export default function MusicSetupScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{ sessionId?: string; id?: string }>();
   const { session } = useSession();
@@ -28,29 +30,31 @@ export default function MusicSetupScreen() {
 
   const handleSubmit = async () => {
     if (!session?.access_token) {
-      setError('You need to be signed in.');
+      setError(t('musicSetup.needSignIn'));
       return;
     }
     if (!sessionId) {
-      setError('Missing session id.');
+      setError(t('musicSetup.missingSessionId'));
       return;
     }
     const trimmed = youtubeUrl.trim();
     if (!trimmed) {
-      setError('Paste a YouTube or Bilibili URL.');
+      setError(t('musicSetup.pasteUrl'));
       return;
     }
 
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/music`, {
+      const res = await apiRequest(`/sessions/${sessionId}/music`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ youtube_url: trimmed }),
+        timeoutMs: 12_000,
+        retries: 2,
       });
 
       const json = (await res.json().catch(() => null)) as
@@ -62,12 +66,12 @@ export default function MusicSetupScreen() {
           paywallSheetRef.current?.snapToIndex(0);
           return;
         }
-        setError(json?.error ?? 'Unable to add this music URL.');
+        setError(json?.error ?? t('musicSetup.unableToAddUrl'));
         return;
       }
 
       if (!json?.music_track_id) {
-        setError('Music track was created without an id. Try again.');
+        setError(t('musicSetup.trackMissingId'));
         return;
       }
 
@@ -78,8 +82,12 @@ export default function MusicSetupScreen() {
           musicTrackId: json.music_track_id,
         },
       });
-    } catch {
-      setError('Network error while adding music. Try again.');
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.reason === 'timeout') {
+        setError(t('musicSetup.networkTimeout'));
+      } else {
+        setError(t('musicSetup.networkError'));
+      }
     } finally {
       setLoading(false);
     }
@@ -87,16 +95,16 @@ export default function MusicSetupScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Add music</Text>
+      <Text style={styles.title}>{t('musicSetup.title')}</Text>
       <Text style={styles.subtitle}>
-        Paste a YouTube or Bilibili URL to attach music and open section alignment.
+        {t('musicSetup.subtitle')}
       </Text>
 
       <TextInput
         style={styles.input}
         value={youtubeUrl}
         onChangeText={setYoutubeUrl}
-        placeholder="https://youtube.com/watch?v=..."
+        placeholder={t('musicSetup.placeholder')}
         placeholderTextColor={colors.muted}
         autoCapitalize="none"
         autoCorrect={false}
@@ -107,7 +115,7 @@ export default function MusicSetupScreen() {
 
       <View style={styles.actions}>
         <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.back()} disabled={loading}>
-          <Text style={styles.secondaryBtnText}>Cancel</Text>
+          <Text style={styles.secondaryBtnText}>{t('musicSetup.cancel')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
@@ -117,7 +125,7 @@ export default function MusicSetupScreen() {
           {loading ? (
             <ActivityIndicator size="small" color="#ffffff" />
           ) : (
-            <Text style={styles.primaryBtnText}>Continue</Text>
+            <Text style={styles.primaryBtnText}>{t('musicSetup.continue')}</Text>
           )}
         </TouchableOpacity>
       </View>

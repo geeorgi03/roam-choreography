@@ -86,6 +86,7 @@ const LOUPE_MAX_ZOOM = 3.8;
 const LOUPE_ACTIVATE_SCALE_THRESHOLD = 1.35;
 const YOUTUBE_CAPTURE_ACTIVE_MS = 130;
 const YOUTUBE_CAPTURE_IDLE_MS = 220;
+const YOUTUBE_CAPTURE_HIGH_ZOOM_MS = 90;
 const AB_LOOP_HANDLE_TOUCH_SIZE = 44;
 const AB_LOOP_HANDLE_HALF = 22;
 const AB_LOOP_CLEAR_THRESHOLD_MS = 1;
@@ -290,6 +291,11 @@ export default function ClipPlayerScreen() {
   const youtubeCaptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const youtubeCaptureInFlightRef = useRef(false);
   const lastCapturedFrameRef = useRef<string | null>(null);
+  const loupePerfRef = useRef({
+    captureCount: 0,
+    totalIntervalMs: 0,
+    lastCaptureAt: 0,
+  });
   
   // Loupe state
   const [loupeActive, setLoupeActive] = useState(false);
@@ -484,6 +490,31 @@ export default function ClipPlayerScreen() {
     };
   }, []);
 
+  const nextCaptureDelayMs = useCallback(() => {
+    if (!playing) return YOUTUBE_CAPTURE_IDLE_MS;
+    if (loupeZoom >= 3.2) return YOUTUBE_CAPTURE_HIGH_ZOOM_MS;
+    return YOUTUBE_CAPTURE_ACTIVE_MS;
+  }, [loupeZoom, playing]);
+
+  const recordCaptureTick = useCallback(() => {
+    const now = Date.now();
+    const last = loupePerfRef.current.lastCaptureAt;
+    if (last > 0) {
+      loupePerfRef.current.totalIntervalMs += now - last;
+    }
+    loupePerfRef.current.captureCount += 1;
+    loupePerfRef.current.lastCaptureAt = now;
+    if (loupePerfRef.current.captureCount % 30 === 0) {
+      const avg =
+        loupePerfRef.current.captureCount > 1
+          ? Math.round(
+              loupePerfRef.current.totalIntervalMs / (loupePerfRef.current.captureCount - 1)
+            )
+          : 0;
+      console.log('[loupe-perf]', { captures: loupePerfRef.current.captureCount, avgIntervalMs: avg });
+    }
+  }, []);
+
   // Continuous frame capture for YouTube when loupe is active.
   // Uses single-flight scheduling to avoid WebView command pileups.
   const requestYouTubeFrameCapture = useCallback(
@@ -495,7 +526,7 @@ export default function ClipPlayerScreen() {
       youtubeCaptureTimerRef.current = setTimeout(() => {
         if (!loupeActive || !isYouTubeContent || !webViewRef.current) return;
         if (youtubeCaptureInFlightRef.current) {
-          requestYouTubeFrameCapture(YOUTUBE_CAPTURE_IDLE_MS);
+          requestYouTubeFrameCapture(nextCaptureDelayMs());
           return;
         }
         youtubeCaptureInFlightRef.current = true;
@@ -516,7 +547,7 @@ export default function ClipPlayerScreen() {
         `);
       }, Math.max(0, delayMs));
     },
-    [isYouTubeContent, loupeActive]
+    [isYouTubeContent, loupeActive, nextCaptureDelayMs]
   );
 
   useEffect(() => {
@@ -714,6 +745,7 @@ export default function ClipPlayerScreen() {
           break;
         case 'frameCapture':
           youtubeCaptureInFlightRef.current = false;
+          recordCaptureTick();
           if (message.dataUrl && typeof message.dataUrl === 'string') {
             if (lastCapturedFrameRef.current !== message.dataUrl) {
               lastCapturedFrameRef.current = message.dataUrl;
@@ -721,9 +753,7 @@ export default function ClipPlayerScreen() {
             }
           }
           if (loupeActive && isYouTubeContent) {
-            requestYouTubeFrameCapture(
-              playing ? YOUTUBE_CAPTURE_ACTIVE_MS : YOUTUBE_CAPTURE_IDLE_MS
-            );
+            requestYouTubeFrameCapture(nextCaptureDelayMs());
           }
           break;
         case 'durationUpdate':
@@ -1111,7 +1141,7 @@ export default function ClipPlayerScreen() {
   if (!hasSessionContext && !hasLibraryClip) {
     return (
       <View style={styles.container}>
-        <Text style={styles.placeholderText}>No clip</Text>
+        <Text style={styles.placeholderText}>{t('clipPlayer.noClip')}</Text>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Text style={styles.closeBtnText}>✕</Text>
         </TouchableOpacity>
@@ -1122,7 +1152,7 @@ export default function ClipPlayerScreen() {
   if (hasSessionContext && !clip) {
     return (
       <View style={styles.container}>
-        <Text style={styles.placeholderText}>No clip</Text>
+        <Text style={styles.placeholderText}>{t('clipPlayer.noClip')}</Text>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Text style={styles.closeBtnText}>✕</Text>
         </TouchableOpacity>
@@ -1135,8 +1165,8 @@ export default function ClipPlayerScreen() {
       <GestureDetector gesture={composedGesture}>
         <View style={styles.container}>
           <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>Processing…</Text>
-            <Text style={styles.placeholderLabel}>{clip!.label ?? 'Clip'}</Text>
+            <Text style={styles.placeholderText}>{t('clipPlayer.processing')}</Text>
+            <Text style={styles.placeholderLabel}>{clip!.label ?? t('clipPlayer.clipFallback')}</Text>
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
             <Text style={styles.closeBtnText}>✕</Text>
@@ -1213,7 +1243,7 @@ export default function ClipPlayerScreen() {
                         />
                       ) : (
                         <Animated.View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
-                          <Text style={styles.loupeOverlayText}>Capturing frame...</Text>
+                          <Text style={styles.loupeOverlayText}>{t('clipPlayer.capturingFrame')}</Text>
                         </Animated.View>
                       )}
                     </>
@@ -1334,14 +1364,14 @@ export default function ClipPlayerScreen() {
           </View>
           <View style={styles.controlsRow}>
             <TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
-              <Text style={styles.controlBtnText}>−5s</Text>
+              <Text style={styles.controlBtnText}>{t('clipPlayer.seekBack')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handlePlayPause}
               style={styles.controlBtn}
             >
               <Text style={styles.controlBtnText}>
-                {playing ? 'Pause' : 'Play'}
+                {playing ? t('clipPlayer.pause') : t('clipPlayer.play')}
               </Text>
             </TouchableOpacity>
             <View style={styles.speedRow}>
@@ -1370,13 +1400,13 @@ export default function ClipPlayerScreen() {
               onPress={() => setLoopStartMs(positionMillis)} 
               style={styles.controlBtn}
             >
-              <Text style={styles.controlBtnText}>Set A</Text>
+              <Text style={styles.controlBtnText}>{t('clipPlayer.setA')}</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               onPress={() => setLoopEndMs(positionMillis)} 
               style={styles.controlBtn}
             >
-              <Text style={styles.controlBtnText}>Set B</Text>
+              <Text style={styles.controlBtnText}>{t('clipPlayer.setB')}</Text>
             </TouchableOpacity>
           </View>
           
@@ -1389,7 +1419,7 @@ export default function ClipPlayerScreen() {
               clipServerId &&
               sessionId ? (
                 <TouchableOpacity onPress={handleTrimCurrentLoop} style={styles.abLoopTrimBtn}>
-                  <Text style={styles.abLoopTrimBtnText}>Trim to A-B</Text>
+                  <Text style={styles.abLoopTrimBtnText}>{t('clipPlayer.trimToAB')}</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
@@ -1399,7 +1429,7 @@ export default function ClipPlayerScreen() {
                 }}
                 style={styles.abLoopClearBtn}
               >
-                <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
+                <Text style={styles.abLoopClearBtnText}>{t('clipPlayer.clearLoop')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1435,7 +1465,7 @@ export default function ClipPlayerScreen() {
                 ) : null}
                 {libraryBpm ? (
                   <View style={styles.tagPill}>
-                    <Text style={styles.tagPillText}>{libraryBpm} BPM</Text>
+                    <Text style={styles.tagPillText}>{libraryBpm} {t('clipPlayer.bpmSuffix')}</Text>
                   </View>
                 ) : null}
                 {libraryNotes ? (
@@ -1522,7 +1552,7 @@ export default function ClipPlayerScreen() {
                       />
                     ) : (
                       <Animated.View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
-                        <Text style={styles.loupeOverlayText}>Capturing frame...</Text>
+                        <Text style={styles.loupeOverlayText}>{t('clipPlayer.capturingFrame')}</Text>
                       </Animated.View>
                     )}
                   </>
@@ -1622,14 +1652,14 @@ export default function ClipPlayerScreen() {
             style={styles.feedbackBadge}
             onPress={handleCloseFeedback}
           >
-            <Text style={styles.feedbackBadgeText}>Feedback Open</Text>
+            <Text style={styles.feedbackBadgeText}>{t('clipPlayer.feedbackOpen')}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={styles.requestFeedbackBtn}
             onPress={handleRequestFeedback}
           >
-            <Text style={styles.requestFeedbackText}>Request Feedback</Text>
+            <Text style={styles.requestFeedbackText}>{t('clipPlayer.requestFeedback')}</Text>
           </TouchableOpacity>
         )}
 
@@ -1638,7 +1668,7 @@ export default function ClipPlayerScreen() {
             style={styles.annotateBtn}
             onPress={handleAnnotatePress}
           >
-            <Text style={styles.annotateBtnText}>Annotate</Text>
+            <Text style={styles.annotateBtnText}>{t('clipPlayer.annotate')}</Text>
           </TouchableOpacity>
         )}
 
@@ -1648,25 +1678,25 @@ export default function ClipPlayerScreen() {
               style={[styles.toolBtn, activeTool === 'text' && styles.toolBtnActive]}
               onPress={() => setActiveTool('text')}
             >
-              <Text style={styles.toolBtnText}>Text</Text>
+              <Text style={styles.toolBtnText}>{t('clipPlayer.toolText')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, activeTool === 'arrow' && styles.toolBtnActive]}
               onPress={() => setActiveTool('arrow')}
             >
-              <Text style={styles.toolBtnText}>Arrow</Text>
+              <Text style={styles.toolBtnText}>{t('clipPlayer.toolArrow')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, activeTool === 'circle' && styles.toolBtnActive]}
               onPress={() => setActiveTool('circle')}
             >
-              <Text style={styles.toolBtnText}>Circle</Text>
+              <Text style={styles.toolBtnText}>{t('clipPlayer.toolCircle')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.doneBtn}
               onPress={handleAnnotationDone}
             >
-              <Text style={styles.doneBtnText}>Done</Text>
+              <Text style={styles.doneBtnText}>{t('clipPlayer.done')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1772,11 +1802,11 @@ export default function ClipPlayerScreen() {
           </View>
           <View style={styles.controlsRow}>
             <TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
-              <Text style={styles.controlBtnText}>−5s</Text>
+              <Text style={styles.controlBtnText}>{t('clipPlayer.seekBack')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handlePlayPause} style={styles.controlBtn}>
               <Text style={styles.controlBtnText}>
-                {playing ? 'Pause' : 'Play'}
+                {playing ? t('clipPlayer.pause') : t('clipPlayer.play')}
               </Text>
             </TouchableOpacity>
             <View style={styles.speedRow}>
@@ -1807,13 +1837,13 @@ export default function ClipPlayerScreen() {
                   onPress={() => setLoopStartMs(positionMillis)} 
                   style={styles.controlBtn}
                 >
-                  <Text style={styles.controlBtnText}>Set A</Text>
+                  <Text style={styles.controlBtnText}>{t('clipPlayer.setA')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   onPress={() => setLoopEndMs(positionMillis)} 
                   style={styles.controlBtn}
                 >
-                  <Text style={styles.controlBtnText}>Set B</Text>
+                  <Text style={styles.controlBtnText}>{t('clipPlayer.setB')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -1828,7 +1858,7 @@ export default function ClipPlayerScreen() {
               clipServerId &&
               sessionId ? (
                 <TouchableOpacity onPress={handleTrimCurrentLoop} style={styles.abLoopTrimBtn}>
-                  <Text style={styles.abLoopTrimBtnText}>Trim to A-B</Text>
+                  <Text style={styles.abLoopTrimBtnText}>{t('clipPlayer.trimToAB')}</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
@@ -1838,7 +1868,7 @@ export default function ClipPlayerScreen() {
                 }}
                 style={styles.abLoopClearBtn}
               >
-                <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
+                <Text style={styles.abLoopClearBtnText}>{t('clipPlayer.clearLoop')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1874,7 +1904,7 @@ export default function ClipPlayerScreen() {
               ) : null}
               {displayClip!.bpm != null ? (
                 <View style={styles.tagPill}>
-                  <Text style={styles.tagPillText}>{displayClip!.bpm} BPM</Text>
+                  <Text style={styles.tagPillText}>{displayClip!.bpm} {t('clipPlayer.bpmSuffix')}</Text>
                 </View>
               ) : null}
               {displayClip!.notes ? (
@@ -1887,7 +1917,7 @@ export default function ClipPlayerScreen() {
             </>
           ) : (
             <TouchableOpacity onPress={() => tagSheetRef.current?.snapToIndex(0)}>
-              <Text style={styles.addTagsText}>Add tags →</Text>
+              <Text style={styles.addTagsText}>{t('clipPlayer.addTags')}</Text>
             </TouchableOpacity>
           )}
         </View>

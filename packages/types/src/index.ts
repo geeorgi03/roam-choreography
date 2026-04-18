@@ -106,6 +106,8 @@ export interface ClipComment {
   session_id: UUID;
   timecode_ms: number;
   text: string;
+  feedback_category?: string | null;
+  feedback_text?: string | null;
   commenter_name: string | null;
   created_at: ISODateTime;
 }

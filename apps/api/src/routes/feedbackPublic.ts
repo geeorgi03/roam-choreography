@@ -9,6 +9,7 @@ app.post('/', async (c) => {
     clip_id?: string;
     timecode_ms?: number;
     text?: string;
+    category?: string;
     commenter_name?: string;
     share_token?: string;
   };
@@ -21,6 +22,7 @@ app.post('/', async (c) => {
   const clip_id = body?.clip_id;
   const timecode_ms = body?.timecode_ms;
   const text = body?.text;
+  const category = typeof body?.category === 'string' ? body.category.trim() : '';
   const commenter_name = body?.commenter_name ?? null;
   const share_token = body?.share_token;
 
@@ -85,18 +87,23 @@ app.post('/', async (c) => {
     return c.json({ error: 'Feedback not open for this clip' }, 403);
   }
 
+  const normalizedCategory = ['Idea', 'Timing', 'Spacing', 'Energy'].includes(category)
+    ? category
+    : null;
+  const normalizedText = normalizedCategory ? `[${normalizedCategory}] ${text.trim()}` : text.trim();
+
   const { error } = await supabase
     .from('clip_comments')
     .insert({
       clip_id,
       session_id: openRequest.session_id,
       timecode_ms,
-      text: text.trim(),
+      text: normalizedText,
       commenter_name: typeof commenter_name === 'string' ? commenter_name.trim() || null : null,
     });
 
   if (error) return c.json({ error: error.message }, 500);
-  return c.json({ ok: true }, 201);
+  return c.json({ ok: true, feedback_category: normalizedCategory, feedback_text: text.trim() }, 201);
 });
 
 export const publicFeedbackRoutes = app;

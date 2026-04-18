@@ -90,9 +90,7 @@ export function ClipPlayer({
     if (!clipId || !text.trim()) return;
     setError(null);
     setSubmitting(true);
-    const finalText = feedbackCategory
-      ? `[${feedbackCategory}] ${text.trim()}`
-      : text.trim();
+    const rawText = text.trim();
     try {
       const res = await fetch(`${API_BASE}/feedback`, {
         method: 'POST',
@@ -100,7 +98,8 @@ export function ClipPlayer({
         body: JSON.stringify({
           clip_id: clipId,
           timecode_ms: parseInt(timecodeMs, 10) || 0,
-          text: finalText,
+          text: rawText,
+          category: feedbackCategory,
           commenter_name: name.trim() || undefined,
           share_token: shareToken,
         }),
@@ -115,7 +114,9 @@ export function ClipPlayer({
           clip_id: clipId,
           session_id: '',
           timecode_ms: parseInt(timecodeMs, 10) || 0,
-          text: finalText,
+          text: feedbackCategory ? `[${feedbackCategory}] ${rawText}` : rawText,
+          feedback_category: feedbackCategory,
+          feedback_text: rawText,
           commenter_name: name.trim() || null,
           created_at: new Date().toISOString(),
         },
@@ -265,7 +266,7 @@ export function ClipPlayer({
                     {c.timecode_ms > 0 && (
                       <span className="text-roam-muted ml-2">@ {Math.floor(c.timecode_ms / 1000)}s</span>
                     )}
-                    : {c.text}
+                    : {c.feedback_text || c.text}
                   </li>
                 ))}
                 {submittedComments
@@ -276,7 +277,7 @@ export function ClipPlayer({
                       {c.timecode_ms > 0 && (
                         <span className="text-roam-muted ml-2">@ {Math.floor(c.timecode_ms / 1000)}s</span>
                       )}
-                      : {c.text}
+                      : {c.feedback_text || c.text}
                     </li>
                   ))}
               </ul>

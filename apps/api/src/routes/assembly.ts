@@ -6,6 +6,19 @@ import type { SectionClip } from '@roam/types';
 const app = new Hono<{ Variables: { userId: string } }>()
   .use('*', requireAuth);
 
+async function getAssemblyRevision(sessionId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('section_clips')
+    .select('created_at')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) return '0:none';
+  const latest = data?.[0]?.created_at ?? 'none';
+  const count = data?.length ?? 0;
+  return `${count}:${latest}`;
+}
+
 /** Verify session belongs to user */
 async function getSessionForUser(sessionId: string, userId: string): Promise<string | null> {
   const { data } = await supabase
@@ -32,13 +45,21 @@ app.get('/:id/assembly', async (c) => {
     .order('position', { ascending: true });
 
   if (error) return c.json({ error: error.message }, 500);
-  return c.json(data as SectionClip[]);
+  const revision = await getAssemblyRevision(id);
+  c.header('x-assembly-revision', revision);
+  return c.json({ assignments: data as SectionClip[], revision });
 });
 
 /** PUT /sessions/:id/assembly — replace section clips atomically */
 app.put('/:id/assembly', async (c) => {
-  const userId = c.get('userId');
   const id = c.req.param('id');
+  const expectedRevision = c.req.header('x-assembly-revision') ?? null;
+  const currentRevision = await getAssemblyRevision(id);
+  if (expectedRevision && expectedRevision !== currentRevision) {
+    return c.json({ error: 'Assembly revision conflict', revision: currentRevision }, 409);
+  }
+
+  const userId = c.get('userId');
   const session = await getSessionForUser(id, userId);
   if (!session) return c.json({ error: 'Not found' }, 404);
 
@@ -58,13 +79,21 @@ app.put('/:id/assembly', async (c) => {
   });
 
   if (error) return c.json({ error: error.message }, 500);
-  return c.json((data ?? []) as SectionClip[]);
+  const revision = await getAssemblyRevision(id);
+  c.header('x-assembly-revision', revision);
+  return c.json({ assignments: (data ?? []) as SectionClip[], revision });
 });
 
 /** POST /sessions/:id/assembly/section-clip — append a single clip to a section */
 app.post('/:id/assembly/section-clip', async (c) => {
-  const userId = c.get('userId');
   const id = c.req.param('id');
+  const expectedRevision = c.req.header('x-assembly-revision') ?? null;
+  const currentRevision = await getAssemblyRevision(id);
+  if (expectedRevision && expectedRevision !== currentRevision) {
+    return c.json({ error: 'Assembly revision conflict', revision: currentRevision }, 409);
+  }
+
+  const userId = c.get('userId');
   const session = await getSessionForUser(id, userId);
   if (!session) return c.json({ error: 'Not found' }, 404);
 
@@ -124,7 +153,9 @@ app.post('/:id/assembly/section-clip', async (c) => {
     .single();
 
   if (error) return c.json({ error: error.message }, 500);
-  return c.json(data as SectionClip, 201);
+  const revision = await getAssemblyRevision(id);
+  c.header('x-assembly-revision', revision);
+  return c.json({ assignment: data as SectionClip, revision }, 201);
 });
 
 export const assemblyRoutes = app;
