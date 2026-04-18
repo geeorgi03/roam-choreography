@@ -115,8 +115,10 @@ async function assertMomentsSessionAccess(
   return { status: 500, error: accessCheck.error };
 }
 
+type JsonReqContext = { req: { json: () => Promise<unknown> } };
+
 async function safeReqJson<T>(
-  c: { req: { json: <U>() => Promise<U> } } | any
+  c: JsonReqContext
 ): Promise<{ ok: true; data: T } | { ok: false }> {
   try {
     // Avoid passing type arguments to potentially `any`-typed request helpers.

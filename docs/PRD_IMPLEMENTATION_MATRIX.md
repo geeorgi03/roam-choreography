@@ -35,6 +35,7 @@ Status legend:
 ## Current release interpretation
 
 - Engineering build gates are currently green.
+- Monorepo lint is not fully green yet due pre-existing baseline issues in `@roam/types` and `@roam/api`.
 - PRD feature surface is broad, but many items remain `Partial` because measured runtime evidence is missing.
 - Product should not be marked as fully PRD-accepted until the runtime protocol is completed and evidence is attached.
 

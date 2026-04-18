@@ -38,8 +38,10 @@ async function hasSessionAccessForClips(sessionId: string, userId: string): Prom
   return Boolean(participant);
 }
 
+type JsonReqContext = { req: { json: () => Promise<unknown> } };
+
 async function safeReqJson<T>(
-  c: { req: { json: <U>() => Promise<U> } } | any
+  c: JsonReqContext
 ): Promise<{ ok: true; data: T } | { ok: false }> {
   try {
     const data = await c.req.json();

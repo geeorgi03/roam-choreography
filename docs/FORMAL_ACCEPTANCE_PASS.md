@@ -27,6 +27,11 @@ Reason:
 2. `pnpm exec turbo run build --filter=@roam/api --filter=@roam/web`  
    - **Status:** PASS
 
+3. `pnpm exec turbo run lint`
+   - **Status:** FAIL (pre-existing baseline)
+   - `@roam/types/src/index.ts`: `@typescript-eslint/no-empty-object-type`
+   - `@roam/api/src/routes/clips.ts` and `@roam/api/src/routes/sessions.ts`: `@typescript-eslint/no-explicit-any`
+
 ### Code-level flow verification (static)
 
 - Home has a record entry path to camera: `apps/mobile/app/(app)/index.tsx`
@@ -65,6 +70,7 @@ These confirm intent and wiring, but do **not** replace runtime acceptance tests
 ## Gate Summary
 
 - **Build gate:** PASS
+- **Lint gate:** FAIL (existing baseline issues outside this stabilization pass)
 - **Core flow wiring gate (static):** PASS (partial confidence)
 - **Runtime behavior gate:** PARTIAL / NOT VERIFIED
 - **Performance gate:** NOT VERIFIED

@@ -161,7 +161,7 @@ export interface SectionClip {
   created_at: ISODateTime;
 }
 
-export interface FormationData extends Record<string, unknown> {}
+export type FormationData = Record<string, unknown>;
 
 export interface QualityData {
   initiation?: string;

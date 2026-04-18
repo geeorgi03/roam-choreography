@@ -27,7 +27,7 @@ import { getRuntimeDiagnosticsSnapshot, probeApiHealth } from '../../lib/runtime
 const homeStorage = new MMKV({ id: 'home-state' });
 const LAST_SESSION_KEY = 'last_session_id';
 
-const colors = theme.night;
+const colors = theme.light;
 const spacing = theme.spacing;
 
 function mapCachedToSession(
@@ -335,7 +335,7 @@ export default function HomeScreen() {
   );
 }
 
-const themeColors = theme.night;
+const themeColors = theme.light;
 
 const styles = StyleSheet.create({
   container: {
