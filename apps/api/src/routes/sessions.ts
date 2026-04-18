@@ -887,7 +887,7 @@ app.put('/:id/moments/:momentId/formation', async (c) => {
 
   const { data, error } = await supabase
     .from('moments')
-    .update({ formation: formationInput ?? null })
+    .update({ formation: formationInput ?? null, last_modified_at: new Date().toISOString() })
     .eq('id', momentId)
     .eq('session_id', sessionId)
     .select('formation, last_modified_at')

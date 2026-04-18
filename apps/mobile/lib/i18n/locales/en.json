@@ -115,6 +115,7 @@
   "clipPlayer.toolCircle": "Circle",
   "clipPlayer.done": "Done",
   "clipPlayer.addTags": "Add tags →",
+  "clipPlayer.loupePausedForPerformance": "Loupe paused for performance",
   "workbench.addMusic": "Add music →",
   "workbench.drillTitle": "Drill sequence",
   "workbench.drillPlay": "Play sequence",
@@ -233,5 +234,7 @@
   "spatial.placeholderRelationship": "leads · follows · resists · echoes",
   "spatial.placeholderNote": "add a voice or text note…",
   "spatial.addReference": "add reference",
-  "spatial.connectionLost": "Connection lost. Pull to refresh."
+  "spatial.connectionLost": "Connection lost. Pull to refresh.",
+  "firstSession.invalidUrl": "Please enter a valid YouTube or Bilibili URL",
+  "firstSession.offlineError": "No internet connection. Check your connection and try again."
 }

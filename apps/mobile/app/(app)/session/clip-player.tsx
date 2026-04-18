@@ -1310,7 +1310,7 @@ export default function ClipPlayerScreen() {
             )}
             {loupePausedForPerformance && (
               <View style={styles.loupePerfNotice}>
-                <Text style={styles.loupePerfNoticeText}>Loupe paused for performance.</Text>
+                <Text style={styles.loupePerfNoticeText}>{t('clipPlayer.loupePausedForPerformance')}</Text>
               </View>
             )}
             {!loupeActive && loupeLastZoom.current > 0 && (
@@ -1624,7 +1624,7 @@ export default function ClipPlayerScreen() {
           )}
           {loupePausedForPerformance && (
             <View style={styles.loupePerfNotice}>
-              <Text style={styles.loupePerfNoticeText}>Loupe paused for performance.</Text>
+              <Text style={styles.loupePerfNoticeText}>{t('clipPlayer.loupePausedForPerformance')}</Text>
             </View>
           )}
           {!loupeActive && loupeLastZoom.current > 0 && (

@@ -115,6 +115,7 @@
   "clipPlayer.toolCircle": "圆圈",
   "clipPlayer.done": "完成",
   "clipPlayer.addTags": "添加标签 →",
+  "clipPlayer.loupePausedForPerformance": "放大镜因性能问题已暂停",
   "workbench.addMusic": "添加音乐 →",
   "workbench.drillTitle": "练习序列",
   "workbench.drillPlay": "播放序列",

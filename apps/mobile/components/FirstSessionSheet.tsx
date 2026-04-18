@@ -6,17 +6,17 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { theme } from '../lib/theme';
 import { useSession } from '../lib/hooks/useSession';
 import { apiRequest, ApiRequestError } from '../lib/api';
+import { useTranslation } from '../lib/i18n';
 import type { Session } from '@roam/types';
 import { RetryPrompt } from './RetryPrompt';
 
-const colors = theme.night;
+const colors = theme.light;
 const spacing = theme.spacing;
 const YOUTUBE_URL_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i;
 const BILIBILI_URL_REGEX = /^(https?:\/\/)?(www\.)?(bilibili\.com\/video\/|b23\.tv\/)[\w/-]+/i;
@@ -33,6 +33,7 @@ export function FirstSessionSheet({
   onPaywallRequired,
 }: FirstSessionSheetProps) {
   const { session } = useSession();
+  const { t } = useTranslation();
 
   const nameInputRef = useRef<TextInput | null>(null);
 
@@ -78,7 +79,6 @@ export function FirstSessionSheet({
       const msg =
         'Not signed in. Close this sheet, open Profile, sign in again, then try Create again.';
       setError(msg);
-      Alert.alert('Can’t create session', msg);
       return;
     }
 
@@ -109,6 +109,11 @@ export function FirstSessionSheet({
       onCreated(data as Session);
       bottomSheetRef.current?.close();
     } catch (e) {
+      if (e instanceof TypeError) {
+        setRetryable(true);
+        setError(t('firstSession.offlineError'));
+        return;
+      }
       if (e instanceof ApiRequestError) {
         if (e.reason === 'http' && e.status === 403) {
           try {
@@ -129,13 +134,11 @@ export function FirstSessionSheet({
           const message = e.message || 'Failed to create session';
           setRetryable(false);
           setError(message);
-          Alert.alert('Create session failed', message);
         }
       } else {
         const message = e instanceof Error ? e.message : 'Failed to create session';
         setRetryable(false);
         setError(message);
-        Alert.alert('Create session failed', message);
       }
     } finally {
       setLoading(false);
@@ -227,7 +230,11 @@ export function FirstSessionSheet({
               editable={!loading}
             />
 
-            {error ? <Text style={[styles.errorText, { color: colors.capture }]}>{error}</Text> : null}
+            {retryable && error ? (
+              <RetryPrompt message={error} onRetry={handleCreate} loading={loading} />
+            ) : error ? (
+              <Text style={[styles.errorText, { color: colors.capture }]}>{error}</Text>
+            ) : null}
 
             <View style={styles.buttonRow}>
               <TouchableOpacity
@@ -238,7 +245,7 @@ export function FirstSessionSheet({
                 onPress={() => {
                   if (!validateMusicUrl(musicUrl)) {
                     setRetryable(false);
-                    setError('Invalid URL — paste a YouTube or Bilibili link');
+                    setError(t('firstSession.invalidUrl'));
                     return;
                   }
                   handleCreate();
@@ -257,7 +264,14 @@ export function FirstSessionSheet({
                   styles.primaryButton,
                   loading && styles.buttonDisabled,
                 ]}
-                onPress={() => handleCreate()}
+                onPress={() => {
+                  if (!validateMusicUrl(musicUrl)) {
+                    setRetryable(false);
+                    setError(t('firstSession.invalidUrl'));
+                    return;
+                  }
+                  handleCreate();
+                }}
                 disabled={loading}
               >
                 {loading ? (

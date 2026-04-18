@@ -115,6 +115,7 @@
   "clipPlayer.toolCircle": "원",
   "clipPlayer.done": "완료",
   "clipPlayer.addTags": "태그 추가 →",
+  "clipPlayer.loupePausedForPerformance": "성능 문제로 루페가 일시 중지되었습니다",
   "workbench.addMusic": "음악 추가 →",
   "workbench.drillTitle": "드릴 시퀀스",
   "workbench.drillPlay": "시퀀스 재생",
