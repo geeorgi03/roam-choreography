@@ -12,6 +12,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import { theme } from '../lib/theme';
 import { useSession } from '../lib/hooks/useSession';
 import { API_BASE } from '../lib/api';
+import type { Session } from '@roam/types';
 
 const defaultName = () =>
   new Date().toLocaleDateString(undefined, {
@@ -22,7 +23,7 @@ const defaultName = () =>
 
 export interface CreateSessionSheetProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
-  onCreated: (session: { id: string; name: string; created_at: string; user_id: string }) => void;
+  onCreated: (session: Session) => void;
   onPaywallRequired?: () => void;
 }
 
@@ -90,7 +91,14 @@ export function CreateSessionSheet({
       if (!newSession?.id) {
         throw new Error('Server returned no session id');
       }
-      onCreated(newSession as { id: string; name: string; created_at: string; user_id: string });
+      onCreated({
+        id: newSession.id as string,
+        name: (newSession.name as string) ?? (name.trim() || defaultName()),
+        created_at: (newSession.created_at as string) ?? new Date().toISOString(),
+        user_id: (newSession.user_id as string) ?? '',
+        phrase: null,
+        quality_target: null,
+      });
       bottomSheetRef.current?.close();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to create session';

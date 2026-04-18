@@ -151,7 +151,12 @@ app.post('/:id/music', async (c) => {
   }
 
   // JSON / YouTube branch
-  const body = await c.req.json<{ youtube_url?: string }>();
+  let body: { youtube_url?: string } = {};
+  try {
+    body = await c.req.json<{ youtube_url?: string }>();
+  } catch {
+    return c.json({ error: 'Malformed JSON body' }, 400);
+  }
   const youtube_url = body?.youtube_url;
   const isYouTubeUrl = typeof youtube_url === 'string' && YOUTUBE_URL_REGEX.test(youtube_url);
   const isBilibiliUrl = typeof youtube_url === 'string' && BILIBILI_URL_REGEX.test(youtube_url);

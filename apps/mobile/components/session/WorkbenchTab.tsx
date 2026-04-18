@@ -21,8 +21,11 @@ import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { theme } from '../../lib/theme';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useSession } from '../../lib/hooks/useSession';
+import { useDrillSequence } from '../../lib/hooks/useDrillSequence';
 import { VoiceNoteRow } from './VoiceNoteRow';
 import { useTranslation } from '../../lib/i18n';
+import type { DrillSequenceItem } from '@roam/types';
 
 const colors = theme.light;
 const spacing = theme.spacing;
@@ -58,6 +61,7 @@ function isReferenceClip(clip: {
 export function WorkbenchTab() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { session } = useSession();
   const {
     sessionId,
     activeSection,
@@ -107,10 +111,27 @@ export function WorkbenchTab() {
   const dragCurrentXRef = useRef<number | null>(null);
   const [notePinTimecodeMs, setNotePinTimecodeMs] = useState<number | null>(null);
   const [activeVoiceNoteId, setActiveVoiceNoteId] = useState<string | null>(null);
+  const [drillActiveIndex, setDrillActiveIndex] = useState<number | null>(null);
+  const [drillPlayMode, setDrillPlayMode] = useState(false);
+  const [drillExpanded, setDrillExpanded] = useState(false);
+  const {
+    drillSequence,
+    drillLoading,
+    replaceDrillSequence,
+    appendDrillSequenceItem,
+  } = useDrillSequence({ sessionId, accessToken: session?.access_token });
 
   const handleVoiceNotePlaybackEnded = useCallback((noteId: string) => {
     setActiveVoiceNoteId((current) => (current === noteId ? null : current));
   }, []);
+
+  const handleMusicSetupRemoved = useCallback(() => {
+    router.push({
+      pathname: './music-setup',
+      params: { sessionId },
+    });
+  }, [router, sessionId]);
+
 
   // ── Derived values ───────────────────────────────────────────────────────
   const timelineDurationMs = durationMs > 0 ? durationMs : FALLBACK_DURATION_MS;
@@ -174,6 +195,67 @@ export function WorkbenchTab() {
       setActiveVoiceNoteId(null);
     }
   }, [workspaceTab]);
+
+  useEffect(() => {
+    if (!drillPlayMode || drillActiveIndex === null || drillSequence.length === 0) return;
+    const active = drillSequence[drillActiveIndex];
+    if (!active) return;
+    if (playheadMs < active.end_ms - 80) return;
+    const nextIndex = drillActiveIndex + 1;
+    if (nextIndex >= drillSequence.length) {
+      setDrillPlayMode(false);
+      setDrillActiveIndex(null);
+      setLoopRegion(null);
+      return;
+    }
+    const next = drillSequence[nextIndex];
+    setDrillActiveIndex(nextIndex);
+    setLoopRegion({ start: next.start_ms, end: next.end_ms });
+    soundRef.current?.setPositionAsync(next.start_ms).catch(() => {});
+  }, [drillPlayMode, drillActiveIndex, drillSequence, playheadMs, setLoopRegion, soundRef]);
+
+  const handleAddCurrentLoopToDrill = useCallback(async () => {
+    if (!loopRegion || !session?.access_token || !sessionId) return;
+    const nextItem: DrillSequenceItem = {
+      id: `drill-${Date.now()}`,
+      label: `${activeSection} ${formatTimecode(loopRegion.start)}-${formatTimecode(loopRegion.end)}`,
+      start_ms: Math.round(loopRegion.start),
+      end_ms: Math.round(loopRegion.end),
+    };
+    await appendDrillSequenceItem(nextItem);
+  }, [loopRegion, session?.access_token, sessionId, activeSection, appendDrillSequenceItem]);
+
+  const handleRemoveDrillItem = useCallback(async (id: string) => {
+    const nextItems = drillSequence.filter((item) => item.id !== id);
+    const ok = await replaceDrillSequence(nextItems);
+    if (!ok) return;
+    setDrillActiveIndex((curr) => (curr !== null && curr >= nextItems.length ? null : curr));
+  }, [drillSequence, replaceDrillSequence]);
+
+  const handleMoveDrillItem = useCallback(async (index: number, direction: -1 | 1) => {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= drillSequence.length) return;
+    const reordered = [...drillSequence];
+    const [moved] = reordered.splice(index, 1);
+    reordered.splice(nextIndex, 0, moved);
+    const ok = await replaceDrillSequence(reordered);
+    if (!ok) return;
+  }, [drillSequence, replaceDrillSequence]);
+
+  const handleToggleDrillPlayMode = useCallback(() => {
+    if (drillSequence.length === 0) return;
+    if (drillPlayMode) {
+      setDrillPlayMode(false);
+      setDrillActiveIndex(null);
+      setLoopRegion(null);
+      return;
+    }
+    const first = drillSequence[0];
+    setDrillPlayMode(true);
+    setDrillActiveIndex(0);
+    setLoopRegion({ start: first.start_ms, end: first.end_ms });
+    soundRef.current?.setPositionAsync(first.start_ms).catch(() => {});
+  }, [drillSequence, drillPlayMode, setLoopRegion, soundRef]);
 
   // ── Section chip handler ─────────────────────────────────────────────────
   const handleSectionPress = useCallback(
@@ -450,7 +532,7 @@ export function WorkbenchTab() {
           <TouchableOpacity
             style={styles.addMusicPrompt}
             activeOpacity={0.8}
-            onPress={() => router.push({ pathname: './music-setup', params: { sessionId } })}
+            onPress={handleMusicSetupRemoved}
           >
             <Text style={styles.addMusicPromptText}>{t('workbench.addMusic')}</Text>
           </TouchableOpacity>
@@ -467,6 +549,70 @@ export function WorkbenchTab() {
               {sectionClipCounts.get(activeSection) ?? 0}
             </Text>
           </TouchableOpacity>
+        )}
+
+        {!sessionMode && (
+          <View style={styles.drillCard}>
+            <View style={styles.drillHeader}>
+              <TouchableOpacity
+                style={styles.drillTitleToggle}
+                onPress={() => setDrillExpanded((prev) => !prev)}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.drillChevron}>{drillExpanded ? '▼' : '▶'}</Text>
+                <Text style={styles.drillTitle}>Drill sequence</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.drillPlayBtn, drillPlayMode && styles.drillPlayBtnActive]}
+                onPress={handleToggleDrillPlayMode}
+              >
+                <Text style={[styles.drillPlayBtnText, drillPlayMode && styles.drillPlayBtnTextActive]}>
+                  {drillPlayMode ? 'Stop sequence' : 'Play sequence'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {drillExpanded && (
+              <>
+                <TouchableOpacity
+                  style={[styles.drillAddBtn, !loopRegion && styles.drillAddBtnDisabled]}
+                  disabled={!loopRegion}
+                  onPress={handleAddCurrentLoopToDrill}
+                >
+                  <Text style={styles.drillAddBtnText}>Add current loop region</Text>
+                </TouchableOpacity>
+                {drillLoading ? (
+                  <Text style={styles.drillHintText}>Loading…</Text>
+                ) : drillSequence.length === 0 ? (
+                  <Text style={styles.drillHintText}>No drill regions yet.</Text>
+                ) : (
+                  drillSequence.map((item, index) => (
+                    <View
+                      key={item.id}
+                      style={[styles.drillItemRow, drillActiveIndex === index && styles.drillItemRowActive]}
+                    >
+                      <View style={styles.drillItemTextWrap}>
+                        <Text style={styles.drillItemLabel}>{item.label}</Text>
+                        <Text style={styles.drillItemRange}>
+                          {formatTimecode(item.start_ms)} - {formatTimecode(item.end_ms)}
+                        </Text>
+                      </View>
+                      <View style={styles.drillItemActions}>
+                        <TouchableOpacity onPress={() => handleMoveDrillItem(index, -1)}>
+                          <Text style={styles.drillActionText}>↑</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleMoveDrillItem(index, 1)}>
+                          <Text style={styles.drillActionText}>↓</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleRemoveDrillItem(item.id)}>
+                          <Text style={styles.drillActionText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+          </View>
         )}
 
         {!sessionMode && (
@@ -739,9 +885,7 @@ export function WorkbenchTab() {
           <View style={styles.emptyStateActions}>
             <TouchableOpacity
               style={styles.emptyVideoBtn}
-              onPress={() =>
-                router.push({ pathname: './music-setup', params: { sessionId } })
-              }
+              onPress={handleMusicSetupRemoved}
             >
               <Text style={styles.emptyVideoBtnText}>{t('workbench.addVideo')}</Text>
             </TouchableOpacity>
@@ -1243,5 +1387,113 @@ const styles = StyleSheet.create({
   },
   workspaceZone: {
     flex: 1,
+  },
+  drillCard: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    padding: 12,
+    borderRadius: spacing.radiusMd,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
+    gap: 8,
+  },
+  drillHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  drillTitleToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  drillChevron: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  drillTitle: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 11,
+    color: colors.active,
+  },
+  drillPlayBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: colors.ground,
+  },
+  drillPlayBtnActive: {
+    borderColor: colors.mine,
+    backgroundColor: colors.mineBg,
+  },
+  drillPlayBtnText: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  drillPlayBtnTextActive: {
+    color: colors.mine,
+  },
+  drillAddBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.pill,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: colors.ground,
+  },
+  drillAddBtnDisabled: {
+    opacity: 0.4,
+  },
+  drillAddBtnText: {
+    color: colors.active,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  drillHintText: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  drillItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusSm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  drillItemRowActive: {
+    borderColor: colors.mine,
+    backgroundColor: colors.mineBg,
+  },
+  drillItemTextWrap: {
+    flex: 1,
+  },
+  drillItemLabel: {
+    color: colors.active,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  drillItemRange: {
+    color: colors.muted,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  drillItemActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginLeft: 8,
+  },
+  drillActionText: {
+    color: colors.muted,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

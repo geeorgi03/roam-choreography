@@ -16,8 +16,10 @@ import { ClipShareSheet } from '../../../components/ClipShareSheet';
 import { NotePinSheet } from '../../../components/NotePinSheet';
 import { ClipViewerSheet } from '../../../components/session/ClipViewerSheet';
 import { OfflineBanner } from '../../../components/session/OfflineBanner';
+import { PaywallSheet } from '../../../components/PaywallSheet';
 import { theme } from '../../../lib/theme';
 import { setActiveSessionId } from '../../../lib/storage';
+import { addUploadQueueListener } from '../../../services/uploadQueue';
 
 const colors = theme.light;
 
@@ -34,6 +36,7 @@ function SessionShellContent() {
     sessionName,
     musicTrack,
     clips,
+    openSheet,
   } = useSessionContext();
 
   // ── Bottom-sheet refs ────────────────────────────────────────────────────
@@ -42,6 +45,7 @@ function SessionShellContent() {
   const clipShareSheetRef = useRef<BottomSheet | null>(null);
   const notePinSheetRef = useRef<BottomSheet | null>(null);
   const clipViewerSheetRef = useRef<BottomSheet | null>(null);
+  const paywallSheetRef = useRef<BottomSheet | null>(null);
 
   // ── Sheet coordinator effects ───────────────────────────────────────────
   useEffect(() => {
@@ -84,10 +88,18 @@ function SessionShellContent() {
     }
   }, [activeSheetId]);
 
+  useEffect(() => {
+    if (activeSheetId === 'paywall') {
+      paywallSheetRef.current?.snapToIndex(0);
+    } else {
+      paywallSheetRef.current?.close();
+    }
+  }, [activeSheetId]);
+
   // ── Tab parameter mapping on mount ────────────────────────────────────────
   useEffect(() => {
     if (tab) {
-      let targetTab: string;
+      let targetTab: 'song-map' | 'spatial' | 'group';
       switch (tab) {
         case 'map':
           targetTab = 'song-map';
@@ -111,6 +123,15 @@ function SessionShellContent() {
       setActiveSessionId(id);
     }
   }, [id]);
+
+  useEffect(() => {
+    const unsubscribe = addUploadQueueListener((event) => {
+      if (event.reason === 'plan_limit_reached') {
+        openSheet('paywall');
+      }
+    });
+    return unsubscribe;
+  }, [openSheet]);
 
   // ── Back handling ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -177,8 +198,7 @@ function SessionShellContent() {
         onClose={() => closeSheetIfActive('share')}
       />
       <CaptureSheet
-        ref={captureSheetRef}
-        sessionId={id!}
+        bottomSheetRef={captureSheetRef}
         sectionName="Section"
         inboxCount={0}
         onRecord={() =>
@@ -190,22 +210,28 @@ function SessionShellContent() {
             params: { sessionId: id!, sectionName: 'Section' },
           })
         }
-        onClose={() => closeSheetIfActive('capture')}
       />
       <ClipShareSheet
-        ref={clipShareSheetRef}
-        clip={selectedClipForSheet}
-        onClose={() => closeSheetIfActive('clip-share')}
+        bottomSheetRef={clipShareSheetRef}
+        clipId={selectedClipForSheet?.server_id ?? null}
+        clipLabel={selectedClipForSheet?.label ?? 'Clip'}
+        sectionName="Section"
+        duration="0:00"
       />
       <NotePinSheet
-        ref={notePinSheetRef}
-        note={null}
+        bottomSheetRef={notePinSheetRef}
+        sessionId={id}
+        timecode="00:00.0"
+        sectionName="Section"
         onSave={async () => {}}
-        onClose={() => closeSheetIfActive('note-pin')}
       />
       <ClipViewerSheet 
         ref={clipViewerSheetRef} 
         onClose={() => closeSheetIfActive('clip-viewer')} 
+      />
+      <PaywallSheet
+        bottomSheetRef={paywallSheetRef}
+        onDismiss={() => closeSheetIfActive('paywall')}
       />
     </View>
   );

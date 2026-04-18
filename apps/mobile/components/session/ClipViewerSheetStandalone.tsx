@@ -7,6 +7,7 @@ import type { Loop } from '@roam/types';
 import type { NotePin } from '../../lib/hooks/useNotePins';
 import { theme } from '../../lib/theme';
 import LoopChipRow from './LoopChipRow';
+import { TagHistorySheet } from '../../components/TagHistorySheet';
 
 const colors = theme.light;
 const nightColors = theme.night;
@@ -18,11 +19,16 @@ interface ClipViewerSheetStandaloneProps {
   allClips?: ClipRow[];
   allNotes?: NotePin[];
   onOpenClip?: (clip: ClipRow) => void;
+  onClipRestored?: (clip: ClipRow) => void;
 }
 
 export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewerSheetStandaloneProps>(
-  function ClipViewerSheetStandalone({ clip, sessionId, onClose, allClips, allNotes, onOpenClip }, ref) {
+  function ClipViewerSheetStandalone(
+    { clip, sessionId, onClose, allClips, allNotes, onOpenClip, onClipRestored },
+    ref
+  ) {
     const videoRef = useRef<Video>(null);
+    const tagHistorySheetRef = useRef<BottomSheet | null>(null);
     const positionMsRef = useRef<number>(0);
     const [clipSpeed, setClipSpeed] = useState(1);
     const [playheadFraction, setPlayheadFraction] = useState(0);
@@ -118,16 +124,17 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
     );
 
     return (
-      <BottomSheet
-        ref={ref}
-        index={-1}
-        snapPoints={['50%', '85%']}
-        enablePanDownToClose
-        onClose={onClose}
-        backdropComponent={renderBackdrop}
-      >
-        {clip ? (
-          <>
+      <>
+        <BottomSheet
+          ref={ref}
+          index={-1}
+          snapPoints={['50%', '85%']}
+          enablePanDownToClose
+          onClose={onClose}
+          backdropComponent={renderBackdrop}
+        >
+          {clip ? (
+            <>
             {/* Dark zone */}
             <View style={styles.darkZone}>
               <View style={styles.header}>
@@ -137,6 +144,12 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
                     <Text style={styles.typeBadgeText}>{clipTypeBadge.label}</Text>
                   </View>
                 )}
+                <TouchableOpacity
+                  style={styles.historyIconButton}
+                  onPress={() => tagHistorySheetRef.current?.snapToIndex(0)}
+                >
+                  <Text style={styles.historyIconText}>🕘</Text>
+                </TouchableOpacity>
                 <View style={styles.libraryPill}>
                   <Text style={styles.libraryPillText}>library</Text>
                 </View>
@@ -232,11 +245,19 @@ export const ClipViewerSheetStandalone = React.forwardRef<BottomSheet, ClipViewe
                 />
               )}
             </View>
-          </>
-        ) : (
-          <View style={styles.emptyContainer} />
-        )}
-      </BottomSheet>
+            </>
+          ) : (
+            <View style={styles.emptyContainer} />
+          )}
+        </BottomSheet>
+        <TagHistorySheet
+          clip={clip}
+          bottomSheetRef={tagHistorySheetRef}
+          onRestored={(restoredClip) => {
+            onClipRestored?.(restoredClip);
+          }}
+        />
+      </>
     );
   }
 );
@@ -283,6 +304,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     fontFamily: theme.typography.monoFamily,
+  },
+  historyIconButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginRight: 6,
+  },
+  historyIconText: {
+    color: '#ffffff',
+    fontSize: 14,
   },
   videoContainer: {
     height: 200,
@@ -393,7 +427,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   parentClipLabel: {
-    color: colors.ink,
+    color: colors.active,
     fontWeight: '700',
   },
   inspiredNoteRow: {

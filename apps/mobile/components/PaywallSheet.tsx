@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#222',
+    backgroundColor: theme.light.chrome,
     borderBottomWidth: 1,
     borderBottomColor: theme.textSecondary,
   },
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   button: {
-    backgroundColor: theme.accent,
+    backgroundColor: theme.light.mine,
     borderWidth: 1,
     borderColor: theme.textSecondary,
     borderRadius: theme.borderRadius,

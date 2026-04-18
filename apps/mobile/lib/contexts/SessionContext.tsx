@@ -141,7 +141,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const wasPlayingBeforeSheetRef = useRef(false);
   
   // Hooks
-  const { clips, retryClip } = useClips(sessionId);
+  const { clips, retryClip } = useClips(
+    sessionId,
+    useCallback(() => {
+      setActiveSheetId('paywall');
+    }, [])
+  );
   const { musicTrack, isAnalysing } = useMusicTrackStatus(sessionId);
   const { notes, createNote, deleteNote } = useNotePins(sessionId);
   const {

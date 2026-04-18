@@ -43,13 +43,15 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
         recorded_at: (row?.recorded_at as string | null | undefined) ?? null,
         upload_status: (row?.upload_status as string | null | undefined) ?? null,
         mux_playback_id: (row?.mux_playback_id as string | null | undefined) ?? null,
+        source_url: (row?.source_url as string | null | undefined) ?? null,
         move_name: (row?.move_name as string | null | undefined) ?? null,
         style: (row?.style as string | null | undefined) ?? null,
         energy: (row?.energy as string | null | undefined) ?? null,
         difficulty: (row?.difficulty as string | null | undefined) ?? null,
         bpm: (row?.bpm as number | null | undefined) ?? null,
         notes: (row?.notes as string | null | undefined) ?? null,
-        clip_type: (row?.clip_type as string | null | undefined) ?? null,
+        clip_type:
+          (row?.clip_type as 'MINE' | 'REF' | 'voice_memo' | null | undefined) ?? null,
       });
 
       const server_id = (row?.id as string | null | undefined) ?? null;
@@ -78,13 +80,15 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
               ? 100
               : 0,
         mux_playback_id: (row?.mux_playback_id as string | null | undefined) ?? null,
+        source_url: (row?.source_url as string | null | undefined) ?? null,
         move_name: (row?.move_name as string | null | undefined) ?? null,
         style: (row?.style as string | null | undefined) ?? null,
         energy: (row?.energy as string | null | undefined) ?? null,
         difficulty: (row?.difficulty as string | null | undefined) ?? null,
         bpm: (row?.bpm as number | null | undefined) ?? null,
         notes: (row?.notes as string | null | undefined) ?? null,
-        clip_type: (row?.clip_type as string | null | undefined) ?? null,
+        clip_type:
+          (row?.clip_type as 'MINE' | 'REF' | 'voice_memo' | null | undefined) ?? null,
       };
 
       if (idx < 0) {
@@ -175,7 +179,9 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
               difficulty: (row?.difficulty as string | null | undefined) ?? undefined,
               bpm: (row?.bpm as number | null | undefined) ?? undefined,
               notes: (row?.notes as string | null | undefined) ?? undefined,
-              clip_type: (row?.clip_type as string | null | undefined) ?? undefined,
+              clip_type:
+                (row?.clip_type as 'MINE' | 'REF' | 'voice_memo' | null | undefined) ??
+                undefined,
             });
           }
           setClips((prev) => mergeServerClipRow(prev, row));
@@ -204,7 +210,9 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
               difficulty: (row?.difficulty as string | null | undefined) ?? undefined,
               bpm: (row?.bpm as number | null | undefined) ?? undefined,
               notes: (row?.notes as string | null | undefined) ?? undefined,
-              clip_type: (row?.clip_type as string | null | undefined) ?? undefined,
+              clip_type:
+                (row?.clip_type as 'MINE' | 'REF' | 'voice_memo' | null | undefined) ??
+                undefined,
             });
           }
           setClips((prev) => mergeServerClipRow(prev, row));

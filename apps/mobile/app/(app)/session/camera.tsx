@@ -16,6 +16,7 @@ import { QuickSaveSheet } from '../../../components/QuickSaveSheet';
 import { useSession } from '../../../lib/hooks/useSession';
 import { saveClip } from '../../../lib/saveClip';
 import { supabase } from '../../../lib/supabase';
+import { useTranslation } from '../../../lib/i18n';
 
 const colors = theme.night;
 const spacing = theme.spacing;
@@ -24,6 +25,7 @@ export default function CameraScreen() {
   const { id: sessionId, sectionName } = useLocalSearchParams<{ id?: string; sectionName?: string }>();
   const router = useRouter();
   const { session } = useSession();
+  const { t } = useTranslation();
   const cameraRef = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -386,7 +388,7 @@ export default function CameraScreen() {
             await saveClip(
               sessionId,
               uri,
-              'Voice Memo',
+              t('camera.voiceMemoLabel'),
               session.access_token,
               sectionName ?? undefined,
               undefined,
@@ -408,9 +410,9 @@ export default function CameraScreen() {
   if (!cameraPermission?.granted) {
     return (
       <View style={styles.container}>
-        <Text style={styles.placeholderText}>Camera permission required</Text>
+        <Text style={styles.placeholderText}>{t('camera.permissionRequired')}</Text>
         <TouchableOpacity style={styles.button} onPress={requestCameraPermission}>
-          <Text style={styles.outlineButtonText}>Grant permission</Text>
+          <Text style={styles.outlineButtonText}>{t('camera.grantPermission')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -429,10 +431,10 @@ export default function CameraScreen() {
         />
         <View style={styles.previewControls}>
           <TouchableOpacity style={styles.outlineButton} onPress={handleRetake}>
-            <Text style={styles.outlineButtonText}>Retake</Text>
+            <Text style={styles.outlineButtonText}>{t('camera.retake')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
-            <Text style={styles.primaryButtonText}>Save</Text>
+            <Text style={styles.primaryButtonText}>{t('camera.save')}</Text>
           </TouchableOpacity>
         </View>
         <QuickSaveSheet
@@ -458,10 +460,12 @@ export default function CameraScreen() {
     <View style={styles.container}>
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Back</Text>
+          <Text style={styles.backButtonText}>{t('camera.back')}</Text>
         </TouchableOpacity>
         <View style={styles.sessionLabelWrap}>
-          <Text style={styles.sessionLabel}>{sessionName ?? (sessionId ? '…' : 'Session')}</Text>
+          <Text style={styles.sessionLabel}>
+            {sessionName ?? (sessionId ? '…' : t('camera.sessionFallback'))}
+          </Text>
           {sectionName ? <Text style={styles.sectionLabel}>{sectionName}</Text> : null}
         </View>
         <TouchableOpacity
@@ -477,9 +481,9 @@ export default function CameraScreen() {
           activeOpacity={0.85}
         >
           <Text style={[styles.dualChipText, dualEnabled && styles.dualChipTextActive]}>
-            dual-screen
+            {t('camera.dualScreen')}
           </Text>
-          <Text style={styles.betaBadge}>beta</Text>
+          <Text style={styles.betaBadge}>{t('camera.beta')}</Text>
         </TouchableOpacity>
       </View>
       <CameraView
@@ -496,17 +500,17 @@ export default function CameraScreen() {
       ) : null}
       {showRecordErrorNotice ? (
         <View style={styles.fallbackNotice}>
-          <Text style={styles.fallbackNoticeText}>could not save this take - please retry</Text>
+          <Text style={styles.fallbackNoticeText}>{t('camera.recordErrorNotice')}</Text>
         </View>
       ) : null}
       {showFallbackNotice ? (
         <View style={styles.fallbackNotice}>
-          <Text style={styles.fallbackNoticeText}>⚠ performance low - using single capture</Text>
+          <Text style={styles.fallbackNoticeText}>{t('camera.performanceFallback')}</Text>
         </View>
       ) : null}
       {voiceMemoNotice ? (
         <View style={styles.fallbackNotice}>
-          <Text style={styles.fallbackNoticeText}>🎤 Voice memo saved</Text>
+          <Text style={styles.fallbackNoticeText}>{t('camera.voiceMemoSaved')}</Text>
         </View>
       ) : null}
       <View style={styles.controlsRow}>
@@ -526,7 +530,7 @@ export default function CameraScreen() {
         {isVoiceMemoRecording && (
           <Animated.View style={[styles.voiceMemoIndicator, { opacity: pulseAnim }]}>
             <View style={styles.voiceMemoDot} />
-            <Text style={styles.voiceMemoLabel}>🎤 Recording...</Text>
+            <Text style={styles.voiceMemoLabel}>{t('camera.voiceMemoRecording')}</Text>
           </Animated.View>
         )}
         <LongPressGestureHandler onHandlerStateChange={handleLongPressStateChange} minDurationMs={500}>

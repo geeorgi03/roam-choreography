@@ -62,9 +62,10 @@ Documented Python + Essentia path for BPM / beat grid / sections (see `docs/ROAM
 
 ## 3. Why the app can feel broken (evidence-based)
 
-### 3.1 Strict TypeScript build fails on mobile
+### 3.1 Build gates status
 
-A `pnpm exec turbo run build` including `@roam/mobile` can fail with `**@roam/mobile#build`** (`tsc` exit code 2). That blocks any workflow that expects `turbo build` to pass; Expo dev may still run with different strictness.
+Current repository status: `@roam/mobile`, `@roam/api`, and `@roam/web` build gates pass in automated runs.
+This removes compile-time blocking issues, but does not prove runtime quality or PRD acceptance on devices.
 
 **Error themes (for planning):**
 
@@ -154,7 +155,7 @@ Docs mark **two-door home** as partially there; **quick-save** and **loop** as i
 
 ## 6. Stakeholder summary
 
-**A large portion of the backend and mobile feature surface exists in code, but the mobile package may not pass its own TypeScript build; theme and sheet wiring are inconsistent; and Phase 0/1 acceptance criteria in the consolidated plan are largely unmet — so the product can feel broken even when individual APIs work.**
+**A large portion of the backend and mobile feature surface exists in code and current builds pass. The remaining gap is runtime quality evidence and feature-completion depth across later phases. Use `docs/PRD_IMPLEMENTATION_MATRIX.md` and `docs/RUNTIME_ACCEPTANCE_PROTOCOL.md` as the operating source of truth for completion and sign-off.**
 
 Re-run builds after changes:
 

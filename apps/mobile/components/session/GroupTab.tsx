@@ -372,8 +372,8 @@ export function GroupTab() {
 
   const renderGridLines = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
-    const horizontalLines = [];
-    const verticalLines = [];
+    const horizontalLines: React.ReactElement[] = [];
+    const verticalLines: React.ReactElement[] = [];
 
     for (let y = 22; y < canvasSize.height; y += 22) {
       horizontalLines.push(
@@ -690,9 +690,14 @@ export function GroupTab() {
             {shareError ? <Text style={styles.shareErrorText}>{shareError}</Text> : null}
           </View>
         </View>
-        {connectionStatus.hasError && (
+        {!connectionStatus.isConnected && (
           <View style={styles.connectionErrorBanner}>
-            <Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</Text>
+            <Text style={styles.connectionErrorText}>
+              {connectionStatus.errorMessage ??
+                (connectionStatus.hasError
+                  ? 'Connection lost. Check network and reopen this session.'
+                  : 'Reconnecting...')}
+            </Text>
           </View>
         )}
         <View style={styles.leftPanel}>
@@ -827,9 +832,14 @@ export function GroupTab() {
 
   return (
     <View style={styles.dancerContainer}>
-      {connectionStatus.hasError && (
+      {!connectionStatus.isConnected && (
         <View style={styles.connectionErrorBanner}>
-          <Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</Text>
+          <Text style={styles.connectionErrorText}>
+            {connectionStatus.errorMessage ??
+              (connectionStatus.hasError
+                ? 'Connection lost. Check network and reopen this session.'
+                : 'Reconnecting...')}
+          </Text>
         </View>
       )}
       <View

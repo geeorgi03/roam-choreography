@@ -117,7 +117,7 @@ export function FirstSessionSheet({
 
   return (
     <BottomSheet
-      ref={bottomSheetRef as React.RefObject<BottomSheet>}
+      ref={bottomSheetRef as unknown as React.Ref<BottomSheet>}
       index={-1}
       snapPoints={['70%']}
       enablePanDownToClose

@@ -129,6 +129,7 @@ export default function LibraryScreen() {
       upload_status: 'ready',
       upload_progress: 0,
       mux_playback_id: (clip as unknown as { mux_playback_id?: string | null }).mux_playback_id ?? null,
+      source_url: (clip as unknown as { source_url?: string | null }).source_url ?? null,
       parent_clip_id: (clip as unknown as { parent_clip_id?: string | null }).parent_clip_id ?? null,
       triggered_by_note_id: (clip as unknown as { triggered_by_note_id?: string | null }).triggered_by_note_id ?? null,
       move_name: (clip as unknown as { move_name?: string | null }).move_name ?? null,

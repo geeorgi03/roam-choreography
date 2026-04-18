@@ -194,7 +194,7 @@ export interface ClipRow {
   difficulty: string | null;
   bpm: number | null;
   notes: string | null;
-  clip_type?: string | null;
+  clip_type?: 'MINE' | 'REF' | 'voice_memo' | null;
 }
 
 export interface InsertClipRow {
@@ -217,7 +217,7 @@ export interface InsertClipRow {
   difficulty?: string | null;
   bpm?: number | null;
   notes?: string | null;
-  clip_type?: string | null;
+  clip_type?: 'MINE' | 'REF' | 'voice_memo' | null;
 }
 
 export interface ClipTags {

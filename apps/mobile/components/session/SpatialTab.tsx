@@ -467,8 +467,8 @@ export function SpatialTab() {
   const renderGridLines = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
     
-    const horizontalLines = [];
-    const verticalLines = [];
+    const horizontalLines: React.ReactElement[] = [];
+    const verticalLines: React.ReactElement[] = [];
     
     // Horizontal lines every 22dp
     for (let y = 22; y < canvasSize.height; y += 22) {
@@ -818,7 +818,7 @@ export function SpatialTab() {
               <View style={[
                 styles.field,
                 styles.noteField,
-                note && styles.noteFieldFilled
+                note ? styles.noteFieldFilled : null
               ]}>
                 <Text style={styles.fieldLabel}>NOTE</Text>
                 <TextInput

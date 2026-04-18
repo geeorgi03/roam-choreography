@@ -13,6 +13,8 @@ export const theme = {
     mine: '#7DB9A8',
     mineBg: 'rgba(125, 185, 168, 0.12)',
     ref: '#D4A574',
+    untaggedBg: 'rgba(184, 176, 165, 0.14)',
+    untaggedText: '#8A8278',
   },
   night: {
     ground: '#0d0d0c',
@@ -28,12 +30,16 @@ export const theme = {
     mine: '#7DB9A8',
     mineBg: 'rgba(125, 185, 168, 0.12)',
     ref: '#D4A574',
+    untaggedBg: 'rgba(106, 101, 96, 0.18)',
+    untaggedText: '#B8B0A5',
   },
   // Backward-compat aliases for consumers still on the flat contract.
   background: '#F9F7F4',
   textPrimary: '#3A342D',
   textSecondary: '#8A8278',
   accent: '#7DB9A8',
+  untaggedBg: 'rgba(184, 176, 165, 0.14)',
+  untaggedText: '#8A8278',
   borderRadius: 12,
   typography: {
     displayFamily: 'Fraunces',

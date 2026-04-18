@@ -15,6 +15,7 @@ import { useInbox, type InboxClip } from '../../lib/hooks/useInbox';
 import { useInboxCount } from '../../lib/contexts/InboxCountContext';
 import { AssignPickerSheet, type SessionListItem } from '../../components/AssignPickerSheet';
 import { CreateSessionSheet } from '../../components/CreateSessionSheet';
+import { PaywallSheet } from '../../components/PaywallSheet';
 
 function timeAgo(iso: string): string {
   const t = new Date(iso).getTime();
@@ -37,6 +38,7 @@ export default function InboxScreen() {
   const { refreshCount } = useInboxCount();
   const assignSheetRef = useRef<BottomSheet | null>(null);
   const createSheetRef = useRef<BottomSheet | null>(null);
+  const paywallSheetRef = useRef<BottomSheet | null>(null);
   const [selectedClip, setSelectedClip] = useState<InboxClip | null>(null);
 
   const sectionContext =
@@ -201,6 +203,7 @@ export default function InboxScreen() {
       />
       <CreateSessionSheet
         bottomSheetRef={createSheetRef}
+        onPaywallRequired={() => paywallSheetRef.current?.snapToIndex(0)}
         onCreated={(s) => {
           Toast.show({ type: 'success', text1: 'Session created' });
           if (!selectedClip) return;
@@ -211,6 +214,7 @@ export default function InboxScreen() {
             .catch(() => {});
         }}
       />
+      <PaywallSheet bottomSheetRef={paywallSheetRef} />
     </View>
   );
 }

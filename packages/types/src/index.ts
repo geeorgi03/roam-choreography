@@ -193,3 +193,16 @@ export interface Loop {
   created_by: UUID;
   created_at: ISODateTime;
 }
+
+export interface DrillSequenceItem {
+  id: string;
+  label: string;
+  start_ms: number;
+  end_ms: number;
+}
+
+export interface DrillSequence {
+  session_id: UUID;
+  items: DrillSequenceItem[];
+  updated_at: ISODateTime;
+}

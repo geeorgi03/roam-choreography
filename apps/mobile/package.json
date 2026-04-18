@@ -13,7 +13,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "build": "tsc",
-    "lint": "eslint .",
+    "lint": "eslint \"**/*.{ts,tsx}\"",
     "clean": "rm -rf dist"
   },
   "dependencies": {

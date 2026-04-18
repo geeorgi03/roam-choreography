@@ -15,6 +15,7 @@ import { API_BASE } from '../lib/api';
 import { saveClip, saveInboxClip, type SaveClipResult } from '../lib/saveClip';
 import type { Session as SessionType } from '@roam/types';
 import { CreateSessionSheet } from './CreateSessionSheet';
+import { useTranslation } from '../lib/i18n';
 
 type Mode = 'saved' | 'picker';
 
@@ -37,10 +38,13 @@ export function QuickSaveSheet({
   sectionName,
   onDone,
 }: QuickSaveSheetProps) {
+  const { t } = useTranslation();
   const snapPoints = useMemo(() => ['55%'], []);
   const { session } = useSession();
   const [mode, setMode] = useState<Mode>('saved');
   const [loading, setLoading] = useState(false);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [sessionLoadError, setSessionLoadError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionType[]>([]);
   const didLoadSessionsRef = useRef(false);
   const createSessionSheetRef = useRef<BottomSheet | null>(null);
@@ -73,6 +77,8 @@ export function QuickSaveSheet({
     if (!session?.access_token) return;
     if (didLoadSessionsRef.current) return;
     didLoadSessionsRef.current = true;
+    setSessionLoadError(null);
+    setLoadingSessions(true);
     try {
       let res = await fetch(`${API_BASE}/sessions/`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -82,13 +88,18 @@ export function QuickSaveSheet({
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
       }
-      if (!res.ok) return;
+      if (!res.ok) {
+        setSessionLoadError(t('quickSave.failedToLoadSessions'));
+        return;
+      }
       const body = (await res.json()) as { sessions: SessionType[] };
       setSessions(Array.isArray(body.sessions) ? body.sessions : []);
     } catch {
-      // ignore
+      setSessionLoadError(t('quickSave.failedToLoadSessions'));
+    } finally {
+      setLoadingSessions(false);
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, t]);
 
   const saveToSession = useCallback(async (targetSessionId: string) => {
     if (!videoUri) return false;
@@ -107,7 +118,7 @@ export function QuickSaveSheet({
         )
       );
       if (!r.ok) {
-        Toast.show({ type: 'error', text1: 'Could not save clip' });
+        Toast.show({ type: 'error', text1: t('quickSave.couldNotSaveClip') });
         return false;
       }
       let secondaryFailed = false;
@@ -122,11 +133,11 @@ export function QuickSaveSheet({
         );
         if (!secondaryResult.ok) {
           secondaryFailed = true;
-          showSecondarySaveWarning('Saved with warning', 'Primary clip saved, second clip failed');
+          showSecondarySaveWarning(t('quickSave.savedWithWarning'), t('quickSave.secondaryClipFailed'));
         }
       }
       if (!secondaryFailed) {
-        Toast.show({ type: 'success', text1: 'Saved' });
+        Toast.show({ type: 'success', text1: t('quickSave.saved') });
       }
       bottomSheetRef.current?.close();
       onDone({ navigateTo: `/session/${targetSessionId}` });
@@ -134,7 +145,7 @@ export function QuickSaveSheet({
     } finally {
       setLoading(false);
     }
-  }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone, savePrimaryOnce, showSecondarySaveWarning]);
+  }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone, savePrimaryOnce, showSecondarySaveWarning, t]);
 
   const saveToSectionSession = useCallback(async () => {
     if (!sessionId) return false;
@@ -156,7 +167,7 @@ export function QuickSaveSheet({
         )
       );
       if (!r.ok) {
-        Toast.show({ type: 'error', text1: 'Could not save clip' });
+        Toast.show({ type: 'error', text1: t('quickSave.couldNotSaveClip') });
         return false;
       }
       let secondaryFailed = false;
@@ -171,11 +182,11 @@ export function QuickSaveSheet({
         );
         if (!secondaryResult.ok) {
           secondaryFailed = true;
-          showSecondarySaveWarning('Saved with warning', 'Primary clip saved, second clip failed');
+          showSecondarySaveWarning(t('quickSave.savedWithWarning'), t('quickSave.secondaryClipFailed'));
         }
       }
       if (!secondaryFailed) {
-        Toast.show({ type: 'success', text1: 'Saved' });
+        Toast.show({ type: 'success', text1: t('quickSave.saved') });
       }
       bottomSheetRef.current?.close();
       onDone();
@@ -183,7 +194,7 @@ export function QuickSaveSheet({
     } finally {
       setLoading(false);
     }
-  }, [sessionId, sectionName, videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone, savePrimaryOnce, showSecondarySaveWarning]);
+  }, [sessionId, sectionName, videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone, savePrimaryOnce, showSecondarySaveWarning, t]);
 
   const saveLater = useCallback(async () => {
     if (!videoUri) return false;
@@ -201,9 +212,9 @@ export function QuickSaveSheet({
       );
       if (!primaryResult.ok) {
         if (primaryResult.reason === 'plan_limit_reached') {
-          Toast.show({ type: 'error', text1: 'Upload limit reached' });
+          Toast.show({ type: 'error', text1: t('quickSave.uploadLimitReached') });
         } else {
-          Toast.show({ type: 'error', text1: 'Could not save to Inbox', text2: primaryResult.message });
+          Toast.show({ type: 'error', text1: t('quickSave.couldNotSaveToInbox'), text2: primaryResult.message });
         }
         return false;
       }
@@ -218,26 +229,26 @@ export function QuickSaveSheet({
         if (!secondaryResult.ok) {
           secondaryFailed = true;
           showSecondarySaveWarning(
-            'Saved to Inbox with warning',
+            t('quickSave.savedToInboxWithWarning'),
             secondaryResult.reason === 'plan_limit_reached'
-              ? 'Primary clip saved, second clip hit upload limit'
-              : 'Primary clip saved, second clip failed'
+              ? t('quickSave.secondaryClipHitLimit')
+              : t('quickSave.secondaryClipFailed')
           );
         }
       }
       if (!secondaryFailed) {
-        Toast.show({ type: 'success', text1: 'Saved to Inbox' });
+        Toast.show({ type: 'success', text1: t('quickSave.savedToInbox') });
       }
       bottomSheetRef.current?.close();
       onDone({ navigateTo: '/inbox' });
       return true;
     } catch (e) {
-      Toast.show({ type: 'error', text1: 'Could not save to Inbox' });
+      Toast.show({ type: 'error', text1: t('quickSave.couldNotSaveToInbox') });
       return false;
     } finally {
       setLoading(false);
     }
-  }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone, savePrimaryOnce, showSecondarySaveWarning]);
+  }, [videoUri, secondaryVideoUri, dualPairId, session?.access_token, bottomSheetRef, onDone, savePrimaryOnce, showSecondarySaveWarning, t]);
 
   const canSaveToCurrentSection = Boolean(sessionId && sectionName);
 
@@ -254,7 +265,7 @@ export function QuickSaveSheet({
       }}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Save clip</Text>
+        <Text style={styles.title}>{t('quickSave.title')}</Text>
 
         {mode === 'saved' ? (
           <>
@@ -266,7 +277,8 @@ export function QuickSaveSheet({
               {loading ? (
                 <ActivityIndicator color={theme.light.active} size="small" />
               ) : (
-                <Text style={styles.secondaryBtnText}>Later</Text>
+                <Text style={styles.secondaryBtnText}>{t('quickSave.later')}</Text>
+                
               )}
             </TouchableOpacity>
 
@@ -275,7 +287,7 @@ export function QuickSaveSheet({
               onPress={() => createSessionSheetRef.current?.snapToIndex(0)}
               disabled={loading}
             >
-              <Text style={styles.secondaryBtnText}>+ New session</Text>
+              <Text style={styles.secondaryBtnText}>{t('quickSave.newSession')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -285,7 +297,7 @@ export function QuickSaveSheet({
               }}
               disabled={loading}
             >
-              <Text style={styles.primaryBtnText}>Existing →</Text>
+              <Text style={styles.primaryBtnText}>{t('quickSave.existing')}</Text>
             </TouchableOpacity>
 
             {canSaveToCurrentSection ? (
@@ -296,7 +308,7 @@ export function QuickSaveSheet({
                 }}
                 disabled={loading}
               >
-                <Text style={styles.secondaryBtnText}>{`Save to ${sectionName}`}</Text>
+                <Text style={styles.secondaryBtnText}>{`${t('quickSave.saveTo')} ${sectionName}`}</Text>
               </TouchableOpacity>
             ) : null}
           </>
@@ -304,24 +316,56 @@ export function QuickSaveSheet({
 
         {mode === 'picker' ? (
           <>
-            <Text style={styles.subTitle}>Choose a session</Text>
-            <ScrollView style={styles.listScroll} contentContainerStyle={styles.list}>
-              {sessions.map((s) => (
+            <Text style={styles.subTitle}>{t('quickSave.chooseSession')}</Text>
+            {loadingSessions ? (
+              <View style={styles.pickerStatusWrap}>
+                <ActivityIndicator color={theme.light.active} size="small" />
+                <Text style={styles.pickerStatusText}>{t('quickSave.loadingSessions')}</Text>
+              </View>
+            ) : sessionLoadError ? (
+              <View style={styles.pickerStatusWrap}>
+                <Text style={styles.pickerStatusText}>{sessionLoadError}</Text>
                 <TouchableOpacity
-                  key={s.id}
-                  style={styles.sessionRow}
-                  onPress={() => saveToSession(s.id)}
+                  style={styles.retrySmallBtn}
+                  onPress={() => {
+                    didLoadSessionsRef.current = false;
+                    void loadSessions();
+                  }}
                   disabled={loading}
                 >
-                  <Text style={styles.sessionText} numberOfLines={1}>
-                    {s.name}
-                  </Text>
-                  <Text style={styles.chev}>→</Text>
+                  <Text style={styles.retrySmallBtnText}>{t('quickSave.retry')}</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+              </View>
+            ) : sessions.length === 0 ? (
+              <View style={styles.pickerStatusWrap}>
+                <Text style={styles.pickerStatusText}>{t('quickSave.noSessionsYet')}</Text>
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  onPress={() => createSessionSheetRef.current?.snapToIndex(0)}
+                  disabled={loading}
+                >
+                  <Text style={styles.secondaryBtnText}>{t('quickSave.newSession')}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView style={styles.listScroll} contentContainerStyle={styles.list}>
+                {sessions.map((s) => (
+                  <TouchableOpacity
+                    key={s.id}
+                    style={styles.sessionRow}
+                    onPress={() => saveToSession(s.id)}
+                    disabled={loading}
+                  >
+                    <Text style={styles.sessionText} numberOfLines={1}>
+                      {s.name}
+                    </Text>
+                    <Text style={styles.chev}>→</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
             <TouchableOpacity style={styles.linkBtn} onPress={() => setMode('saved')} disabled={loading}>
-              <Text style={styles.linkText}>Back</Text>
+              <Text style={styles.linkText}>{t('quickSave.back')}</Text>
             </TouchableOpacity>
           </>
         ) : null}
@@ -345,7 +389,7 @@ export function QuickSaveSheet({
                 )
               );
               if (!primaryResult.ok) {
-                Toast.show({ type: 'error', text1: 'Could not save clip' });
+                Toast.show({ type: 'error', text1: t('quickSave.couldNotSaveClip') });
                 return;
               }
               let secondaryFailed = false;
@@ -361,13 +405,13 @@ export function QuickSaveSheet({
                 if (!secondaryResult.ok) {
                   secondaryFailed = true;
                   showSecondarySaveWarning(
-                    'Saved with warning',
-                    'Primary clip saved, second clip failed'
+                    t('quickSave.savedWithWarning'),
+                    t('quickSave.secondaryClipFailed')
                   );
                 }
               }
               if (!secondaryFailed) {
-                Toast.show({ type: 'success', text1: 'Saved' });
+                Toast.show({ type: 'success', text1: t('quickSave.saved') });
               }
               bottomSheetRef.current?.close();
               onDone({ navigateTo: `/session/${newSession.id}` });
@@ -407,6 +451,17 @@ const styles = StyleSheet.create({
   linkText: { color: theme.light.mine, fontWeight: '800' },
   listScroll: { maxHeight: 240 },
   list: { gap: 10 },
+  pickerStatusWrap: { gap: 12, alignItems: 'center', paddingVertical: 20 },
+  pickerStatusText: { color: theme.light.muted, fontSize: 13, textAlign: 'center' },
+  retrySmallBtn: {
+    borderWidth: 1,
+    borderColor: theme.light.border,
+    borderRadius: theme.borderRadius,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: theme.light.chrome,
+  },
+  retrySmallBtnText: { color: theme.light.active, fontWeight: '700', fontSize: 13 },
   sessionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, PanResponder, Alert } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { Video, AVPlaybackStatus } from 'expo-av';
+import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
 import { SectionClip, Loop } from '@roam/types';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
@@ -12,6 +12,9 @@ import { API_BASE } from '../../lib/api';
 import Toast from 'react-native-toast-message';
 import LoopChipRow from './LoopChipRow';
 import { FeedbackSheet, type FeedbackSheetHandle } from '../FeedbackSheet';
+import { TagSheet } from '../TagSheet';
+import { TagHistorySheet } from '../../components/TagHistorySheet';
+import type { ClipRow } from '../../lib/database';
 
 const colors = theme.light;
 const nightColors = theme.night;
@@ -40,6 +43,8 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
   const videoRef = useRef<Video>(null);
   const feedbackSheetRef = useRef<BottomSheet>(null);
   const feedbackSheetHandleRef = useRef<FeedbackSheetHandle>(null);
+  const tagSheetRef = useRef<BottomSheet | null>(null);
+  const tagHistorySheetRef = useRef<BottomSheet | null>(null);
   const positionMsRef = useRef<number>(0);
   const [clipSpeed, setClipSpeed] = useState(1);
   const [playheadFraction, setPlayheadFraction] = useState(0);
@@ -158,8 +163,12 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     onClose();
   };
 
-  const isClipInSession = selectedClipForSheet.server_id && 
-    sectionClips.some(sc => sc.clip_id === selectedClipForSheet.server_id && sc.section_label === activeSection);
+  const isClipInSession = Boolean(
+    selectedClipForSheet.server_id &&
+      sectionClips.some(
+        (sc) => sc.clip_id === selectedClipForSheet.server_id && sc.section_label === activeSection
+      )
+  );
   const canGiveFeedback =
     Boolean(selectedClipForSheet.server_id) &&
     (selectedClipForSheet.clip_type === 'REF' || selectedClipForSheet.clip_type === 'MINE');
@@ -251,7 +260,8 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       onPanResponderMove: (_, gestureState) => {
         if (progressBarWidth === 0) return;
         
-        const newFraction = (isLeft ? trimStart : trimEnd) + (gestureState.dx / progressBarWidth);
+        const currentEdge = isLeft ? (trimStart ?? 0) : (trimEnd ?? 1);
+        const newFraction = currentEdge + (gestureState.dx / progressBarWidth);
         const clampedFraction = Math.max(0, Math.min(1, newFraction));
         
         if (isLeft) {
@@ -310,6 +320,12 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
               <Text style={styles.typeBadgeText}>{clipTypeBadge.label}</Text>
             </View>
           )}
+          <TouchableOpacity
+            style={styles.historyIconButton}
+            onPress={() => tagHistorySheetRef.current?.snapToIndex(0)}
+          >
+            <Text style={styles.historyIconText}>🕘</Text>
+          </TouchableOpacity>
           <View style={styles.mirrorPill}>
             <Text style={styles.mirrorPillText}>mirror</Text>
           </View>
@@ -323,7 +339,7 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
               source={videoSource}
               style={styles.video}
               useNativeControls
-              resizeMode="contain"
+              resizeMode={ResizeMode.CONTAIN}
               shouldPlay={false}
               rate={clipSpeed}
               onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
@@ -442,6 +458,12 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
         {/* Save row */}
           <View style={styles.saveRow}>
           <TouchableOpacity
+            style={styles.tagsButton}
+            onPress={() => tagSheetRef.current?.snapToIndex(0)}
+          >
+            <Text style={styles.tagsButtonText}>Edit tags</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[
               styles.saveButton,
               isClipInSession && styles.saveButtonDisabled
@@ -510,6 +532,21 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
         clipId={selectedClipForSheet.server_id ?? ''}
         onClose={handleFeedbackSheetClose}
       />
+      <TagSheet
+        clip={selectedClipForSheet}
+        bottomSheetRef={tagSheetRef}
+        onSaved={(updatedClip) => {
+          setSelectedClipForSheet(updatedClip);
+        }}
+        musicTrackBpm={null}
+      />
+      <TagHistorySheet
+        clip={selectedClipForSheet as ClipRow}
+        bottomSheetRef={tagHistorySheetRef}
+        onRestored={(updatedClip) => {
+          setSelectedClipForSheet(updatedClip);
+        }}
+      />
     </>
   );
 });
@@ -556,6 +593,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     fontFamily: theme.typography.monoFamily,
+  },
+  historyIconButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginRight: 6,
+  },
+  historyIconText: {
+    color: '#ffffff',
+    fontSize: 14,
   },
   videoContainer: {
     height: 200,
@@ -682,6 +732,19 @@ const styles = StyleSheet.create({
   },
   saveRow: {
     gap: 12,
+  },
+  tagsButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    backgroundColor: colors.chrome,
+  },
+  tagsButtonText: {
+    color: colors.active,
+    fontSize: 13,
+    fontWeight: '600',
   },
   saveButton: {
     backgroundColor: '#7DB9A8',

@@ -76,7 +76,7 @@ export function ClipPlayer({
     setTimecodeMs(String(currentTimeMs));
   };
 
-  const handleSubmitFeedback = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clipId || !text.trim()) return;
     setError(null);
@@ -157,7 +157,7 @@ export function ClipPlayer({
           streamType="on-demand"
           className="w-full h-full"
           onTimeUpdate={(e: Event) => {
-            const el = e.target as HTMLMediaElement;
+            const el = e.target as { currentTime?: number } | null;
             const t = el?.currentTime;
             if (typeof t === 'number') setCurrentTimeMs(Math.round(t * 1000));
           }}

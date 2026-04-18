@@ -104,14 +104,6 @@ export default function AppStackLayout() {
         }}
       />
       <Tabs.Screen
-        name="session/music-setup"
-        options={{
-          title: '',
-          href: null,
-          headerShown: false,
-        }}
-      />
-      <Tabs.Screen
         name="session/youtube-player"
         options={{
           title: '',
@@ -123,7 +115,6 @@ export default function AppStackLayout() {
         name="session/clip-player"
         options={{
           href: null,
-          presentation: 'modal',
           headerShown: false,
         }}
       />

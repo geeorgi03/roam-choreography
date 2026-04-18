@@ -10,6 +10,7 @@ import {
 import Slider from '@react-native-community/slider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import BottomSheet from '@gorhom/bottom-sheet';
 import YoutubeIframe, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
 import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 // Lazy require: a native-module init failure must not prevent route discovery
@@ -67,6 +68,7 @@ import { MMKV } from 'react-native-mmkv';
 
 import { API_BASE } from '../../../lib/api';
 import { enqueue, isNetworkError } from '../../../lib/writeQueue';
+import { PaywallSheet } from '../../../components/PaywallSheet';
 
 // Loupe persistence — key: loupe:${videoId} -> { x, y, zoom }
 const loupeStorage = new MMKV({ id: 'loupe-state' });
@@ -81,6 +83,16 @@ function formatMs(ms: number) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function normalizeSections(entries: SectionEntry[]): SectionEntry[] {
+  return [...entries]
+    .filter((entry) => Number.isFinite(entry.start_ms))
+    .map((entry) => ({
+      label: (entry.label ?? '').trim() || 'Section',
+      start_ms: Math.max(0, Math.round(entry.start_ms)),
+    }))
+    .sort((a, b) => a.start_ms - b.start_ms);
 }
 
 function extractVideoId(sourceUrl: string | null): string | null {
@@ -107,6 +119,7 @@ export default function YoutubePlayerScreen() {
   const [saving, setSaving] = useState(false);
   const [playerState, setPlayerState] = useState<string>('unstarted');
   const [mirrorActive, setMirrorActive] = useState(false);
+  const paywallSheetRef = useRef<BottomSheet | null>(null);
   const playerRef = useRef<YoutubeIframeRef | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
@@ -217,7 +230,7 @@ export default function YoutubePlayerScreen() {
 
   useEffect(() => {
     if (!musicTrack) return;
-    setSections(musicTrack.sections ?? []);
+    setSections(normalizeSections(musicTrack.sections ?? []));
   }, [musicTrack]);
 
   const videoId = musicTrack ? extractVideoId(musicTrack.source_url) : null;
@@ -375,7 +388,7 @@ export default function YoutubePlayerScreen() {
 
   const addSectionAtPlayhead = () => {
     const start_ms = playbackPositionSec * 1000;
-    setSections((prev) => [...prev, { label: 'Section', start_ms }]);
+    setSections((prev) => normalizeSections([...prev, { label: 'Section', start_ms }]));
   };
 
   const updateSectionLabel = (index: number, label: string) => {
@@ -386,7 +399,7 @@ export default function YoutubePlayerScreen() {
   };
 
   const removeSection = (index: number) => {
-    setSections((prev) => prev.filter((_, i) => i !== index));
+    setSections((prev) => normalizeSections(prev.filter((_, i) => i !== index)));
     setEditingSection(null);
   };
 
@@ -402,7 +415,17 @@ export default function YoutubePlayerScreen() {
         },
         body: JSON.stringify({ sections }),
       });
-      if (!res.ok) throw new Error('Save failed');
+      if (!res.ok) {
+        if (res.status === 403) {
+          const body = (await res.json().catch(() => null)) as { reason?: string } | null;
+          if (body?.reason === 'plan_limit_reached') {
+            paywallSheetRef.current?.snapToIndex(0);
+            setSaving(false);
+            return;
+          }
+        }
+        throw new Error('Save failed');
+      }
       router.back();
     } catch (e) {
       if (isNetworkError(e)) {
@@ -420,7 +443,8 @@ export default function YoutubePlayerScreen() {
   };
 
   const handleSpeedChange = (value: number) => {
-    playerRef.current?.setPlaybackRate(value);
+    // react-native-youtube-iframe exposes playback rate reads, but setting rate
+    // is handled through player params/state updates rather than imperative API.
     setSpeed(value);
   };
 
@@ -514,6 +538,7 @@ export default function YoutubePlayerScreen() {
               ref={playerRef}
               height={220}
               videoId={videoId}
+              playbackRate={speed}
               onChangeState={(state) => {
                 setPlayerState(state);
               }}
@@ -616,7 +641,7 @@ export default function YoutubePlayerScreen() {
           maximumValue={durationSec || 1}
           value={playbackPositionSec}
           onSlidingComplete={(value) => {
-            playerRef.current?.seekTo(value);
+            playerRef.current?.seekTo(value, true);
             setPlaybackPositionSec(value);
           }}
           minimumTrackTintColor={theme.textPrimary}
@@ -731,6 +756,7 @@ export default function YoutubePlayerScreen() {
           {saving ? 'Saving…' : 'Save sections'}
         </Text>
       </TouchableOpacity>
+      <PaywallSheet bottomSheetRef={paywallSheetRef} />
     </View>
   );
 }

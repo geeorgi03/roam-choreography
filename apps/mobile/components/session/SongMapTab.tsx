@@ -83,8 +83,8 @@ export function SongMapTab() {
   const renderGridLines = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
     
-    const horizontalLines = [];
-    const verticalLines = [];
+    const horizontalLines: React.ReactElement[] = [];
+    const verticalLines: React.ReactElement[] = [];
     
     // Horizontal lines every 22dp
     for (let y = 22; y < canvasSize.height; y += 22) {
@@ -126,9 +126,14 @@ export function SongMapTab() {
         </View>
       </View>
 
-      {momentsConnectionStatus.hasError && (
+      {!momentsConnectionStatus.isConnected && (
         <View style={styles.connectionErrorBanner}>
-          <Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</Text>
+          <Text style={styles.connectionErrorText}>
+            {momentsConnectionStatus.errorMessage ??
+              (momentsConnectionStatus.hasError
+                ? 'Connection lost. Check network and reopen this session.'
+                : 'Reconnecting...')}
+          </Text>
         </View>
       )}
 

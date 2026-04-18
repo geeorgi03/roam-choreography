@@ -22,6 +22,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { API_BASE } from '../../lib/api';
 import { cacheSession, cacheSessionList, getCachedSessionList } from '../../lib/sessionCache';
 import { useTranslation } from '../../lib/i18n';
+import { getRuntimeDiagnosticsSnapshot, probeApiHealth } from '../../lib/runtimeDiagnostics';
 
 const homeStorage = new MMKV({ id: 'home-state' });
 const LAST_SESSION_KEY = 'last_session_id';
@@ -123,11 +124,21 @@ export default function HomeScreen() {
       }
     } catch {
       // API unreachable, timeout, or network error
+      const apiHealthy = await probeApiHealth();
+      const diag = getRuntimeDiagnosticsSnapshot();
       const cachedSessions = getCachedSessionList().map(mapCachedToSession);
       setSessions(cachedSessions.length > 0 ? cachedSessions : []);
       if (cachedSessions.length === 0) {
-        setLoadError(t('home.unableToLoadSessions'));
+        setLoadError(
+          `${t('home.unableToLoadSessions')} (${apiHealthy ? 'api_auth_issue' : 'api_unreachable'})`
+        );
       }
+      console.warn('[Home] session load fallback', {
+        apiHealthy,
+        apiBase: diag.apiBase,
+        hasSupabaseUrl: diag.hasSupabaseUrl,
+        hasSupabaseAnonKey: diag.hasSupabaseAnonKey,
+      });
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);

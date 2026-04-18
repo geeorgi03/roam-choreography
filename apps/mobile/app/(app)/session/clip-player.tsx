@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -1027,6 +1027,49 @@ export default function ClipPlayerScreen() {
     []
   );
 
+  const handleTrimCurrentLoop = useCallback(async () => {
+    if (!hasSessionContext || !sessionId || !clipServerId || !session?.access_token) return;
+    if (loopStartMs === null || loopEndMs === null) return;
+    if (loopEndMs <= loopStartMs) {
+      Toast.show({ type: 'error', text1: 'Set a valid A/B range first' });
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${sessionId}/clips/${clipServerId}/trim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          start_ms: Math.round(loopStartMs),
+          end_ms: Math.round(loopEndMs),
+          section_label: section_label ?? null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { error?: string }));
+        throw new Error(err.error ?? 'Trim failed');
+      }
+      Toast.show({ type: 'success', text1: 'Trim clip created' });
+      router.back();
+    } catch (e) {
+      Toast.show({
+        type: 'error',
+        text1: e instanceof Error ? e.message : 'Could not create trim clip',
+      });
+    }
+  }, [
+    hasSessionContext,
+    sessionId,
+    clipServerId,
+    session?.access_token,
+    loopStartMs,
+    loopEndMs,
+    section_label,
+    router,
+  ]);
+
   if (!hasSessionContext && !hasLibraryClip) {
     return (
       <View style={styles.container}>
@@ -1299,15 +1342,26 @@ export default function ClipPlayerScreen() {
           
           {/* A/B Loop clear button */}
           {(loopStartMs !== null || loopEndMs !== null) && (
-            <TouchableOpacity 
-              onPress={() => {
-                setLoopStartMs(null);
-                setLoopEndMs(null);
-              }} 
-              style={styles.abLoopClearBtn}
-            >
-              <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
-            </TouchableOpacity>
+            <View style={styles.abLoopActionRow}>
+              {loopStartMs !== null &&
+              loopEndMs !== null &&
+              hasSessionContext &&
+              clipServerId &&
+              sessionId ? (
+                <TouchableOpacity onPress={handleTrimCurrentLoop} style={styles.abLoopTrimBtn}>
+                  <Text style={styles.abLoopTrimBtnText}>Trim to A-B</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                onPress={() => {
+                  setLoopStartMs(null);
+                  setLoopEndMs(null);
+                }}
+                style={styles.abLoopClearBtn}
+              >
+                <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -1719,15 +1773,26 @@ export default function ClipPlayerScreen() {
           
           {/* A/B Loop clear button */}
           {(loopStartMs !== null || loopEndMs !== null) && (
-            <TouchableOpacity 
-              onPress={() => {
-                setLoopStartMs(null);
-                setLoopEndMs(null);
-              }} 
-              style={styles.abLoopClearBtn}
-            >
-              <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
-            </TouchableOpacity>
+            <View style={styles.abLoopActionRow}>
+              {loopStartMs !== null &&
+              loopEndMs !== null &&
+              hasSessionContext &&
+              clipServerId &&
+              sessionId ? (
+                <TouchableOpacity onPress={handleTrimCurrentLoop} style={styles.abLoopTrimBtn}>
+                  <Text style={styles.abLoopTrimBtnText}>Trim to A-B</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                onPress={() => {
+                  setLoopStartMs(null);
+                  setLoopEndMs(null);
+                }}
+                style={styles.abLoopClearBtn}
+              >
+                <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -2160,6 +2225,26 @@ const styles = StyleSheet.create({
   },
   abLoopHandleEnd: {
     // End handle specific styles if needed
+  },
+  abLoopActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  abLoopTrimBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.light.mine,
+    backgroundColor: theme.light.mineBg,
+  },
+  abLoopTrimBtnText: {
+    color: theme.light.mine,
+    fontSize: 12,
+    fontWeight: '600',
   },
   abLoopClearBtn: {
     paddingHorizontal: 8,
