@@ -6,6 +6,8 @@ import React, {
   useState,
 } from 'react';
 import {
+  ActivityIndicator,
+  Animated,
   FlatList,
   Image,
   PanResponder,
@@ -13,13 +15,16 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
+import { API_BASE } from '../../lib/api';
 import { theme } from '../../lib/theme';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
 import { useDrillSequence } from '../../lib/hooks/useDrillSequence';
@@ -27,7 +32,6 @@ import { VoiceNoteRow } from './VoiceNoteRow';
 import { useTranslation } from '../../lib/i18n';
 import type { DrillSequenceItem } from '@roam/types';
 
-const colors = theme.light;
 const spacing = theme.spacing;
 
 // Visible timeline span when no audio is loaded (75 s)
@@ -60,6 +64,8 @@ function isReferenceClip(clip: {
 
 export function WorkbenchTab() {
   const { t } = useTranslation();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createWorkbenchStyles(colors), [colors]);
   const router = useRouter();
   const { session } = useSession();
   const {
@@ -114,6 +120,19 @@ export function WorkbenchTab() {
   const [drillActiveIndex, setDrillActiveIndex] = useState<number | null>(null);
   const [drillPlayMode, setDrillPlayMode] = useState(false);
   const [drillExpanded, setDrillExpanded] = useState(false);
+  const [musicInfoMode, setMusicInfoMode] = useState<'counts' | 'partition' | 'lyrics'>('counts');
+  const [lyricsQuery, setLyricsQuery] = useState('');
+  const [lyricsLoading, setLyricsLoading] = useState(false);
+  const [lyricsError, setLyricsError] = useState<string | null>(null);
+  const [lyricsResult, setLyricsResult] = useState<{
+    artist: string;
+    title: string;
+    lyrics: string;
+  } | null>(null);
+  const [isStalled, setIsStalled] = useState(false);
+  const [stallResetKey, setStallResetKey] = useState(0);
+  const analysisLabelOpacity = useRef(new Animated.Value(1)).current;
+
   const {
     drillSequence,
     drillLoading,
@@ -131,7 +150,6 @@ export function WorkbenchTab() {
       params: { sessionId },
     });
   }, [router, sessionId]);
-
 
   // ── Derived values ───────────────────────────────────────────────────────
   const timelineDurationMs = durationMs > 0 ? durationMs : FALLBACK_DURATION_MS;
@@ -176,6 +194,14 @@ export function WorkbenchTab() {
     loopRegion && timelineDurationMs > 0
       ? (loopRegion.end / timelineDurationMs) * waveformContentWidth
       : 0;
+  const timelineClipPositions = useMemo(() => {
+    if (clips.length === 0 || waveformContentWidth <= 0) return [];
+    if (clips.length === 1) return [{ clip: clips[0], x: waveformContentWidth / 2 }];
+    return clips.map((clip, index) => ({
+      clip,
+      x: (index / (clips.length - 1)) * waveformContentWidth,
+    }));
+  }, [clips, waveformContentWidth]);
 
   // ── Effects ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -213,6 +239,116 @@ export function WorkbenchTab() {
     setLoopRegion({ start: next.start_ms, end: next.end_ms });
     soundRef.current?.setPositionAsync(next.start_ms).catch(() => {});
   }, [drillPlayMode, drillActiveIndex, drillSequence, playheadMs, setLoopRegion, soundRef]);
+
+  useEffect(() => {
+    if (!isAnalysing) {
+      setIsStalled(false);
+      return;
+    }
+    setIsStalled(false);
+    const id = setTimeout(() => setIsStalled(true), 30_000);
+    return () => clearTimeout(id);
+  }, [isAnalysing, stallResetKey]);
+
+  useEffect(() => {
+    if (!isAnalysing || isStalled) {
+      analysisLabelOpacity.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(analysisLabelOpacity, {
+          toValue: 0.4,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(analysisLabelOpacity, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isAnalysing, isStalled, analysisLabelOpacity]);
+
+  const handleRetryAnalysis = useCallback(async () => {
+    if (
+      !sessionId ||
+      !session?.access_token ||
+      musicTrack?.source_type !== 'youtube' ||
+      !musicTrack?.source_url
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${sessionId}/music`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ youtube_url: musicTrack.source_url }),
+      });
+      if (res.ok) {
+        setStallResetKey((k) => k + 1);
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Could not retry analysis. Please try again.',
+        });
+      }
+    } catch {
+      Toast.show({
+        type: 'error',
+        text1: 'Could not retry analysis. Please try again.',
+      });
+    }
+  }, [sessionId, session?.access_token, musicTrack?.source_type, musicTrack?.source_url]);
+
+  const handleFetchLyrics = useCallback(async () => {
+    if (!sessionId || !session?.access_token) return;
+    const query = lyricsQuery.trim();
+    if (!query) {
+      setLyricsError(t('workbench.lyricsNeedQuery'));
+      return;
+    }
+    setLyricsLoading(true);
+    setLyricsError(null);
+    try {
+      const res = await fetch(
+        `${API_BASE}/sessions/${sessionId}/music/lyrics?query=${encodeURIComponent(query)}`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+      const data = (await res.json()) as {
+        artist?: string;
+        title?: string;
+        lyrics?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        setLyricsResult(null);
+        setLyricsError(data.error ?? t('workbench.lyricsLookupFailed'));
+        return;
+      }
+      if (!data.lyrics || !data.artist || !data.title) {
+        setLyricsResult(null);
+        setLyricsError(t('workbench.lyricsNotFound'));
+        return;
+      }
+      setLyricsResult({
+        artist: data.artist,
+        title: data.title,
+        lyrics: data.lyrics,
+      });
+    } catch {
+      setLyricsResult(null);
+      setLyricsError(t('workbench.lyricsLookupFailed'));
+    } finally {
+      setLyricsLoading(false);
+    }
+  }, [lyricsQuery, sessionId, session?.access_token, t]);
 
   const handleAddCurrentLoopToDrill = useCallback(async () => {
     if (!loopRegion || !session?.access_token || !sessionId) return;
@@ -445,89 +581,194 @@ export function WorkbenchTab() {
       {!isFullyEmpty && (
         <>
         {musicTrack ? (
-          <ScrollView
-            horizontal={false}
+          <View
             style={styles.waveformContainer}
-            contentContainerStyle={styles.waveformContainerContent}
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={false}
+            onLayout={(event) => {
+              const measuredWidth = Math.max(
+                0,
+                event.nativeEvent.layout.width - WAVEFORM_HORIZONTAL_PADDING * 2
+              );
+              waveformWidth.current = measuredWidth;
+              setWaveformWidthPx(measuredWidth);
+            }}
           >
-            <View
-              style={styles.waveformTrack}
-              onLayout={(event) => {
-                const measuredWidth = Math.max(
-                  0,
-                  event.nativeEvent.layout.width - WAVEFORM_HORIZONTAL_PADDING * 2
-                );
-                waveformWidth.current = measuredWidth;
-                setWaveformWidthPx(measuredWidth);
-              }}
+            <ScrollView
+              horizontal={true}
+              style={styles.timelineScrollView}
+              contentContainerStyle={styles.timelineScrollContent}
+              showsHorizontalScrollIndicator={false}
+              scrollEnabled={waveformContentWidth > 0}
             >
               <View
-                style={styles.waveformTapArea}
-                {...waveformDragPan.panHandlers}
-              >
-                <View style={[styles.waveformBarsRow, { width: waveformContentWidth }]}>
-                  {waveformBars.map((bar) => {
-                    const barFraction = bar.index / WAVEFORM_BAR_COUNT;
-                    const isActive = loopRegion
-                      ? barFraction >= loopRegion.start / timelineDurationMs &&
-                        barFraction <= loopRegion.end / timelineDurationMs
-                      : false;
-                    return (
-                      <View
-                        key={bar.index}
-                        style={[
-                          styles.waveformBar,
-                          {
-                            width: waveformBarWidth,
-                            height: bar.height,
-                            backgroundColor: isActive ? 'rgba(125,185,168,0.6)' : '#e8e3dc',
-                          },
-                        ]}
-                      />
-                    );
-                  })}
-                </View>
-                {dragStartX !== null && dragCurrentX !== null ? (
-                  <View
-                    style={[
-                      styles.waveformDragBand,
-                      {
-                        left: Math.min(dragStartX, dragCurrentX),
-                        width: Math.abs(dragCurrentX - dragStartX),
-                        backgroundColor: 'rgba(232, 168, 124, 0.30)',
-                      },
-                    ]}
-                  />
-                ) : null}
-              </View>
-              {loopRegion ? (
-                <>
-                  <View
-                    style={[
-                      styles.waveformLoopEdge,
-                      { left: WAVEFORM_HORIZONTAL_PADDING + loopStartX },
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.waveformLoopEdge,
-                      { left: WAVEFORM_HORIZONTAL_PADDING + loopEndX },
-                    ]}
-                  />
-                </>
-              ) : null}
-              <View
                 style={[
-                  styles.waveformPlayhead,
-                  { left: WAVEFORM_HORIZONTAL_PADDING + playheadX },
+                  styles.timelineScrollContent,
+                  { width: waveformContentWidth + WAVEFORM_HORIZONTAL_PADDING * 2 },
                 ]}
               >
-                <View style={styles.waveformPlayheadDot} />
+                <View style={styles.waveformTrack}>
+                  {isAnalysing ? (
+                    <View style={styles.analysisIndicatorContainer}>
+                      {isStalled ? (
+                        musicTrack?.source_type === 'youtube' && musicTrack?.source_url ? (
+                          <TouchableOpacity
+                            onPress={handleRetryAnalysis}
+                            activeOpacity={0.75}
+                            style={styles.analysisRetryTouchable}
+                          >
+                            <Text style={styles.analysisRetryText}>
+                              {t('workbench.analysisStalledRetry')}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.analysisIndicatorText}>
+                            {t('workbench.analysisStalledNoRetry')}
+                          </Text>
+                        )
+                      ) : (
+                        <View style={styles.analysisIndicatorRow}>
+                          <ActivityIndicator color={colors.muted} />
+                          <Animated.Text
+                            style={[
+                              styles.analysisIndicatorText,
+                              { opacity: analysisLabelOpacity },
+                            ]}
+                          >
+                            {t('workbench.analysing')}
+                          </Animated.Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    <>
+                      <View
+                        style={styles.waveformTapArea}
+                        {...waveformDragPan.panHandlers}
+                      >
+                        <View style={[styles.waveformBarsRow, { width: waveformContentWidth }]}>
+                          {waveformBars.map((bar) => {
+                            const barFraction = bar.index / WAVEFORM_BAR_COUNT;
+                            const isActive = loopRegion
+                              ? barFraction >= loopRegion.start / timelineDurationMs &&
+                                barFraction <= loopRegion.end / timelineDurationMs
+                              : false;
+                            return (
+                              <View
+                                key={bar.index}
+                                style={[
+                                  styles.waveformBar,
+                                  {
+                                    width: waveformBarWidth,
+                                    height: bar.height,
+                                    backgroundColor: isActive ? 'rgba(125,185,168,0.6)' : '#e8e3dc',
+                                  },
+                                ]}
+                              />
+                            );
+                          })}
+                        </View>
+                        {dragStartX !== null && dragCurrentX !== null ? (
+                          <View
+                            style={[
+                              styles.waveformDragBand,
+                              {
+                                left: Math.min(dragStartX, dragCurrentX),
+                                width: Math.abs(dragCurrentX - dragStartX),
+                                backgroundColor: 'rgba(232, 168, 124, 0.30)',
+                              },
+                            ]}
+                          />
+                        ) : null}
+                      </View>
+                      {loopRegion ? (
+                        <>
+                          <View
+                            style={[
+                              styles.waveformLoopEdge,
+                              { left: WAVEFORM_HORIZONTAL_PADDING + loopStartX },
+                            ]}
+                          />
+                          <View
+                            style={[
+                              styles.waveformLoopEdge,
+                              { left: WAVEFORM_HORIZONTAL_PADDING + loopEndX },
+                            ]}
+                          />
+                        </>
+                      ) : null}
+                      <View
+                        style={[
+                          styles.waveformPlayhead,
+                          { left: WAVEFORM_HORIZONTAL_PADDING + playheadX },
+                        ]}
+                      >
+                        <View style={styles.waveformPlayheadDot} />
+                      </View>
+                    </>
+                  )}
+                </View>
+                <View style={[styles.loopRegionsRow, { width: waveformContentWidth }]}>
+                  {loopRegion ? (
+                    <View
+                      style={[
+                        styles.loopRegionBand,
+                        {
+                          left: loopStartX,
+                          width: Math.max(0, loopEndX - loopStartX),
+                        },
+                      ]}
+                    />
+                  ) : null}
+                </View>
+                <View style={[styles.notePinsRow, { width: waveformContentWidth }]}>
+                  {waveformContentWidth > 0 && timelineDurationMs > 0
+                    ? notes.map((note) => {
+                        const pinX = (note.timecode_ms / timelineDurationMs) * waveformContentWidth;
+                        return (
+                          <TouchableOpacity
+                            key={note.id}
+                            style={[styles.notePinTouchable, { left: pinX - 3 }]}
+                            onPress={() => {
+                              soundRef.current?.setPositionAsync(note.timecode_ms).catch(() => {});
+                            }}
+                            activeOpacity={0.75}
+                          >
+                            <View style={styles.notePinDot} />
+                          </TouchableOpacity>
+                        );
+                      })
+                    : null}
+                </View>
+                <View style={[styles.clipsRow, { width: waveformContentWidth }]}>
+                  {waveformContentWidth > 0
+                    ? timelineClipPositions.map(({ clip, x }) => {
+                        const clipLabel =
+                          clip.clip_type === 'REF'
+                            ? 'R'
+                            : clip.clip_type === 'voice_memo'
+                              ? 'V'
+                              : 'M';
+                        const clipColor =
+                          clip.clip_type === 'REF'
+                            ? colors.warm
+                            : clip.clip_type === 'voice_memo'
+                              ? colors.capture
+                              : colors.mine;
+                        return (
+                          <TouchableOpacity
+                            key={clip.local_id}
+                            style={[styles.clipChip, { left: x, backgroundColor: clipColor }]}
+                            onPress={() => openClipSheet(clip)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.clipChipText}>{clipLabel}</Text>
+                          </TouchableOpacity>
+                        );
+                      })
+                    : null}
+                </View>
               </View>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
         ) : (
           <TouchableOpacity
             style={styles.addMusicPrompt}
@@ -537,6 +778,25 @@ export function WorkbenchTab() {
             <Text style={styles.addMusicPromptText}>{t('workbench.addMusic')}</Text>
           </TouchableOpacity>
         )}
+
+        {musicTrack && loopRegion && !sessionMode && sessionId ? (
+          <View style={styles.microCycleRow}>
+            <Text style={styles.microCycleRowText}>{t('microCycle.loopReady')}</Text>
+            <TouchableOpacity
+              style={styles.microCycleRowBtn}
+              onPress={() =>
+                router.push({
+                  pathname: './camera',
+                  params: { id: sessionId, sectionName: activeSection },
+                })
+              }
+              activeOpacity={0.8}
+            >
+              <Text style={styles.microCycleRowBtnText}>{t('microCycle.record')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.microCycleRowHint}>{t('microCycle.thenTag')}</Text>
+          </View>
+        ) : null}
 
         {sessionMode && (
           <TouchableOpacity
@@ -621,18 +881,90 @@ export function WorkbenchTab() {
               <>
                 <View style={styles.toggleRow}>
                   <TouchableOpacity
-                    style={[styles.toggleChip, styles.toggleChipActive]}
+                    style={[styles.toggleChip, musicInfoMode === 'counts' && styles.toggleChipActive]}
+                    onPress={() => setMusicInfoMode('counts')}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.toggleChipText, styles.toggleChipTextActive]}>
+                    <Text
+                      style={[
+                        styles.toggleChipText,
+                        musicInfoMode === 'counts' && styles.toggleChipTextActive,
+                      ]}
+                    >
                       {t('workbench.counts')}
                     </Text>
                   </TouchableOpacity>
-                  <View style={[styles.toggleChip, { opacity: 0.45 }]}>
-                    <Text style={styles.toggleChipText}>{t('workbench.partition')}</Text>
-                  </View>
+                  <TouchableOpacity
+                    style={[styles.toggleChip, musicInfoMode === 'partition' && styles.toggleChipActive]}
+                    onPress={() => setMusicInfoMode('partition')}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleChipText,
+                        musicInfoMode === 'partition' && styles.toggleChipTextActive,
+                      ]}
+                    >
+                      {t('workbench.partition')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.toggleChip, musicInfoMode === 'lyrics' && styles.toggleChipActive]}
+                    onPress={() => setMusicInfoMode('lyrics')}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleChipText,
+                        musicInfoMode === 'lyrics' && styles.toggleChipTextActive,
+                      ]}
+                    >
+                      {t('workbench.lyrics')}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.partitionHint}>{t('workbench.partitionHint')}</Text>
+                {musicInfoMode === 'partition' ? (
+                  <Text style={styles.partitionHint}>{t('workbench.partitionHint')}</Text>
+                ) : null}
+                {musicInfoMode === 'lyrics' ? (
+                  <View style={styles.lyricsPanel}>
+                    <Text style={styles.lyricsHint}>{t('workbench.lyricsHint')}</Text>
+                    <View style={styles.lyricsSearchRow}>
+                      <TextInput
+                        style={styles.lyricsInput}
+                        placeholder={t('workbench.lyricsPlaceholder')}
+                        placeholderTextColor={colors.muted}
+                        value={lyricsQuery}
+                        onChangeText={setLyricsQuery}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      <TouchableOpacity
+                        style={styles.lyricsSearchBtn}
+                        onPress={handleFetchLyrics}
+                        disabled={lyricsLoading}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.lyricsSearchBtnText}>
+                          {lyricsLoading ? t('workbench.loadingLyrics') : t('workbench.findLyrics')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {lyricsError ? <Text style={styles.lyricsErrorText}>{lyricsError}</Text> : null}
+                    {lyricsResult ? (
+                      <View style={styles.lyricsResultWrap}>
+                        <Text style={styles.lyricsResultTitle}>
+                          {lyricsResult.artist} - {lyricsResult.title}
+                        </Text>
+                        <ScrollView style={styles.lyricsScroll} nestedScrollEnabled={true}>
+                          <Text style={styles.lyricsBody}>{lyricsResult.lyrics}</Text>
+                        </ScrollView>
+                      </View>
+                    ) : !lyricsLoading && !lyricsError ? (
+                      <Text style={styles.lyricsEmpty}>{t('workbench.noLyricsYet')}</Text>
+                    ) : null}
+                  </View>
+                ) : null}
               </>
             ) : null}
           </>
@@ -922,17 +1254,66 @@ export function WorkbenchTab() {
   );
 }
 
-const styles = StyleSheet.create({
+function createWorkbenchStyles(colors: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.ground,
     position: 'relative',
   },
   waveformContainer: {
-    height: 80,
+    height: 124,
   },
-  waveformContainerContent: {
-    height: 80,
+  timelineScrollView: {
+    height: 124,
+  },
+  timelineScrollContent: {
+    flexDirection: 'column',
+  },
+  loopRegionsRow: {
+    height: 12,
+    position: 'relative',
+    marginHorizontal: WAVEFORM_HORIZONTAL_PADDING,
+  },
+  loopRegionBand: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(232, 168, 124, 0.4)',
+  },
+  notePinsRow: {
+    height: 12,
+    position: 'relative',
+    marginHorizontal: WAVEFORM_HORIZONTAL_PADDING,
+  },
+  notePinTouchable: {
+    position: 'absolute',
+    top: 3,
+  },
+  notePinDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.mine,
+  },
+  clipsRow: {
+    height: 20,
+    position: 'relative',
+    marginHorizontal: WAVEFORM_HORIZONTAL_PADDING,
+  },
+  clipChip: {
+    position: 'absolute',
+    top: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clipChipText: {
+    fontSize: 7,
+    color: '#fff',
+    textAlign: 'center',
   },
   addMusicPrompt: {
     height: 80,
@@ -947,6 +1328,34 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.monoFamily,
     fontSize: 11,
     color: colors.muted,
+  },
+  analysisIndicatorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  analysisIndicatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  analysisIndicatorText: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 11,
+    color: colors.muted,
+    textAlign: 'center',
+  },
+  analysisRetryTouchable: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  analysisRetryText: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 11,
+    color: colors.warm,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
   },
   waveformTrack: {
     height: 80,
@@ -1030,6 +1439,74 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: colors.muted,
     paddingHorizontal: 16,
+  },
+  lyricsPanel: {
+    marginHorizontal: 16,
+    marginTop: 6,
+    padding: 10,
+    borderRadius: spacing.radiusMd,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
+    gap: 8,
+  },
+  lyricsHint: {
+    color: colors.muted,
+    fontSize: 11,
+  },
+  lyricsSearchRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  lyricsInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusSm,
+    backgroundColor: colors.ground,
+    color: colors.active,
+    fontSize: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  lyricsSearchBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: spacing.radiusSm,
+    backgroundColor: colors.active,
+  },
+  lyricsSearchBtnText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  lyricsErrorText: {
+    color: colors.capture,
+    fontSize: 11,
+  },
+  lyricsEmpty: {
+    color: colors.muted,
+    fontSize: 11,
+  },
+  lyricsResultWrap: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 8,
+  },
+  lyricsResultTitle: {
+    color: colors.active,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  lyricsScroll: {
+    maxHeight: 140,
+  },
+  lyricsBody: {
+    color: colors.active,
+    fontSize: 12,
+    lineHeight: 18,
   },
   sectionPillListWrap: {
     maxHeight: '40%',
@@ -1338,7 +1815,7 @@ const styles = StyleSheet.create({
   sessionModeRowLabel: {
     fontFamily: theme.typography.monoFamily,
     fontSize: 11,
-    color: '#3a342d',
+    color: colors.active,
     fontWeight: '700',
   },
   sessionModeRowCount: {
@@ -1387,6 +1864,42 @@ const styles = StyleSheet.create({
   },
   workspaceZone: {
     flex: 1,
+  },
+  microCycleRow: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: spacing.radiusMd,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  microCycleRowText: {
+    color: colors.active,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  microCycleRowBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: spacing.pill,
+    backgroundColor: colors.capture,
+  },
+  microCycleRowBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  microCycleRowHint: {
+    color: colors.muted,
+    fontSize: 11,
+    flex: 1,
+    minWidth: 100,
   },
   drillCard: {
     marginHorizontal: 16,
@@ -1497,3 +2010,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+}

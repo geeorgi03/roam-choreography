@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { theme } from '../../lib/theme';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import type { Session } from '@roam/types';
 import { useSession } from '../../lib/hooks/useSession';
 import { FirstSessionSheet } from '../../components/FirstSessionSheet';
@@ -27,7 +28,6 @@ import { getRuntimeDiagnosticsSnapshot, probeApiHealth } from '../../lib/runtime
 const homeStorage = new MMKV({ id: 'home-state' });
 const LAST_SESSION_KEY = 'last_session_id';
 
-const colors = theme.light;
 const spacing = theme.spacing;
 
 function mapCachedToSession(
@@ -45,6 +45,8 @@ function mapCachedToSession(
 
 export default function HomeScreen() {
   const { t } = useTranslation();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createHomeStyles(colors), [colors]);
   const { session } = useSession();
   const createSheetRef = useRef<BottomSheet | null>(null);
   const firstSessionSheetRef = useRef<BottomSheet | null>(null);
@@ -335,12 +337,11 @@ export default function HomeScreen() {
   );
 }
 
-const themeColors = theme.light;
-
-const styles = StyleSheet.create({
+function createHomeStyles(colors: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: themeColors.ground,
+    backgroundColor: colors.ground,
   },
   emptyScroll: {
     flexGrow: 1,
@@ -490,7 +491,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: themeColors.capture,
+    backgroundColor: colors.capture,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -500,3 +501,4 @@ const styles = StyleSheet.create({
   },
   fabText: { color: colors.chrome, fontSize: 18, fontWeight: '900' },
 });
+}

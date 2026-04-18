@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f9f7f4" />
+  <rect x="72" y="66" width="148" height="40" rx="20" fill="#ffffff" stroke="#e8e3dc" />
+  <text x="146" y="92" text-anchor="middle" font-size="22" fill="#9e9189" font-family="Inter, Arial, sans-serif">Roam</text>
+  <text x="72" y="360" font-size="68" font-weight="700" fill="#3a342d" font-family="Inter, Arial, sans-serif">
+    Creative sessions, organized and shareable.
+  </text>
+  <text x="72" y="430" font-size="30" fill="#6e625a" font-family="Inter, Arial, sans-serif">
+    Capture moments. Share context. Track growth.
+  </text>
+</svg>

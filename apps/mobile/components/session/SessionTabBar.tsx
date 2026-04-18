@@ -1,10 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { theme } from '../../lib/theme';
-
-const colors = theme.light;
-const spacing = theme.spacing;
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 
 const tabs = [
   { id: 'workbench', fullLabel: 'Workbench', shortLabel: 'Work' },
@@ -14,6 +12,8 @@ const tabs = [
 ] as const;
 
 export function SessionTabBar() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createTabBarStyles(colors), [colors]);
   const { activeTab, setActiveTab, closeSheet } = useSessionContext();
   const { width } = useWindowDimensions();
 
@@ -46,33 +46,35 @@ export function SessionTabBar() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    height: 36,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    paddingHorizontal: 12,
-    backgroundColor: colors.chrome,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-  },
-  tab: {
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabActive: {
-    borderBottomColor: colors.active,
-  },
-  tabText: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: '400',
-  },
-  tabTextActive: {
-    color: colors.active,
-    fontWeight: '700',
-  },
-});
+function createTabBarStyles(colors: ThemePalette) {
+  return StyleSheet.create({
+    container: {
+      height: 36,
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      paddingHorizontal: 12,
+      backgroundColor: colors.chrome,
+      borderBottomWidth: 0.5,
+      borderBottomColor: colors.border,
+    },
+    tab: {
+      paddingHorizontal: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: 'transparent',
+    },
+    tabActive: {
+      borderBottomColor: colors.active,
+    },
+    tabText: {
+      color: colors.muted,
+      fontSize: 12,
+      fontWeight: '400',
+    },
+    tabTextActive: {
+      color: colors.active,
+      fontWeight: '700',
+    },
+  });
+}

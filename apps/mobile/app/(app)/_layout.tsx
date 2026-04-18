@@ -1,21 +1,22 @@
 import { router, Tabs } from 'expo-router';
-import { TouchableOpacity, Text } from 'react-native';
+import { TouchableOpacity, Text, View } from 'react-native';
 import { getActiveSessionId } from '../../lib/storage';
-import { theme } from '../../lib/theme';
 import { useInboxCount } from '../../lib/contexts/InboxCountContext';
+import { useTheme } from '../../lib/contexts/ThemeContext';
 
 export default function AppStackLayout() {
   const { count } = useInboxCount();
+  const { colors, toggleMode, mode } = useTheme();
 
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: theme.light.ground },
-        headerTintColor: theme.light.active,
+        headerStyle: { backgroundColor: colors.ground },
+        headerTintColor: colors.active,
         headerTitleStyle: { fontWeight: '700' },
-        tabBarStyle: { backgroundColor: theme.light.ground },
-        tabBarActiveTintColor: theme.light.active,
-        tabBarInactiveTintColor: theme.light.muted,
+        tabBarStyle: { backgroundColor: colors.ground },
+        tabBarActiveTintColor: colors.active,
+        tabBarInactiveTintColor: colors.muted,
       }}
     >
       <Tabs.Screen
@@ -23,9 +24,19 @@ export default function AppStackLayout() {
         options={{
           title: 'Session',
           headerRight: () => (
-            <TouchableOpacity onPress={() => router.push('/profile')} style={{ padding: 8 }}>
-              <Text style={{ color: theme.light.active, fontSize: 20 }}>⚙</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={toggleMode}
+                style={{ padding: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={mode === 'night' ? 'Switch to day mode' : 'Switch to night mode'}
+              >
+                <Text style={{ fontSize: 20 }}>{mode === 'night' ? '☀' : '🌙'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/profile')} style={{ padding: 8 }}>
+                <Text style={{ color: colors.active, fontSize: 20 }}>⚙</Text>
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />
@@ -51,7 +62,7 @@ export default function AppStackLayout() {
           tabBarIcon: ({ focused }) => (
             <Text
               style={{
-                color: focused ? theme.light.active : theme.light.muted,
+                color: focused ? colors.active : colors.muted,
                 fontSize: 18,
               }}
             >

@@ -3,12 +3,14 @@ import en from './locales/en.json';
 import zh from './locales/zh.json';
 import ko from './locales/ko.json';
 import ja from './locales/ja.json';
+import km from './locales/km.json';
 
 const locales: Record<string, Record<string, string>> = {
   en: en as Record<string, string>,
   zh: zh as Record<string, string>,
   ko: ko as Record<string, string>,
   ja: ja as Record<string, string>,
+  km: km as Record<string, string>,
 };
 
 export function useTranslation() {

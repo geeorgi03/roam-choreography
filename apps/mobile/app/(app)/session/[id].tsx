@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, BackHandler } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import BottomSheet from '@gorhom/bottom-sheet';
@@ -18,12 +18,13 @@ import { ClipViewerSheet } from '../../../components/session/ClipViewerSheet';
 import { OfflineBanner } from '../../../components/session/OfflineBanner';
 import { PaywallSheet } from '../../../components/PaywallSheet';
 import { theme } from '../../../lib/theme';
+import { useTheme, type ThemePalette } from '../../../lib/contexts/ThemeContext';
 import { setActiveSessionId } from '../../../lib/storage';
 import { addUploadQueueListener } from '../../../services/uploadQueue';
 
-const colors = theme.light;
-
 function SessionShellContent() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createSessionShellStyles(colors), [colors]);
   const { id, tab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const router = useRouter();
   const {
@@ -251,12 +252,14 @@ export default function SessionWorkbenchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.ground,
-  },
-  tabContent: {
-    flex: 1,
-  },
-});
+function createSessionShellStyles(colors: ThemePalette) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.ground,
+    },
+    tabContent: {
+      flex: 1,
+    },
+  });
+}

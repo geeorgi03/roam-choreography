@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { theme } from '../../lib/theme';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import type { Clip } from '@roam/types';
 import { ClipCard } from '../../components/ClipCard';
 import type { ClipRow } from '../../lib/database';
@@ -18,10 +19,11 @@ import { ClipViewerSheetStandalone } from '../../components/session/ClipViewerSh
 import { useTranslation } from '../../lib/i18n';
 
 import { API_BASE } from '../../lib/api';
-const colors = theme.light;
 const spacing = theme.spacing;
 
 export default function LibraryScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createLibraryStyles(colors), [colors]);
   const { t } = useTranslation();
   const { session } = useSession();
   const token = session?.access_token ?? null;
@@ -304,12 +306,11 @@ export default function LibraryScreen() {
   );
 }
 
-const themeColors = theme.light;
-
-const styles = StyleSheet.create({
+function createLibraryStyles(colors: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: themeColors.ground,
+    backgroundColor: colors.ground,
   },
   header: {
     paddingHorizontal: 16,
@@ -426,4 +427,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+}
 

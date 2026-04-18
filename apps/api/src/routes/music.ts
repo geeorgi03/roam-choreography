@@ -38,6 +38,117 @@ const MIME_TO_EXT: Record<string, string> = {
 const YOUTUBE_URL_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i;
 const BILIBILI_URL_REGEX = /^(https?:\/\/)?(www\.)?(bilibili\.com\/video\/|b23\.tv\/)[\w/-]+/i;
 
+function splitArtistAndTitle(query: string): { artist?: string; title?: string } {
+  const normalized = query.trim();
+  if (!normalized) return {};
+  const sep = normalized.includes(' - ') ? ' - ' : normalized.includes('-') ? '-' : null;
+  if (!sep) return {};
+  const [left, ...rest] = normalized.split(sep);
+  const right = rest.join(sep).trim();
+  const artist = left.trim();
+  const title = right.trim();
+  if (!artist || !title) return {};
+  return { artist, title };
+}
+
+async function tryFetchLyrics(artist: string, title: string): Promise<{
+  artist: string;
+  title: string;
+  lyrics: string;
+} | null> {
+  const res = await fetch(
+    `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { lyrics?: string };
+  const lyrics = (data.lyrics ?? '').trim();
+  if (!lyrics) return null;
+  return { artist, title, lyrics };
+}
+
+/** GET /sessions/:id/music/lyrics?query=artist%20-%20title */
+app.get('/:id/music/lyrics', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const session = await getSessionForUser(sessionId, userId);
+  if (!session) return c.json({ error: 'Not found' }, 404);
+
+  const query = (c.req.query('query') ?? '').trim();
+  if (query.length < 2) {
+    return c.json({ error: 'query is required' }, 400);
+  }
+
+  const direct = splitArtistAndTitle(query);
+  if (direct.artist && direct.title) {
+    const exact = await tryFetchLyrics(direct.artist, direct.title);
+    if (exact) return c.json({ ...exact, provider: 'lyrics.ovh' }, 200);
+  }
+
+  const suggestRes = await fetch(`https://api.lyrics.ovh/suggest/${encodeURIComponent(query)}`);
+  if (!suggestRes.ok) {
+    return c.json({ error: 'lyrics lookup failed' }, 502);
+  }
+  const suggestJson = (await suggestRes.json()) as {
+    data?: Array<{ title?: string; artist?: { name?: string } }>;
+  };
+  const candidates = Array.isArray(suggestJson.data) ? suggestJson.data.slice(0, 8) : [];
+  for (const item of candidates) {
+    const artist = item.artist?.name?.trim();
+    const title = item.title?.trim();
+    if (!artist || !title) continue;
+    const hit = await tryFetchLyrics(artist, title);
+    if (hit) return c.json({ ...hit, provider: 'lyrics.ovh' }, 200);
+  }
+
+  return c.json({ error: 'lyrics not found' }, 404);
+});
+
+/** POST /sessions/:id/music/retry — re-queue analysis for existing track (no re-upload) */
+app.post('/:id/music/retry', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const session = await getSessionForUser(sessionId, userId);
+  if (!session) return c.json({ error: 'Not found' }, 404);
+
+  const gateRes = await checkMusicSegmentation(c, async () => {});
+  if (gateRes) return gateRes;
+
+  const { data: track, error: fetchError } = await supabase
+    .from('music_tracks')
+    .select('id, source_type, source_url')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchError) return c.json({ error: fetchError.message }, 500);
+  if (!track) return c.json({ error: 'Nothing to retry' }, 400);
+  if (track.source_type !== 'upload' && !track.source_url) {
+    return c.json({ error: 'Nothing to retry' }, 400);
+  }
+
+  const musicTrackId = track.id as string;
+
+  const { error: updateError } = await supabase
+    .from('music_tracks')
+    .update({ analysis_status: 'pending' })
+    .eq('id', musicTrackId);
+  if (updateError) return c.json({ error: updateError.message }, 500);
+
+  const timeoutMs = 3 * 60_000;
+  const timeoutAt = new Date(Date.now() + timeoutMs).toISOString();
+  const { error: jobError } = await supabase.from('analysis_jobs').insert({
+    session_id: sessionId,
+    music_track_id: musicTrackId,
+    status: 'pending',
+    attempt_count: 0,
+    timeout_at: timeoutAt,
+  });
+  if (jobError) return c.json({ error: jobError.message }, 500);
+
+  return c.json({ music_track_id: musicTrackId, analysis_status: 'pending' }, 200);
+});
+
 /** POST /sessions/:id/music — upload file or submit YouTube URL */
 app.post('/:id/music', async (c) => {
   const userId = c.get('userId');
@@ -95,7 +206,7 @@ app.post('/:id/music', async (c) => {
     const buffer = await f.arrayBuffer();
     const { error: uploadError } = await supabase.storage
       .from('audio')
-      .upload(storagePath, buffer, { contentType: f.type });
+      .upload(storagePath, buffer, { contentType: f.type, upsert: true });
     if (uploadError) return c.json({ error: uploadError.message }, 500);
 
     const { error: upsertTrackError } = await supabase

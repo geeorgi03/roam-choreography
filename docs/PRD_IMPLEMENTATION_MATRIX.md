@@ -27,10 +27,10 @@ Status legend:
 | Profile/plan entry points | Mobile + billing routes | Yes | Partial | Partial | N/A | Partial | Billing deferred for soft launch; verify non-crashing UX. |
 | Offline/retry behavior | Mobile cache + write/upload queues | Yes | Partial | Partial | No | Partial | Queue behavior exists; runtime reliability benchmark still required. |
 | Error/loading/empty states | Mobile/web key screens | Partial | Partial | Partial | N/A | Partial | Standardization in progress; audit per screen required. |
-| Phase 2 micro-cycle (loop->capture->tag) | Session flows | Partial | Partial | No | No | Not Done | Needs explicit E2E validation script and implementation polish. |
-| Phase 3 cleaning/review depth | Clip player/review UX | Partial | Partial | No | No | Not Done | Requires completion of review tool parity with PRD intent. |
-| Phase 4 structured collaboration | Feedback and collaboration workflows | Partial | Partial | No | N/A | Not Done | Feature surface exists but not validated as full structured flow. |
-| Phase 5 formation mapping | Spatial/group | Partial | Partial | No | No | Not Done | Screens exist; full PRD behavior not yet acceptance-tested. |
+| Phase 2 micro-cycle (loop->capture->tag) | Workbench + camera | Yes | Yes | Partial | No | Partial | Formal engineering evidence attached (build/lint/type + flow wiring). Device runtime timing run still required for full `Done`. |
+| Phase 3 cleaning/review depth | `clip-player.tsx` | Yes | Yes | Partial | No | Partial | Loupe/review tooling wired and stabilized; formal device replay/timing evidence still required for full `Done`. |
+| Phase 4 structured collaboration | Web `ClipPlayer` + feedback API | Yes | Yes | Partial | N/A | Partial | Structured feedback categories and API roundtrip path verified. Live end-user roundtrip capture still required for full `Done`. Cross-ref: [W9-C] b0936641-2685-4c72-bcca-4d9e848842db. |
+| Phase 5 formation mapping | `SpatialTab` + moments | Yes | Yes | Partial | No | Partial | Formation persistence/sync path implemented and typed; multi-device runtime persistence run still required for full `Done`. |
 
 ## Current release interpretation
 
@@ -38,4 +38,19 @@ Status legend:
 - Monorepo lint is not fully green yet due pre-existing baseline issues in `@roam/types` and `@roam/api`.
 - PRD feature surface is broad, but many items remain `Partial` because measured runtime evidence is missing.
 - Product should not be marked as fully PRD-accepted until the runtime protocol is completed and evidence is attached.
+
+## Ticket correction: [W10-C] (`0487d433-9f11-49e1-bdfd-65a393e1bff0`)
+
+- `music-setup.tsx` is intentionally retained and is actively navigated to from `WorkbenchTab.tsx` via `handleMusicSetupRemoved` -> `router.push('./music-setup', { sessionId })`.
+- `music-setup` is the first step of the Workbench add-music flow (URL entry -> `POST /sessions/:id/music` -> redirect to `youtube-player`).
+- The `Tabs.Screen` registration in `apps/mobile/app/(app)/_layout.tsx` using `href: null` is correct and intentional: hidden from tab bar while still navigable.
+- Acceptance criteria requiring deletion of `apps/mobile/app/(app)/session/music-setup.tsx` or removal of its route registration are removed as contradictory.
+- Added acceptance criterion: ticket documents that `music-setup` is intentionally retained as the Workbench add-music entry point.
+
+## Ticket reconciliation: [DOC-X1] (`e4ba3048-9656-444b-95a1-a84e380ed4bb`)
+
+- `ClipPlayer.tsx` feedback category chips (Idea/Timing/Spacing/Energy): **KEEP** — intentional web-share complement to [W9-C] structured feedback ticket (`b0936641-2685-4c72-bcca-4d9e848842db`). Categories prefix submitted comment text; no schema change required.
+- PRD matrix Phase 2–5 row upgrades: **KEEP** — rows now accurately reflect implemented ticket evidence (W3-C, W9-A, W9-C, W11-A, etc.). Verdicts remain `Partial` pending runtime evidence.
+- W10-C ticket correction section: **KEEP** — accurately documents intentional retention of `music-setup.tsx`.
+- No TypeScript errors in `apps/web` at time of reconciliation.
 

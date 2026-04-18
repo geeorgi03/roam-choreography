@@ -68,3 +68,5 @@ export const theme = {
     pill: 999,
   },
 } as const;
+
+export type ThemeColors = (typeof theme)['light'] | (typeof theme)['night'];

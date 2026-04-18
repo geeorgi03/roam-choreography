@@ -1,10 +1,13 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { getActiveSessionId } from '../../lib/storage';
 import { theme } from '../../lib/theme';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 
 export default function MapScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createMapStyles(colors), [colors]);
   const redirectToActiveSession = useCallback(() => {
     const activeSessionId = getActiveSessionId();
     if (activeSessionId) {
@@ -25,18 +28,20 @@ export default function MapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.light.ground,
-    paddingHorizontal: 24,
-  },
-  text: {
-    color: theme.light.muted,
-    fontSize: 16,
-    lineHeight: 24,
-    textAlign: 'center',
-  },
-});
+function createMapStyles(colors: ThemePalette) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.ground,
+      paddingHorizontal: 24,
+    },
+    text: {
+      color: colors.muted,
+      fontSize: 16,
+      lineHeight: 24,
+      textAlign: 'center',
+    },
+  });
+}

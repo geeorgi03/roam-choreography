@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import BottomSheet from '@gorhom/bottom-sheet';
 import Toast from 'react-native-toast-message';
 import { theme } from '../../lib/theme';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useInbox, type InboxClip } from '../../lib/hooks/useInbox';
 import { useInboxCount } from '../../lib/contexts/InboxCountContext';
 import { AssignPickerSheet, type SessionListItem } from '../../components/AssignPickerSheet';
@@ -31,6 +32,8 @@ function timeAgo(iso: string): string {
 }
 
 export default function InboxScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createInboxStyles(colors), [colors]);
   const router = useRouter();
   const { sessionId: originSessionId, sectionName: originSectionName } =
     useLocalSearchParams<{ sessionId?: string; sectionName?: string }>();
@@ -167,7 +170,7 @@ export default function InboxScreen() {
         <View style={styles.nudge}>
           <Text style={styles.nudgeText}>
             Picking for{' '}
-            <Text style={{ color: theme.light.active, fontWeight: '800' }}>
+            <Text style={{ color: colors.active, fontWeight: '800' }}>
               {sectionContext.sectionName}
             </Text>
           </Text>
@@ -176,7 +179,7 @@ export default function InboxScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={theme.light.active} />
+          <ActivityIndicator color={colors.active} />
         </View>
       ) : clips.length === 0 ? (
         <View style={styles.empty}>
@@ -219,30 +222,31 @@ export default function InboxScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.light.ground },
+function createInboxStyles(colors: ThemePalette) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.ground },
   header: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 8 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: theme.light.active },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: colors.active },
   badge: {
-    backgroundColor: theme.light.chrome,
+    backgroundColor: colors.chrome,
     borderWidth: 1,
-    borderColor: theme.light.border,
+    borderColor: colors.border,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  badgeText: { color: theme.light.active, fontWeight: '700' },
+  badgeText: { color: colors.active, fontWeight: '700' },
   nudge: {
     marginHorizontal: 16,
     marginBottom: 10,
     padding: 12,
     borderRadius: theme.borderRadius,
     borderWidth: 1,
-    borderColor: theme.light.border,
-    backgroundColor: theme.light.chrome,
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
   },
-  nudgeText: { color: theme.light.muted, fontSize: 14 },
+  nudgeText: { color: colors.muted, fontSize: 14 },
   listContent: { padding: 16, paddingTop: 8, gap: 10 },
   row: {
     flexDirection: 'row',
@@ -252,31 +256,32 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: theme.borderRadius,
     borderWidth: 1,
-    borderColor: theme.light.border,
-    backgroundColor: theme.light.chrome,
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
   },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   typeIcon: { fontSize: 18 },
-  rowTitle: { color: theme.light.active, fontSize: 15, fontWeight: '700' },
-  rowMeta: { color: theme.light.muted, fontSize: 12, marginTop: 2 },
+  rowTitle: { color: colors.active, fontSize: 15, fontWeight: '700' },
+  rowMeta: { color: colors.muted, fontSize: 12, marginTop: 2 },
   actions: { flexDirection: 'row', gap: 8 },
   actionBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: theme.light.border,
-    backgroundColor: theme.light.chrome,
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionBtnDisabled: { opacity: 0.4 },
-  deleteBtn: { borderColor: theme.light.capture },
-  actionText: { color: theme.light.active, fontSize: 14 },
+  deleteBtn: { borderColor: colors.capture },
+  actionText: { color: colors.active, fontSize: 14 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyIcon: { fontSize: 42, marginBottom: 12 },
-  emptyTitle: { color: theme.light.active, fontSize: 18, fontWeight: '800', marginBottom: 8 },
-  emptySub: { color: theme.light.muted, fontSize: 14, textAlign: 'center' },
+  emptyTitle: { color: colors.active, fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  emptySub: { color: colors.muted, fontSize: 14, textAlign: 'center' },
 });
+}
 

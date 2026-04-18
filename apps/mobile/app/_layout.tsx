@@ -25,6 +25,7 @@ import OfflineBanner from '../components/OfflineBanner';
 import NetInfo from '@react-native-community/netinfo';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { InboxCountProvider } from '../lib/contexts/InboxCountContext';
+import { ThemeProvider } from '../lib/contexts/ThemeContext';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -429,7 +430,9 @@ function AppTree() {
     return (
       <SafeFirstFrame>
         <View style={{ flex: 1 }}>
-          <RootNavigator />
+          <ThemeProvider>
+            <RootNavigator />
+          </ThemeProvider>
         </View>
       </SafeFirstFrame>
     );
@@ -437,7 +440,9 @@ function AppTree() {
   return (
     <SafeFirstFrame>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <RootNavigator />
+        <ThemeProvider>
+          <RootNavigator />
+        </ThemeProvider>
       </GestureHandlerRootView>
     </SafeFirstFrame>
   );

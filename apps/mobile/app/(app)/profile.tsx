@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,11 +18,14 @@ type SupabaseClient = Awaited<typeof import('../../lib/supabase')>['supabase'];
 
 import { API_BASE, getApiBaseOverride, setApiBaseOverride } from '../../lib/api';
 import { useTranslation } from '../../lib/i18n';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 const SUCCESS_URL = 'https://roamdance.com/billing/success';
 const PORTAL_RETURN_URL = 'https://roamdance.com/profile';
 
 export default function ProfileScreen() {
   const { t } = useTranslation();
+  const { colors, mode, toggleMode } = useTheme();
+  const styles = useMemo(() => createProfileStyles(colors), [colors]);
   const { session } = useSession();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -146,7 +149,7 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator color={theme.light.active} size="large" />
+        <ActivityIndicator color={colors.active} size="large" />
       </View>
     );
   }
@@ -164,6 +167,24 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.container}>
+      <View style={styles.appearanceRow}>
+        <View>
+          <Text style={styles.appearanceLabel}>{t('profile.appearance')}</Text>
+          <Text style={styles.appearanceHint}>
+            {mode === 'night' ? t('profile.nightMode') : t('profile.dayMode')}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.appearanceBtn, mode === 'night' && styles.appearanceBtnActive]}
+          onPress={toggleMode}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.appearanceBtnText}>
+            {mode === 'night' ? '☀ ' + t('profile.dayMode') : '🌙 ' + t('profile.nightMode')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.section}>
         <Text style={styles.label}>{t('profile.currentPlan')}</Text>
         <TouchableOpacity onPress={handleDevTap} activeOpacity={1}>
@@ -180,7 +201,7 @@ export default function ProfileScreen() {
           disabled={checkoutLoading}
         >
           {checkoutLoading ? (
-            <ActivityIndicator color={theme.light.active} size="small" />
+            <ActivityIndicator color={colors.active} size="small" />
           ) : (
             <Text style={styles.buttonText}>{t('profile.upgrade')}</Text>
           )}
@@ -194,7 +215,7 @@ export default function ProfileScreen() {
           disabled={portalLoading}
         >
           {portalLoading ? (
-            <ActivityIndicator color={theme.light.active} size="small" />
+            <ActivityIndicator color={colors.active} size="small" />
           ) : (
             <Text style={styles.buttonText}>{t('profile.manageSubscription')}</Text>
           )}
@@ -214,7 +235,7 @@ export default function ProfileScreen() {
             value={apiUrlInput}
             onChangeText={setApiUrlInput}
             placeholder={t('profile.devApiBaseUrlPlaceholder')}
-            placeholderTextColor={theme.light.muted}
+            placeholderTextColor={colors.muted}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -262,10 +283,11 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createProfileStyles(colors: ThemePalette) {
+  return StyleSheet.create({
   scrollContainer: {
     flex: 1,
-    backgroundColor: theme.light.ground,
+    backgroundColor: colors.ground,
   },
   container: {
     padding: 20,
@@ -273,13 +295,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexGrow: 1,
   },
+  appearanceRow: {
+    width: '100%',
+    maxWidth: 360,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: theme.spacing.radiusMd,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.chrome,
+  },
+  appearanceLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.active,
+  },
+  appearanceHint: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  appearanceBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: theme.spacing.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.ground,
+  },
+  appearanceBtnActive: {
+    borderColor: colors.mine,
+    backgroundColor: colors.mineBg,
+  },
+  appearanceBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.active,
+  },
   section: {
     marginBottom: 24,
     alignItems: 'center',
   },
   label: {
     fontSize: 14,
-    color: theme.light.muted,
+    color: colors.muted,
     marginBottom: 8,
   },
   planBadge: {
@@ -287,21 +350,21 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: theme.spacing.radiusMd,
     borderWidth: 1,
-    borderColor: theme.light.muted,
+    borderColor: colors.muted,
   },
   planBadgePaid: {
-    borderColor: theme.light.mine,
-    backgroundColor: theme.light.mineBg,
+    borderColor: colors.mine,
+    backgroundColor: colors.mineBg,
   },
   planText: {
     fontSize: 18,
     fontWeight: '700',
-    color: theme.light.active,
+    color: colors.active,
   },
   button: {
-    backgroundColor: theme.light.mine,
+    backgroundColor: colors.mine,
     borderWidth: 1,
-    borderColor: theme.light.muted,
+    borderColor: colors.muted,
     borderRadius: theme.spacing.radiusMd,
     paddingVertical: 14,
     paddingHorizontal: 24,
@@ -314,42 +377,42 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.light.active,
+    color: colors.active,
   },
   devSection: {
     marginTop: 40,
     width: '100%',
     borderTopWidth: 1,
-    borderTopColor: theme.light.border,
+    borderTopColor: colors.border,
     paddingTop: 20,
   },
   devTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: theme.light.muted,
+    color: colors.muted,
     marginBottom: 16,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   devLabel: {
     fontSize: 14,
-    color: theme.light.active,
+    color: colors.active,
     marginBottom: 4,
   },
   devHint: {
     fontSize: 12,
-    color: theme.light.muted,
+    color: colors.muted,
     marginBottom: 8,
   },
   devInput: {
-    backgroundColor: theme.light.ground,
-    color: theme.light.active,
+    backgroundColor: colors.ground,
+    color: colors.active,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: theme.light.border,
+    borderColor: colors.border,
     marginBottom: 12,
   },
   devButtonRow: {
@@ -358,26 +421,26 @@ const styles = StyleSheet.create({
   },
   devButton: {
     flex: 1,
-    backgroundColor: theme.light.border,
+    backgroundColor: colors.border,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
   },
   devButtonSecondary: {
-    backgroundColor: theme.light.ground,
+    backgroundColor: colors.ground,
     borderWidth: 1,
-    borderColor: theme.light.border,
+    borderColor: colors.border,
   },
   devButtonText: {
-    color: theme.light.active,
+    color: colors.active,
     fontSize: 14,
     fontWeight: '600',
   },
   signOutButton: {
     marginTop: 40,
     borderWidth: 1,
-    borderColor: theme.light.mine,
-    backgroundColor: theme.light.ground,
+    borderColor: colors.mine,
+    backgroundColor: colors.ground,
     borderRadius: theme.spacing.radiusMd,
     paddingVertical: 14,
     paddingHorizontal: 24,
@@ -385,8 +448,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signOutButtonText: {
-    color: theme.light.active,
+    color: colors.active,
     fontSize: 16,
     fontWeight: '600',
   },
 });
+}

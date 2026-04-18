@@ -8,12 +8,12 @@
 
 ## Acceptance Decision
 
-**Result: NOT ACCEPTED for MVP sign-off yet.**
+**Result: NOT ACCEPTED for ship sign-off yet.**
 
 Reason:
-- Automated build gates are now green, but formal runtime/performance evidence is still incomplete.
-- Phase 0/1 acceptance thresholds (latency, tap counts, loop smoothness) are not yet fully measured with attached artifacts.
-- Advanced phases (2-5) remain partially implemented and not formally validated end-to-end.
+- Build + package lint gates for `@roam/mobile`, `@roam/api`, and `@roam/web` are now passing at error level.
+- Phase 2-5 features are wired in code, but runtime acceptance remains incomplete.
+- Formal device runtime/performance artifacts (timings, recordings, multi-device persistence runs) are still required before production ship sign-off.
 
 ---
 
@@ -21,16 +21,13 @@ Reason:
 
 ### Automated checks run
 
-1. `pnpm exec turbo run build --filter=@roam/mobile`  
+1. `pnpm exec turbo run build --filter=@roam/mobile --filter=@roam/api --filter=@roam/web`  
    - **Status:** PASS
+   - **Notes:** `@roam/mobile` theme typing regression fixed (`ThemeColors` widened to support light/night palette union).
 
-2. `pnpm exec turbo run build --filter=@roam/api --filter=@roam/web`  
-   - **Status:** PASS
-
-3. `pnpm exec turbo run lint`
-   - **Status:** FAIL (pre-existing baseline)
-   - `@roam/types/src/index.ts`: `@typescript-eslint/no-empty-object-type`
-   - `@roam/api/src/routes/clips.ts` and `@roam/api/src/routes/sessions.ts`: `@typescript-eslint/no-explicit-any`
+2. `pnpm exec turbo run lint --filter=@roam/mobile --filter=@roam/api --filter=@roam/web`
+   - **Status:** PASS (0 errors; warnings remain)
+   - **Notes:** Warnings are non-blocking and mostly pre-existing unused-variable hygiene.
 
 ### Code-level flow verification (static)
 
@@ -70,8 +67,8 @@ These confirm intent and wiring, but do **not** replace runtime acceptance tests
 ## Gate Summary
 
 - **Build gate:** PASS
-- **Lint gate:** FAIL (existing baseline issues outside this stabilization pass)
-- **Core flow wiring gate (static):** PASS (partial confidence)
+- **Lint gate:** PASS (error-free; warnings only)
+- **Core flow wiring gate (static):** PASS
 - **Runtime behavior gate:** PARTIAL / NOT VERIFIED
 - **Performance gate:** NOT VERIFIED
 

@@ -73,6 +73,7 @@ import { AnnotationOverlay } from '../../../components/AnnotationOverlay';
 import type { VideoContentRect } from '../../../components/AnnotationOverlay';
 
 import { API_BASE } from '../../../lib/api';
+import { useTranslation } from '../../../lib/i18n';
 import { MMKV } from 'react-native-mmkv';
 
 // Loupe persistence — key: YouTube clips use loupe:${source_url}, others use loupe:${mux_playback_id ?? clip_id ?? source_url} -> { x, y, zoom }
@@ -80,6 +81,11 @@ const loupeStorage = new MMKV({ id: 'loupe-state' });
 
 // Loupe constants
 const LOUPE_DIAMETER = 140;
+const LOUPE_MIN_ZOOM = 1.6;
+const LOUPE_MAX_ZOOM = 3.8;
+const LOUPE_ACTIVATE_SCALE_THRESHOLD = 1.35;
+const YOUTUBE_CAPTURE_ACTIVE_MS = 130;
+const YOUTUBE_CAPTURE_IDLE_MS = 220;
 const AB_LOOP_HANDLE_TOUCH_SIZE = 44;
 const AB_LOOP_HANDLE_HALF = 22;
 const AB_LOOP_CLEAR_THRESHOLD_MS = 1;
@@ -157,6 +163,8 @@ const CAPTURE_WEBVIEW_HTML = `
         canvas.width = videoElement.videoWidth || 640;
         canvas.height = videoElement.videoHeight || 360;
         
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
         
         // Crop to loupe region (140px diameter at current focal point)
@@ -166,7 +174,7 @@ const CAPTURE_WEBVIEW_HTML = `
         const scaleY = canvas.height / videoRect.height;
         
         // For now, return full frame - loupe cropping will be done in React Native
-        return canvas.toDataURL('image/jpeg', 0.8);
+        return canvas.toDataURL('image/jpeg', 0.95);
       } catch (e) {
         console.error('Frame capture error:', e);
         return null;
@@ -219,6 +227,7 @@ export default function ClipPlayerScreen() {
   } =
     useLocalSearchParams<PlayerParams>();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const hasSessionContext = !!sessionId && !!clipIndex;
 
@@ -278,6 +287,9 @@ export default function ClipPlayerScreen() {
   const [youtubeCurrentTime, setYoutubeCurrentTime] = useState(0);
   const [capturedFrameDataUrl, setCapturedFrameDataUrl] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const youtubeCaptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const youtubeCaptureInFlightRef = useRef(false);
+  const lastCapturedFrameRef = useRef<string | null>(null);
   
   // Loupe state
   const [loupeActive, setLoupeActive] = useState(false);
@@ -456,6 +468,12 @@ export default function ClipPlayerScreen() {
     loupeLastZoom.current = 0;
     loupeLastX.current = 0;
     loupeLastY.current = 0;
+    lastCapturedFrameRef.current = null;
+    youtubeCaptureInFlightRef.current = false;
+    if (youtubeCaptureTimerRef.current) {
+      clearTimeout(youtubeCaptureTimerRef.current);
+      youtubeCaptureTimerRef.current = null;
+    }
     setCapturedFrameDataUrl(null);
   }, [currentIndex]);
 
@@ -466,33 +484,59 @@ export default function ClipPlayerScreen() {
     };
   }, []);
 
-  // Continuous frame capture for YouTube when loupe is active
-  useEffect(() => {
-    if (!loupeActive || !isYouTubeContent || !webViewRef.current) return;
-    
-    const captureFrame = () => {
-      if (webViewRef.current && loupeActive) {
+  // Continuous frame capture for YouTube when loupe is active.
+  // Uses single-flight scheduling to avoid WebView command pileups.
+  const requestYouTubeFrameCapture = useCallback(
+    (delayMs: number = 0) => {
+      if (!loupeActive || !isYouTubeContent || !webViewRef.current) return;
+      if (youtubeCaptureTimerRef.current) {
+        clearTimeout(youtubeCaptureTimerRef.current);
+      }
+      youtubeCaptureTimerRef.current = setTimeout(() => {
+        if (!loupeActive || !isYouTubeContent || !webViewRef.current) return;
+        if (youtubeCaptureInFlightRef.current) {
+          requestYouTubeFrameCapture(YOUTUBE_CAPTURE_IDLE_MS);
+          return;
+        }
+        youtubeCaptureInFlightRef.current = true;
         webViewRef.current.injectJavaScript(`
-          if (window.player && window.captureFrame) {
-            const frameDataUrl = window.captureFrame();
-            if (frameDataUrl) {
+          try {
+            if (window.player && window.captureFrame) {
+              const frameDataUrl = window.captureFrame();
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'frameCapture',
-                dataUrl: frameDataUrl
+                dataUrl: frameDataUrl || null
               }));
+            } else {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'frameCapture', dataUrl: null }));
             }
+          } catch (_e) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'frameCapture', dataUrl: null }));
           }
         `);
+      }, Math.max(0, delayMs));
+    },
+    [isYouTubeContent, loupeActive]
+  );
+
+  useEffect(() => {
+    if (!loupeActive || !isYouTubeContent) {
+      if (youtubeCaptureTimerRef.current) {
+        clearTimeout(youtubeCaptureTimerRef.current);
+        youtubeCaptureTimerRef.current = null;
       }
-    };
-    
-    // Start capture loop at 5fps (200ms)
-    const intervalId = setInterval(captureFrame, 200);
-    
+      youtubeCaptureInFlightRef.current = false;
+      return;
+    }
+    requestYouTubeFrameCapture(0);
     return () => {
-      clearInterval(intervalId);
+      if (youtubeCaptureTimerRef.current) {
+        clearTimeout(youtubeCaptureTimerRef.current);
+        youtubeCaptureTimerRef.current = null;
+      }
+      youtubeCaptureInFlightRef.current = false;
     };
-  }, [loupeActive, isYouTubeContent]);
+  }, [isYouTubeContent, loupeActive, requestYouTubeFrameCapture]);
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -669,8 +713,17 @@ export default function ClipPlayerScreen() {
           }
           break;
         case 'frameCapture':
-          if (message.dataUrl) {
-            setCapturedFrameDataUrl(message.dataUrl);
+          youtubeCaptureInFlightRef.current = false;
+          if (message.dataUrl && typeof message.dataUrl === 'string') {
+            if (lastCapturedFrameRef.current !== message.dataUrl) {
+              lastCapturedFrameRef.current = message.dataUrl;
+              setCapturedFrameDataUrl(message.dataUrl);
+            }
+          }
+          if (loupeActive && isYouTubeContent) {
+            requestYouTubeFrameCapture(
+              playing ? YOUTUBE_CAPTURE_ACTIVE_MS : YOUTUBE_CAPTURE_IDLE_MS
+            );
           }
           break;
         case 'durationUpdate':
@@ -716,8 +769,8 @@ export default function ClipPlayerScreen() {
           Number.isFinite(savedState.x) &&
           Number.isFinite(savedState.y) &&
           Number.isFinite(savedState.zoom) &&
-          savedState.zoom >= 2 &&
-          savedState.zoom <= 3
+          savedState.zoom >= LOUPE_MIN_ZOOM &&
+          savedState.zoom <= LOUPE_MAX_ZOOM
         ) {
           loupeLastX.current = savedState.x;
           loupeLastY.current = savedState.y;
@@ -746,26 +799,11 @@ export default function ClipPlayerScreen() {
     
     // Capture frame for YouTube content when loupe activates
     if (isYouTubeContent && webViewRef.current) {
-      // Clear previous frame and request new capture
+      // Clear previous frame and request fresh capture immediately
       setCapturedFrameDataUrl(null);
-      webViewRef.current.injectJavaScript(`
-        if (window.player && window.captureFrame) {
-          const frameDataUrl = window.captureFrame();
-          if (frameDataUrl) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'frameCapture',
-              dataUrl: frameDataUrl
-            }));
-          }
-        }
-      `);
-      
-      // Set fallback after timeout if capture fails
-      setTimeout(() => {
-        if (!capturedFrameDataUrl) {
-          setCapturedFrameDataUrl(null);
-        }
-      }, 500);
+      lastCapturedFrameRef.current = null;
+      youtubeCaptureInFlightRef.current = false;
+      requestYouTubeFrameCapture(0);
     }
   });
   const updateLoupeZoom = runOnJS((zoom: number) => {
@@ -800,10 +838,10 @@ export default function ClipPlayerScreen() {
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e: GestureEvent) => {
-      const clamped = Math.min(3, Math.max(2, e.scale ?? 1));
+      const clamped = Math.min(LOUPE_MAX_ZOOM, Math.max(LOUPE_MIN_ZOOM, e.scale ?? 1));
       if (loupeActiveShared.value !== 1) {
         // When loupe is inactive and pinch scale reaches threshold, activate loupe
-        if (e.scale && e.scale >= 2) {
+        if (e.scale && e.scale >= LOUPE_ACTIVATE_SCALE_THRESHOLD) {
           loupeX.value = e.focalX ?? loupeX.value;
           loupeY.value = e.focalY ?? loupeY.value;
           activateLoupe(clamped, e.focalX ?? 0, e.focalY ?? 0);
@@ -1169,7 +1207,9 @@ export default function ClipPlayerScreen() {
                         <Animated.Image 
                           source={{ uri: capturedFrameDataUrl }} 
                           style={[styles.loupeVideo, loupeVideoAnimatedStyle]} 
-                          resizeMode="cover" 
+                          resizeMode="cover"
+                          fadeDuration={0}
+                          resizeMethod="resize"
                         />
                       ) : (
                         <Animated.View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
@@ -1476,7 +1516,9 @@ export default function ClipPlayerScreen() {
                       <Animated.Image 
                         source={{ uri: capturedFrameDataUrl }} 
                         style={[styles.loupeVideo, loupeVideoAnimatedStyle]} 
-                        resizeMode="cover" 
+                        resizeMode="cover"
+                        fadeDuration={0}
+                        resizeMethod="resize"
                       />
                     ) : (
                       <Animated.View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
@@ -1568,6 +1610,12 @@ export default function ClipPlayerScreen() {
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Text style={styles.closeBtnText}>✕</Text>
         </TouchableOpacity>
+
+        {hasSessionContext && clip ? (
+          <View style={styles.reviewHintBar} pointerEvents="none">
+            <Text style={styles.reviewHintText}>{t('review.sessionHint')}</Text>
+          </View>
+        ) : null}
 
         {feedbackOpen ? (
           <TouchableOpacity
@@ -1910,6 +1958,21 @@ const styles = StyleSheet.create({
   closeBtnText: {
     color: '#fff',
     fontSize: 20,
+  },
+  reviewHintBar: {
+    position: 'absolute',
+    top: 48,
+    left: 16,
+    right: 72,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+  },
+  reviewHintText: {
+    color: '#ffffff',
+    fontSize: 12,
+    lineHeight: 16,
   },
   controls: {
     position: 'absolute',

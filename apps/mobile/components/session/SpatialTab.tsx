@@ -13,10 +13,10 @@ import {
 } from 'react-native';
 import Svg, { Circle as SvgCircle, Line as SvgLine } from 'react-native-svg';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
+import { useTranslation } from '../../lib/i18n';
 import { theme } from '../../lib/theme';
 import type { Moment, QualityData } from '@roam/types';
-
-const colors = theme.light;
 const DOT_SIZE = 14;
 const DOT_RADIUS = DOT_SIZE / 2;
 const SELECTED_DOT_SIZE = 20;
@@ -29,11 +29,6 @@ interface Dancer {
   leftPct: number;
   orientationDeg: number;
 }
-
-const DEFAULT_DANCERS: Dancer[] = [
-  { id: 'A', color: colors.mine, topPct: 40, leftPct: 30, orientationDeg: 0 },
-  { id: 'B', color: colors.active, topPct: 60, leftPct: 70, orientationDeg: 180 },
-];
 
 interface ToolState {
   position: 'active' | 'locked';
@@ -60,7 +55,25 @@ interface PathModel {
   targetDancerId?: string;
 }
 
+/** Initial dancer layout before theme hook runs; hydrated from moment or `defaultDancers` in effects. */
+const INITIAL_DANCERS: Dancer[] = [
+  { id: 'A', color: theme.light.mine, topPct: 40, leftPct: 30, orientationDeg: 0 },
+  { id: 'B', color: theme.light.active, topPct: 60, leftPct: 70, orientationDeg: 180 },
+];
+
 export function SpatialTab() {
+  const { t } = useTranslation();
+  const { colors, mode } = useTheme();
+  const isNight = mode === 'night';
+  const styles = useMemo(() => createSpatialStyles(colors, isNight), [colors, isNight]);
+  const defaultDancers = useMemo(
+    (): Dancer[] => [
+      { id: 'A', color: colors.mine, topPct: 40, leftPct: 30, orientationDeg: 0 },
+      { id: 'B', color: colors.active, topPct: 60, leftPct: 70, orientationDeg: 180 },
+    ],
+    [colors]
+  );
+  const isDraggingDancerRef = useRef(false);
   const {
     activeMoment,
     setActiveMoment,
@@ -71,7 +84,6 @@ export function SpatialTab() {
     updateFormation,
     updateQuality,
     playheadMs,
-    loopRegion,
     loopOpenAt,
     durationMs,
     handleLoopToggle,
@@ -100,8 +112,8 @@ export function SpatialTab() {
   
   // Canvas state
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
-  const [dancers, setDancers] = useState<Dancer[]>(DEFAULT_DANCERS);
-  const latestDancersRef = useRef<Dancer[]>(DEFAULT_DANCERS);
+  const [dancers, setDancers] = useState<Dancer[]>(INITIAL_DANCERS);
+  const latestDancersRef = useRef<Dancer[]>(INITIAL_DANCERS);
   const [selectedDancerId, setSelectedDancerId] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<SelectedTool>('position');
   const [pathsByDancer, setPathsByDancer] = useState<Record<string, PathModel>>({});
@@ -163,7 +175,7 @@ export function SpatialTab() {
 
     if (!activeMomentRecord) {
       if (identityChanged) {
-        setDancers(DEFAULT_DANCERS);
+        setDancers([...defaultDancers]);
         setPathsByDancer({});
         setSelectedDancerId(null);
         setToolState(DEFAULT_TOOL_STATE);
@@ -184,15 +196,23 @@ export function SpatialTab() {
     };
 
     const formation = activeMomentRecord.formation as PersistedFormation | null;
-    const hydratedDancers = Array.isArray(formation?.dancers) ? formation.dancers : DEFAULT_DANCERS;
+    const hydratedDancers =
+      Array.isArray(formation?.dancers) && formation.dancers.length > 0
+        ? formation.dancers
+        : defaultDancers;
     const hydratedPathsByDancer =
       formation?.paths && typeof formation.paths === 'object' && !Array.isArray(formation.paths)
         ? (formation.paths as Record<string, PathModel>)
         : {};
 
-    // Keep persisted spatial + quality data synchronized, even during same-moment optimistic updates.
-    setDancers(hydratedDancers);
-    setPathsByDancer(hydratedPathsByDancer);
+    // Avoid overwriting an in-progress drag when the same moment is refetched from the server.
+    if (identityChanged) {
+      isDraggingDancerRef.current = false;
+    }
+    if (identityChanged || !isDraggingDancerRef.current) {
+      setDancers(hydratedDancers);
+      setPathsByDancer(hydratedPathsByDancer);
+    }
 
     const quality = activeMomentRecord.quality;
     setInitiation(quality?.initiation ?? '');
@@ -226,7 +246,7 @@ export function SpatialTab() {
       setHasPath(hydratedToolState.relationship === 'active');
       setSelectedTool('position');
     }
-  }, [activeMomentRecord]);
+  }, [activeMomentRecord, defaultDancers]);
 
   const handleMomentPress = (momentId: string) => {
     setActiveMoment(momentId);
@@ -240,9 +260,9 @@ export function SpatialTab() {
       moment.name,
       undefined,
       [
-        { text: 'Rename', onPress: () => setRenamingMomentId(momentId) },
-        { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('spatial.alertRename'), onPress: () => setRenamingMomentId(momentId) },
+        { text: t('spatial.alertDelete'), style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
+        { text: t('spatial.alertCancel'), style: 'cancel' },
       ]
     );
   };
@@ -263,7 +283,10 @@ export function SpatialTab() {
   };
 
   const handleAddMoment = async () => {
-    const newMoment = await createMoment(`moment ${moments.length + 1}`, Math.round(playheadMs));
+    const newMoment = await createMoment(
+      t('spatial.newMomentName').replace('{n}', String(moments.length + 1)),
+      Math.round(playheadMs)
+    );
     if (newMoment) setActiveMoment(newMoment.id);
   };
 
@@ -395,6 +418,9 @@ export function SpatialTab() {
     const nextTopPx = clamp(dragStart.topPx + gestureState.dy, 0, maxTopPx);
     const hasMoved = Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1;
     dragStart.moved = dragStart.moved || hasMoved;
+    if (hasMoved) {
+      isDraggingDancerRef.current = true;
+    }
 
     setDancers((prev) => {
       const next = prev.map((dancer) =>
@@ -424,6 +450,7 @@ export function SpatialTab() {
       unlockPathOnFirstDotInteraction();
       if (targetMomentId) persistFormation(targetMomentId, { dancers: latestDancersRef.current, toolState: nextToolState });
     }
+    isDraggingDancerRef.current = false;
     delete dragStartRef.current[dancerId];
   };
 
@@ -556,7 +583,7 @@ export function SpatialTab() {
                 cx={midpoint.x}
                 cy={midpoint.y}
                 r={5}
-                fill="#faf8f5"
+                fill={colors.chrome}
                 stroke={path.color}
                 strokeWidth={1}
               />
@@ -613,9 +640,15 @@ export function SpatialTab() {
           </TouchableOpacity>
         </ScrollView>
 
+        {!momentsConnectionStatus.hasError ? (
+          <View style={styles.formationHint}>
+            <Text style={styles.formationHintText}>{t('spatial.formationAutoSave')}</Text>
+          </View>
+        ) : null}
+
         {momentsConnectionStatus.hasError && (
           <View style={styles.connectionErrorBanner}>
-            <Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</Text>
+            <Text style={styles.connectionErrorText}>{t('spatial.connectionLost')}</Text>
           </View>
         )}
 
@@ -669,8 +702,8 @@ export function SpatialTab() {
             );
           })}
           
-          <Text style={styles.backstageLabel}>backstage</Text>
-          <Text style={styles.audienceLabel}>audience</Text>
+          <Text style={styles.backstageLabel}>{t('spatial.backstage')}</Text>
+          <Text style={styles.audienceLabel}>{t('spatial.audience')}</Text>
         </TouchableOpacity>
 
         {/* Tool bar */}
@@ -686,7 +719,7 @@ export function SpatialTab() {
               styles.toolButtonText,
               isToolSelected('position') && styles.toolButtonTextActive
             ]}>
-              Position
+              {t('spatial.toolPosition')}
             </Text>
           </TouchableOpacity>
           
@@ -703,7 +736,7 @@ export function SpatialTab() {
               styles.toolButtonText,
               isToolSelected('path') && styles.toolButtonTextActive
             ]}>
-              Path
+              {t('spatial.toolPath')}
             </Text>
           </TouchableOpacity>
           
@@ -720,7 +753,7 @@ export function SpatialTab() {
               styles.toolButtonText,
               isToolSelected('relationship') && styles.toolButtonTextActive
             ]}>
-              Relationship
+              {t('spatial.toolRelationship')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -730,7 +763,7 @@ export function SpatialTab() {
       <View style={styles.rightPanel}>
         <View style={styles.rightPanelHeader}>
           <TouchableOpacity style={styles.groupChip} onPress={() => setActiveTab('group')}>
-            <Text style={styles.groupChipText}>Group →</Text>
+            <Text style={styles.groupChipText}>{t('spatial.groupJump')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -758,7 +791,7 @@ export function SpatialTab() {
               { color: loopOpenAt !== null ? colors.amber : colors.muted },
             ]}
           >
-            {loopOpenAt !== null ? 'tap to close' : 'set loop'}
+            {loopOpenAt !== null ? t('spatial.loopClose') : t('spatial.loopSet')}
           </Text>
         </TouchableOpacity>
 
@@ -766,7 +799,7 @@ export function SpatialTab() {
         <View style={styles.qualityLayer}>
           {/* Header */}
           <View style={styles.qualityHeader}>
-            <Text style={styles.qualityHeaderText}>quality layer</Text>
+            <Text style={styles.qualityHeaderText}>{t('spatial.qualityLayer')}</Text>
             <TouchableOpacity
               style={styles.expandButton}
               onPress={() => setIsExpanded(!isExpanded)}
@@ -780,10 +813,10 @@ export function SpatialTab() {
             <View style={styles.qualityBody}>
               {/* INITIATION */}
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>INITIATION</Text>
+                <Text style={styles.fieldLabel}>{t('spatial.fieldInitiation')}</Text>
                 <TextInput
                   style={styles.fieldInput}
-                  placeholder="spine, heart, sternum…"
+                  placeholder={t('spatial.placeholderInitiation')}
                   placeholderTextColor={colors.muted}
                   value={initiation}
                   onChangeText={setInitiation}
@@ -798,10 +831,10 @@ export function SpatialTab() {
 
               {/* RELATIONSHIP QUALITY */}
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>RELATIONSHIP QUALITY</Text>
+                <Text style={styles.fieldLabel}>{t('spatial.fieldRelationship')}</Text>
                 <TextInput
                   style={styles.fieldInput}
-                  placeholder="leads · follows · resists · echoes"
+                  placeholder={t('spatial.placeholderRelationship')}
                   placeholderTextColor={colors.muted}
                   value={relationshipQuality}
                   onChangeText={setRelationshipQuality}
@@ -820,10 +853,10 @@ export function SpatialTab() {
                 styles.noteField,
                 note ? styles.noteFieldFilled : null
               ]}>
-                <Text style={styles.fieldLabel}>NOTE</Text>
+                <Text style={styles.fieldLabel}>{t('spatial.fieldNote')}</Text>
                 <TextInput
                   style={styles.noteInput}
-                  placeholder="add a voice or text note…"
+                  placeholder={t('spatial.placeholderNote')}
                   placeholderTextColor={colors.muted}
                   value={note}
                   onChangeText={setNote}
@@ -839,7 +872,7 @@ export function SpatialTab() {
 
               {/* QUALITY REFERENCE */}
               <View style={styles.referenceField}>
-                <Text style={styles.referenceText}>add reference</Text>
+                <Text style={styles.referenceText}>{t('spatial.addReference')}</Text>
               </View>
             </View>
           )}
@@ -849,7 +882,13 @@ export function SpatialTab() {
   );
 }
 
-const styles = StyleSheet.create({
+function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
+  const toolActiveLabelColor = isNight ? colors.ground : '#ffffff';
+  const connectionBannerBg = isNight ? 'rgba(127, 29, 29, 0.35)' : '#fee2e2';
+  const connectionBannerBorder = isNight ? 'rgba(248, 113, 113, 0.4)' : '#fca5a5';
+  const connectionText = isNight ? '#fca5a5' : '#dc2626';
+
+  return StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
@@ -917,12 +956,13 @@ const styles = StyleSheet.create({
   },
   floorCanvas: {
     flex: 1,
-    backgroundColor: '#faf8f5',
+    backgroundColor: colors.ground,
     position: 'relative',
   },
   gridLine: {
     position: 'absolute',
-    backgroundColor: '#ede8e0',
+    backgroundColor: colors.border,
+    opacity: 0.45,
   },
   horizontalGridLine: {
     height: 0.5,
@@ -1024,7 +1064,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   toolButtonTextActive: {
-    color: '#ffffff',
+    color: toolActiveLabelColor,
   },
   rightPanel: {
     flex: 0.35,
@@ -1121,7 +1161,7 @@ const styles = StyleSheet.create({
   },
   fieldInput: {
     fontSize: 10,
-    color: colors.muted,
+    color: colors.active,
     padding: 6,
     borderWidth: 0.5,
     borderColor: colors.border,
@@ -1137,7 +1177,7 @@ const styles = StyleSheet.create({
   },
   noteInput: {
     fontSize: 10,
-    color: colors.muted,
+    color: colors.active,
     padding: 6,
     borderWidth: 0.5,
     borderColor: colors.border,
@@ -1159,17 +1199,27 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.muted,
   },
+  formationHint: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+  },
+  formationHintText: {
+    fontSize: 11,
+    color: colors.muted,
+    fontFamily: 'JetBrainsMono',
+  },
   connectionErrorBanner: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: connectionBannerBg,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#fca5a5',
+    borderBottomColor: connectionBannerBorder,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   connectionErrorText: {
     fontSize: 12,
-    color: '#dc2626',
+    color: connectionText,
     textAlign: 'center',
     fontFamily: 'JetBrainsMono',
   },
 });
+}

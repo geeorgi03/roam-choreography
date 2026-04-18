@@ -7,6 +7,11 @@ import type { ClipComment } from '@roam/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+// [W9-C] Web-share feedback category chips — ticket b0936641-2685-4c72-bcca-4d9e848842db
+// Prefixes submitted comment text with [Category] to mirror the structured feedback
+// vocabulary used in the mobile FeedbackSheet (Liz Lerman 4-step flow).
+const FEEDBACK_CATEGORIES = ['Idea', 'Timing', 'Spacing', 'Energy'] as const;
+
 export interface ClipPlayerProps {
   playbackId: string;
   thumbnailUrl: string;
@@ -45,6 +50,9 @@ export function ClipPlayer({
   const [name, setName] = useState('');
   const [timecodeMs, setTimecodeMs] = useState('');
   const [text, setText] = useState('');
+  const [feedbackCategory, setFeedbackCategory] = useState<(typeof FEEDBACK_CATEGORIES)[number] | null>(
+    null
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
@@ -73,6 +81,7 @@ export function ClipPlayer({
     setThanksShown(false);
     setError(null);
     setFeedbackRevealed(true);
+    setFeedbackCategory(null);
     setTimecodeMs(String(currentTimeMs));
   };
 
@@ -81,6 +90,9 @@ export function ClipPlayer({
     if (!clipId || !text.trim()) return;
     setError(null);
     setSubmitting(true);
+    const finalText = feedbackCategory
+      ? `[${feedbackCategory}] ${text.trim()}`
+      : text.trim();
     try {
       const res = await fetch(`${API_BASE}/feedback`, {
         method: 'POST',
@@ -88,7 +100,7 @@ export function ClipPlayer({
         body: JSON.stringify({
           clip_id: clipId,
           timecode_ms: parseInt(timecodeMs, 10) || 0,
-          text: text.trim(),
+          text: finalText,
           commenter_name: name.trim() || undefined,
           share_token: shareToken,
         }),
@@ -103,12 +115,13 @@ export function ClipPlayer({
           clip_id: clipId,
           session_id: '',
           timecode_ms: parseInt(timecodeMs, 10) || 0,
-          text: text.trim(),
+          text: finalText,
           commenter_name: name.trim() || null,
           created_at: new Date().toISOString(),
         },
       ]);
       setText('');
+      setFeedbackCategory(null);
       setTimecodeMs('');
       await refreshComments();
     } catch (e) {
@@ -187,6 +200,25 @@ export function ClipPlayer({
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 rounded bg-roam-border text-roam-active text-sm placeholder:text-roam-muted border border-roam-border"
                 />
+                <div>
+                  <p className="text-xs text-roam-muted mb-2">Category (optional)</p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {FEEDBACK_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setFeedbackCategory((prev) => (prev === cat ? null : cat))}
+                        className={`text-xs px-2 py-1 rounded border ${
+                          feedbackCategory === cat
+                            ? 'bg-amber-600 border-amber-500 text-white'
+                            : 'bg-roam-border border-roam-border text-roam-muted hover:bg-roam-chrome'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <input
                     type="number"
