@@ -186,7 +186,7 @@
   "microCycle.record": "ថតឃ្លីប",
   "microCycle.thenTag": "បន្ទាប់មកដាក់ស្លាកក្នុងអ្នកមើលឃ្លីប",
   "review.sessionHint": "កាត់រង្វិល A–B ឬដាក់ស្លាកខាងក្រោម។",
-  "clipPlayer.loupePausedForPerformance": "Loupe paused for performance",
+  "clipPlayer.loupePausedForPerformance": "Loupe ត្រូវបានផ្អាកដោយសារដំណើរការ",
   "spatial.formationAutoSave": "ទម្រង់រចនាសម្ព័ន្ធត្រូវបានធ្វើសមកាលពេលមានអ៊ីនធឺណិត។",
   "spatial.alertRename": "ប្តូរឈ្មោះ",
   "spatial.alertDelete": "លុប",
@@ -208,5 +208,18 @@
   "spatial.placeholderRelationship": "ដឹក · តាម · ប្រឆាំង · ស្លែង",
   "spatial.placeholderNote": "បន្ថែមកំណត់សម្លេង ឬអត្ថបទ…",
   "spatial.addReference": "បន្ថែមឯកសារយោង",
-  "spatial.connectionLost": "បាត់ការតភ្ជាប់។ ទាញដើម្បីធ្វើឲ្យថ្មី។"
+  "spatial.connectionLost": "បាត់ការតភ្ជាប់។ ទាញដើម្បីធ្វើឲ្យថ្មី។",
+  "feedback.stepStatement": "សេចក្តីថ្លែងការណ៍",
+  "feedback.stepQuestions": "សំណួរ",
+  "feedback.stepObservations": "ការសង្កេត",
+  "feedback.stepOpinions": "មតិយោបល់",
+  "feedback.placeholderStatement": "អ្វីដែលនៅជាប់ចិត្តអ្នក?",
+  "feedback.placeholderQuestions": "នេះបង្កើតសំណួរអ្វីខ្លះ?",
+  "feedback.placeholderObservations": "អ្នកបានសង្កេតឃើញអ្វីខ្លះ?",
+  "feedback.placeholderOpinions": "មតិយោបល់របស់អ្នកគឺអ្វី?",
+  "feedback.submitFailed": "ការដាក់ស្នើបរាជ័យ",
+  "feedback.clipNotReady": "ឃ្លីបមិនទាន់រួចរាល់សម្រាប់ទទួលមតិយោបល់នៅឡើយទេ។",
+  "feedback.next": "បន្ទាប់ →",
+  "feedback.submit": "ដាក់ស្នើ",
+  "feedback.retryMessage": "ការដាក់ស្នើបរាជ័យដោយសារបញ្ហាបណ្តាញ ឬអស់ពេល។"
 }

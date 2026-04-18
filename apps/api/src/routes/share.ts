@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js';
 
 const app = new Hono<{ Variables: { userId: string } }>().use('*', requireAuth);
 const clipShareApp = new Hono<{ Variables: { userId: string } }>().use('*', requireAuth);
+const publicShareApp = new Hono();
 
 /** Ensure session belongs to user; returns session id or null */
 async function getSessionForUser(sessionId: string, userId: string): Promise<string | null> {
@@ -136,3 +137,27 @@ clipShareApp.delete('/:id/share', async (c) => {
 });
 
 export const clipShareRoutes = clipShareApp;
+
+publicShareApp.get('/:token', async (c) => {
+  const token = c.req.param('token');
+  const { data, error } = await supabase.rpc('get_shared_session', { p_token: token });
+
+  if (error) return c.json({ error: error.message }, 500);
+  if (!data) return c.json({ error: 'Not found' }, 404);
+
+  const shared = data as {
+    session?: { name?: string | null; phrase?: string | null; quality_target?: string | null } | null;
+    music_track?: { sections?: unknown[] | null } | null;
+    clips?: unknown[] | null;
+  };
+
+  return c.json({
+    session_name: shared.session?.name ?? null,
+    phrase: shared.session?.phrase ?? null,
+    quality_target: shared.session?.quality_target ?? null,
+    sections: shared.music_track?.sections ?? [],
+    clips: shared.clips ?? [],
+  });
+});
+
+export const publicShareRoutes = publicShareApp;

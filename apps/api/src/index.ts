@@ -49,6 +49,7 @@ import { serve } from '@hono/node-server';
 import { sessionsRoutes } from './routes/sessions.js';
 import { clipsRoutes } from './routes/clips.js';
 import { shareRoutes } from './routes/share.js';
+import { publicShareRoutes } from './routes/share.js';
 import { musicRoutes } from './routes/music.js';
 import { assemblyRoutes } from './routes/assembly.js';
 import { feedbackRoutes } from './routes/feedback.js';
@@ -80,6 +81,8 @@ app.get('/', (c) =>
   })
 );
 app.get('/health', (c) => c.json({ status: 'ok', build: BUILD_SHA }));
+
+app.route('/share', publicShareRoutes);
 
 // Mount more specific routes first so /sessions/:id/music and /sessions/:sessionId/clips are matched before /sessions/:id
 app.route('/sessions', musicRoutes);

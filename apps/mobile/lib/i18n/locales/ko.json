@@ -234,5 +234,18 @@
   "spatial.placeholderRelationship": "리드 · 팔로우 · 저항 · 에코",
   "spatial.placeholderNote": "음성 또는 텍스트 노트 추가…",
   "spatial.addReference": "참조 추가",
-  "spatial.connectionLost": "연결이 끊겼습니다. 당겨서 새로고침하세요."
+  "spatial.connectionLost": "연결이 끊겼습니다. 당겨서 새로고침하세요.",
+  "feedback.stepStatement": "진술",
+  "feedback.stepQuestions": "질문",
+  "feedback.stepObservations": "관찰",
+  "feedback.stepOpinions": "의견",
+  "feedback.placeholderStatement": "무엇이 가장 남았나요?",
+  "feedback.placeholderQuestions": "어떤 질문이 떠오르나요?",
+  "feedback.placeholderObservations": "무엇을 관찰했나요?",
+  "feedback.placeholderOpinions": "당신의 의견은 무엇인가요?",
+  "feedback.submitFailed": "제출 실패",
+  "feedback.clipNotReady": "클립이 아직 피드백을 받을 준비가 되지 않았습니다.",
+  "feedback.next": "다음 →",
+  "feedback.submit": "제출",
+  "feedback.retryMessage": "네트워크 또는 시간 초과 오류로 제출에 실패했습니다."
 }

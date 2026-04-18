@@ -11,7 +11,9 @@ import {
 import BottomSheet from '@gorhom/bottom-sheet';
 import { theme } from '../lib/theme';
 import { useSession } from '../lib/hooks/useSession';
-import { API_BASE } from '../lib/api';
+import { ApiRequestError, apiRequest } from '../lib/api';
+import { useTranslation } from '../lib/i18n';
+import { RetryPrompt } from './RetryPrompt';
 
 export interface FeedbackSheetProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
@@ -27,24 +29,25 @@ export interface FeedbackSheetHandle {
 type StepKey = 'statement' | 'questions' | 'observations' | 'opinions';
 type StepIndex = 0 | 1 | 2 | 3;
 
-const steps: Array<{ key: StepKey; label: string; placeholder: string }> = [
-  { key: 'statement', label: 'Statement', placeholder: 'What stayed with you?' },
-  { key: 'questions', label: 'Questions', placeholder: 'What questions does this raise?' },
-  { key: 'observations', label: 'Observations', placeholder: 'What did you observe?' },
-  { key: 'opinions', label: 'Opinions', placeholder: 'What is your opinion?' },
-];
-
 export const FeedbackSheet = React.forwardRef<FeedbackSheetHandle, FeedbackSheetProps>(function FeedbackSheet(
   { bottomSheetRef, sessionId, clipId, onClose },
   ref
 ) {
   const { session } = useSession();
+  const { t } = useTranslation();
+  const steps: Array<{ key: StepKey; label: string; placeholder: string }> = [
+    { key: 'statement', label: t('feedback.stepStatement'), placeholder: t('feedback.placeholderStatement') },
+    { key: 'questions', label: t('feedback.stepQuestions'), placeholder: t('feedback.placeholderQuestions') },
+    { key: 'observations', label: t('feedback.stepObservations'), placeholder: t('feedback.placeholderObservations') },
+    { key: 'opinions', label: t('feedback.stepOpinions'), placeholder: t('feedback.placeholderOpinions') },
+  ];
   const [step, setStep] = useState<StepIndex>(0);
   const [statement, setStatement] = useState('');
   const [questions, setQuestions] = useState('');
   const [observations, setObservations] = useState('');
   const [opinions, setOpinions] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const current = steps[step];
   const currentValue =
@@ -70,6 +73,7 @@ export const FeedbackSheet = React.forwardRef<FeedbackSheetHandle, FeedbackSheet
     setObservations('');
     setOpinions('');
     setIsSubmitting(false);
+    setSubmitError(null);
   }, []);
 
   useEffect(() => {
@@ -91,13 +95,13 @@ export const FeedbackSheet = React.forwardRef<FeedbackSheetHandle, FeedbackSheet
 
   const handleSubmit = async () => {
     if (!session?.access_token || !clipId) {
-      Alert.alert('Submit failed', 'Clip is not ready to receive feedback yet.');
+      Alert.alert(t('feedback.submitFailed'), t('feedback.clipNotReady'));
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/clips/${clipId}/feedback`, {
+      await apiRequest(`/sessions/${sessionId}/clips/${clipId}/feedback`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -110,17 +114,16 @@ export const FeedbackSheet = React.forwardRef<FeedbackSheetHandle, FeedbackSheet
           opinions,
         }),
       });
-
-      if (!res.ok) {
-        const message = await res.text();
-        throw new Error(message || `HTTP ${res.status}`);
-      }
-
+      setSubmitError(null);
       handleClose();
       bottomSheetRef.current?.close();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      Alert.alert('Submit failed', message);
+      if (error instanceof ApiRequestError && (error.reason === 'timeout' || error.reason === 'network')) {
+        setSubmitError(t('feedback.retryMessage'));
+      } else {
+        Alert.alert(t('feedback.submitFailed'), error instanceof Error ? error.message : t('feedback.submitFailed'));
+        setSubmitError(null);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -163,9 +166,17 @@ export const FeedbackSheet = React.forwardRef<FeedbackSheetHandle, FeedbackSheet
           editable={!isSubmitting}
         />
 
+        {submitError && (
+          <RetryPrompt
+            message={submitError}
+            onRetry={handleSubmit}
+            loading={isSubmitting}
+          />
+        )}
+
         {step < 3 ? (
           <TouchableOpacity style={styles.nextButton} onPress={() => setStep((prev) => (prev + 1) as StepIndex)}>
-            <Text style={styles.nextButtonText}>Next →</Text>
+            <Text style={styles.nextButtonText}>{t('feedback.next')}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -176,7 +187,7 @@ export const FeedbackSheet = React.forwardRef<FeedbackSheetHandle, FeedbackSheet
             {isSubmitting ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Text style={styles.submitButtonText}>Submit</Text>
+              <Text style={styles.submitButtonText}>{t('feedback.submit')}</Text>
             )}
           </TouchableOpacity>
         )}

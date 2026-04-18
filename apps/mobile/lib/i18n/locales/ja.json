@@ -234,5 +234,18 @@
   "spatial.placeholderRelationship": "導く · 従う · 抗う · 呼応する",
   "spatial.placeholderNote": "音声またはテキストメモを追加…",
   "spatial.addReference": "参照を追加",
-  "spatial.connectionLost": "接続が失われました。引っ張って更新してください。"
+  "spatial.connectionLost": "接続が失われました。引っ張って更新してください。",
+  "feedback.stepStatement": "記述",
+  "feedback.stepQuestions": "質問",
+  "feedback.stepObservations": "観察",
+  "feedback.stepOpinions": "意見",
+  "feedback.placeholderStatement": "何が一番心に残りましたか？",
+  "feedback.placeholderQuestions": "どんな疑問が生まれましたか？",
+  "feedback.placeholderObservations": "何を観察しましたか？",
+  "feedback.placeholderOpinions": "あなたの意見は？",
+  "feedback.submitFailed": "送信に失敗しました",
+  "feedback.clipNotReady": "このクリップはまだフィードバックを受け付けられません。",
+  "feedback.next": "次へ →",
+  "feedback.submit": "送信",
+  "feedback.retryMessage": "ネットワークまたはタイムアウトエラーのため送信に失敗しました。"
 }

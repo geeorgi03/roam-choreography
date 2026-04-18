@@ -236,5 +236,18 @@
   "spatial.addReference": "add reference",
   "spatial.connectionLost": "Connection lost. Pull to refresh.",
   "firstSession.invalidUrl": "Please enter a valid YouTube or Bilibili URL",
-  "firstSession.offlineError": "No internet connection. Check your connection and try again."
+  "firstSession.offlineError": "No internet connection. Check your connection and try again.",
+  "feedback.stepStatement": "Statement",
+  "feedback.stepQuestions": "Questions",
+  "feedback.stepObservations": "Observations",
+  "feedback.stepOpinions": "Opinions",
+  "feedback.placeholderStatement": "What stayed with you?",
+  "feedback.placeholderQuestions": "What questions does this raise?",
+  "feedback.placeholderObservations": "What did you observe?",
+  "feedback.placeholderOpinions": "What is your opinion?",
+  "feedback.submitFailed": "Submit failed",
+  "feedback.clipNotReady": "Clip is not ready to receive feedback yet.",
+  "feedback.next": "Next →",
+  "feedback.submit": "Submit",
+  "feedback.retryMessage": "Submit failed due to a network or timeout error."
 }

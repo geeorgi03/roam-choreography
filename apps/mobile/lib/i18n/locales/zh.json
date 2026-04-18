@@ -234,5 +234,18 @@
   "spatial.placeholderRelationship": "引导 · 跟随 · 抵抗 · 呼应",
   "spatial.placeholderNote": "添加语音或文字备注…",
   "spatial.addReference": "添加参考",
-  "spatial.connectionLost": "连接已断开。下拉以刷新。"
+  "spatial.connectionLost": "连接已断开。下拉以刷新。",
+  "feedback.stepStatement": "陈述",
+  "feedback.stepQuestions": "问题",
+  "feedback.stepObservations": "观察",
+  "feedback.stepOpinions": "观点",
+  "feedback.placeholderStatement": "什么让你印象最深？",
+  "feedback.placeholderQuestions": "这引发了你哪些问题？",
+  "feedback.placeholderObservations": "你观察到了什么？",
+  "feedback.placeholderOpinions": "你的看法是什么？",
+  "feedback.submitFailed": "提交失败",
+  "feedback.clipNotReady": "该片段尚未就绪，暂时无法接收反馈。",
+  "feedback.next": "下一步 →",
+  "feedback.submit": "提交",
+  "feedback.retryMessage": "由于网络或超时错误，提交失败。"
 }
