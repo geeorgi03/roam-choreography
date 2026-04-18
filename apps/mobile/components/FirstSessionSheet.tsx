@@ -14,7 +14,7 @@ import { useSession } from '../lib/hooks/useSession';
 import { API_BASE } from '../lib/api';
 import type { Session } from '@roam/types';
 
-const colors = theme.light;
+const colors = theme.night;
 const spacing = theme.spacing;
 
 export interface FirstSessionSheetProps {
@@ -117,7 +117,7 @@ export function FirstSessionSheet({
 
   return (
     <BottomSheet
-      ref={bottomSheetRef as React.RefObject<BottomSheet | null>}
+      ref={bottomSheetRef as React.RefObject<BottomSheet>}
       index={-1}
       snapPoints={['70%']}
       enablePanDownToClose
@@ -134,7 +134,7 @@ export function FirstSessionSheet({
             <TextInput
               ref={nameInputRef}
               autoFocus
-              placeholder="晴天 project"
+              placeholder="light feet study"
               placeholderTextColor={colors.muted}
               style={[
                 styles.input,

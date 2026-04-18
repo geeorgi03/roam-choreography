@@ -20,13 +20,13 @@ import { MMKV } from 'react-native-mmkv';
 import NetInfo from '@react-native-community/netinfo';
 
 import { API_BASE } from '../../lib/api';
-import { cacheSession, getCachedSessionList } from '../../lib/sessionCache';
+import { cacheSession, cacheSessionList, getCachedSessionList } from '../../lib/sessionCache';
 import { useTranslation } from '../../lib/i18n';
 
 const homeStorage = new MMKV({ id: 'home-state' });
 const LAST_SESSION_KEY = 'last_session_id';
 
-const colors = theme.light;
+const colors = theme.night;
 const spacing = theme.spacing;
 
 function mapCachedToSession(
@@ -48,11 +48,10 @@ export default function HomeScreen() {
   const createSheetRef = useRef<BottomSheet | null>(null);
   const firstSessionSheetRef = useRef<BottomSheet | null>(null);
   const paywallSheetRef = useRef<BottomSheet | null>(null);
-  const redirected = useRef<boolean>(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [inboxCount, setInboxCount] = useState<number>(0);
-  const cachedSessionId = useRef<string | null>(null);
   // TODO(boot): start false so BottomSheet doesn't mount on first render before Reanimated is ready
   const [sheetsReady, setSheetsReady] = useState(false);
 
@@ -61,23 +60,19 @@ export default function HomeScreen() {
     return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => {
-    const cachedId = homeStorage.getString(LAST_SESSION_KEY);
-    if (cachedId && !redirected.current) {
-      cachedSessionId.current = cachedId;
-      redirected.current = true;
-      router.replace(`/session/${cachedId}`);
-    }
-  }, []);
-
   const fetchSessions = async () => {
     if (!session?.access_token) {
       setLoading(false);
       return;
     }
+    setLoadError(null);
     const netState = await NetInfo.fetch();
     if (!netState.isConnected) {
-      setSessions(getCachedSessionList().map(mapCachedToSession));
+      const cachedSessions = getCachedSessionList().map(mapCachedToSession);
+      setSessions(cachedSessions);
+      if (cachedSessions.length === 0) {
+        setLoadError(t('home.offlineNoCache'));
+      }
       setLoading(false);
       return;
     }
@@ -105,6 +100,13 @@ export default function HomeScreen() {
       if (res.ok && data && typeof data === 'object' && 'sessions' in data) {
         const sessionsData = (data as { sessions: Session[] }).sessions ?? [];
         setSessions(sessionsData);
+        cacheSessionList(
+          sessionsData.map((s) => ({
+            id: s.id,
+            name: s.name,
+            created_at: s.created_at,
+          }))
+        );
         sessionsData.forEach((s) => {
           cacheSession(s.id, {
             session: { name: s.name, phrase: null, quality_target: null },
@@ -113,18 +115,8 @@ export default function HomeScreen() {
             cachedAt: Date.now(),
           });
         });
-        
         if (sessionsData.length > 0) {
-          const latestSessionId = sessionsData[0].id;
-          homeStorage.set(LAST_SESSION_KEY, latestSessionId);
-          
-          // Reconcile stale cache: if cached ID differs from API result, redirect again
-          if (cachedSessionId.current && cachedSessionId.current !== latestSessionId) {
-            router.replace(`/session/${latestSessionId}`);
-          } else if (!redirected.current) {
-            redirected.current = true;
-            router.replace(`/session/${latestSessionId}`);
-          }
+          homeStorage.set(LAST_SESSION_KEY, sessionsData[0].id);
         } else {
           homeStorage.delete(LAST_SESSION_KEY);
         }
@@ -133,6 +125,9 @@ export default function HomeScreen() {
       // API unreachable, timeout, or network error
       const cachedSessions = getCachedSessionList().map(mapCachedToSession);
       setSessions(cachedSessions.length > 0 ? cachedSessions : []);
+      if (cachedSessions.length === 0) {
+        setLoadError(t('home.unableToLoadSessions'));
+      }
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);
@@ -165,10 +160,19 @@ export default function HomeScreen() {
     fetchInboxCount();
   }, [session?.access_token, sessions.length]);
 
-  const handleCreated = (newSession: Session) => {
-    setSessions((prev) => [newSession, ...prev]);
+  const mapCreatedSession = (
+    created: Pick<Session, 'id' | 'name' | 'created_at' | 'user_id'>
+  ): Session => ({
+    ...created,
+    phrase: null,
+    quality_target: null,
+  });
+
+  const handleCreated = (newSession: Pick<Session, 'id' | 'name' | 'created_at' | 'user_id'>) => {
+    const mapped = mapCreatedSession(newSession);
+    setSessions((prev) => [mapped, ...prev]);
     createSheetRef.current?.close();
-    router.push(`/session/${newSession.id}`);
+    router.push(`/session/${mapped.id}`);
   };
 
   const formatDate = (iso: string) => {
@@ -201,12 +205,12 @@ export default function HomeScreen() {
                 <View style={styles.twoDoorRow}>
                   <TouchableOpacity
                     style={styles.doorCard}
-                    onPress={() => router.push('/library')}
+                    onPress={() => router.push('/session/camera')}
                     activeOpacity={0.85}
                   >
-                    <Text style={styles.doorIcon}>📚</Text>
-                    <Text style={styles.doorTitle}>{t('home.browseLibrary')}</Text>
-                    <Text style={styles.doorSub}>{t('home.exploreCollection')}</Text>
+                    <Text style={styles.doorIcon}>●</Text>
+                    <Text style={styles.doorTitle}>{t('home.record')}</Text>
+                    <Text style={styles.doorSub}>{t('home.captureFirstSub')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.doorCard}
@@ -228,6 +232,14 @@ export default function HomeScreen() {
                       {t('home.unorganisedClips').replace('{count}', String(inboxCount))}
                     </Text>
                   </TouchableOpacity>
+                ) : null}
+                {loadError ? (
+                  <View style={styles.errorWrap}>
+                    <Text style={styles.errorText}>{loadError}</Text>
+                    <TouchableOpacity style={styles.retryBtn} onPress={fetchSessions}>
+                      <Text style={styles.retryBtnText}>{t('home.retry')}</Text>
+                    </TouchableOpacity>
+                  </View>
                 ) : null}
               </>
             )}
@@ -312,7 +324,7 @@ export default function HomeScreen() {
   );
 }
 
-const themeColors = theme.light;
+const themeColors = theme.night;
 
 const styles = StyleSheet.create({
   container: {
@@ -366,7 +378,7 @@ const styles = StyleSheet.create({
     borderRadius: spacing.radiusMd,
     padding: 16,
   },
-  doorIcon: { fontSize: 20, marginBottom: 10 },
+  doorIcon: { fontSize: 22, marginBottom: 10, color: colors.capture, fontWeight: '800' },
   doorTitle: { color: colors.active, fontSize: 16, fontWeight: '800', marginBottom: 4 },
   doorSub: { color: colors.muted, fontSize: 13, lineHeight: 18 },
   inboxPill: {
@@ -379,6 +391,29 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   inboxPillText: { color: colors.active, fontWeight: '700' },
+  errorWrap: {
+    marginTop: 16,
+    alignItems: 'center',
+    gap: 10,
+  },
+  errorText: {
+    color: colors.muted,
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  retryBtn: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: colors.chrome,
+  },
+  retryBtnText: {
+    color: colors.active,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   inboxBanner: {
     flexDirection: 'row',
     alignItems: 'center',

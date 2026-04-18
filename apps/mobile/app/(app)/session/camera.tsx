@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import { useSession } from '../../../lib/hooks/useSession';
 import { saveClip } from '../../../lib/saveClip';
 import { supabase } from '../../../lib/supabase';
 
-const colors = theme.light;
+const colors = theme.night;
 const spacing = theme.spacing;
 
 export default function CameraScreen() {
@@ -276,7 +276,7 @@ export default function CameraScreen() {
           if (dualHealthy) {
             const nextDualPairId = crypto.randomUUID();
             setDualPairId(nextDualPairId);
-            setFrontRecordedUri(frontResult.uri);
+            setFrontRecordedUri(frontResult?.uri ?? null);
           } else {
             setDualPairId(undefined);
             setFrontRecordedUri(null);
@@ -543,7 +543,7 @@ export default function CameraScreen() {
   );
 }
 
-const t = theme.light;
+const t = theme.night;
 const overlayDark = 'rgba(58,52,45,0.82)' as const;
 const overlayDarkSoft = 'rgba(58,52,45,0.75)' as const;
 const RECORD_RING = 'rgba(255,255,255,0.5)' as const;

@@ -98,6 +98,17 @@ export interface FeedbackRequest {
     status: 'open' | 'closed';
     created_at: ISODateTime;
 }
+export interface StructuredFeedback {
+    id: UUID;
+    session_id: UUID;
+    clip_id: UUID;
+    user_id: UUID;
+    statement: string | null;
+    questions: string | null;
+    observations: string | null;
+    opinions: string | null;
+    created_at: ISODateTime;
+}
 export type TextPayload = {
     x: number;
     y: number;
