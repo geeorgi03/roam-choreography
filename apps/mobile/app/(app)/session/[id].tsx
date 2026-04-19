@@ -20,6 +20,7 @@ import { PaywallSheet } from '../../../components/PaywallSheet';
 import { theme } from '../../../lib/theme';
 import { useTheme, type ThemePalette } from '../../../lib/contexts/ThemeContext';
 import { setActiveSessionId } from '../../../lib/storage';
+import { setLastOpenedSessionId } from '../../../lib/homeHubState';
 import { addUploadQueueListener } from '../../../services/uploadQueue';
 
 function SessionShellContent() {
@@ -122,6 +123,7 @@ function SessionShellContent() {
   useEffect(() => {
     if (id) {
       setActiveSessionId(id);
+      setLastOpenedSessionId(id);
     }
   }, [id]);
 

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { getActiveSessionId } from '../../lib/storage';
-import { theme } from '../../lib/theme';
 import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
+import { useTranslation } from '../../lib/i18n';
 
 export default function MapScreen() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => createMapStyles(colors), [colors]);
   const redirectToActiveSession = useCallback(() => {
@@ -23,7 +24,7 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>No active session. Start one from Session tab.</Text>
+      <Text style={styles.text}>{t('map.noActiveSession')}</Text>
     </View>
   );
 }

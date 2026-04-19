@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Roam - Choreography App for Dancers</title>
+    <meta name="description" content="Roam remembers so the choreographer doesn't have to. A mobile-first choreography app designed to help dancers and choreographers capture, organize, and refine their creative work." />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0c;
+        --fg: #f3f3f4;
+        --muted: rgba(243, 243, 244, 0.72);
+        --card: rgba(255, 255, 255, 0.06);
+        --border: rgba(255, 255, 255, 0.12);
+        --accent: #ff7850;
+        --accent-light: rgba(255, 120, 80, 0.12);
+        --max: 1120px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        background: radial-gradient(1200px 800px at 20% 0%, var(--accent-light), transparent 55%),
+          radial-gradient(900px 600px at 90% 10%, rgba(120, 160, 255, 0.12), transparent 55%), var(--bg);
+        color: var(--fg);
+        line-height: 1.6;
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(10px);
+        background: rgba(11, 11, 12, 0.72);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .wrap {
+        max-width: var(--max);
+        margin: 0 auto;
+        padding: 18px 16px;
+      }
+
+      .title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      h1 {
+        font-size: 28px;
+        letter-spacing: 0.02em;
+        margin: 0;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--fg) 0%, var(--accent) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .tagline {
+        font-size: 18px;
+        color: var(--muted);
+        font-weight: 500;
+        margin: 8px 0 0;
+        font-style: italic;
+      }
+
+      .sub {
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.6;
+        max-width: 78ch;
+      }
+
+      .pill {
+        font-size: 12px;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        padding: 6px 10px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+
+      .nav {
+        display: flex;
+        gap: 24px;
+        margin: 24px 0;
+        flex-wrap: wrap;
+      }
+
+      .nav a {
+        color: var(--fg);
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      .nav a:hover {
+        color: var(--accent);
+      }
+
+      main {
+        padding: 18px 0 44px;
+      }
+
+      section {
+        max-width: var(--max);
+        margin: 0 auto;
+        padding: 40px 16px;
+      }
+
+      .hero {
+        text-align: center;
+        padding: 60px 16px;
+      }
+
+      .hero h2 {
+        font-size: 48px;
+        margin: 0 0 16px;
+        font-weight: 800;
+        line-height: 1.1;
+      }
+
+      .hero p {
+        font-size: 20px;
+        color: var(--muted);
+        margin: 0 0 32px;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 24px;
+        margin: 48px 0;
+      }
+
+      .feature {
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 16px;
+        padding: 24px;
+        transition: transform 0.2s, border-color 0.2s;
+      }
+
+      .feature:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent);
+      }
+
+      .feature h3 {
+        margin: 0 0 12px;
+        font-size: 20px;
+        color: var(--accent);
+      }
+
+      .feature p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .sequence {
+        display: grid;
+        gap: 32px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      figure {
+        margin: 0;
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      }
+
+      .screen-container {
+        position: relative;
+        width: 100%;
+        max-height: 70vh;
+        overflow: hidden;
+        background: #000;
+      }
+
+      figcaption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 20px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 14px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .idx {
+        font-variant-numeric: tabular-nums;
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 18px;
+        background: rgba(255, 120, 80, 0.1);
+        padding: 4px 12px;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 120, 80, 0.3);
+      }
+
+      .screen-title {
+        font-weight: 600;
+        color: var(--fg);
+        font-size: 16px;
+      }
+
+      img {
+        width: 100%;
+        height: auto;
+        display: block;
+        background: #000;
+        object-fit: contain;
+        object-position: center;
+      }
+
+      @media (max-width: 768px) {
+        .sequence {
+          gap: 24px;
+          padding: 0 12px;
+        }
+        
+        .screen-container {
+          max-height: 60vh;
+        }
+        
+        figcaption {
+          padding: 12px 16px;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+        }
+        
+        .idx {
+          font-size: 14px;
+          padding: 2px 8px;
+        }
+        
+        .screen-title {
+          font-size: 14px;
+        }
+      }
+
+      .tech-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 16px;
+        margin: 24px 0;
+      }
+
+      .tech-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .tech-icon {
+        width: 24px;
+        height: 24px;
+        background: var(--accent);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+      }
+
+      .pain-points {
+        display: grid;
+        gap: 16px;
+        margin: 32px 0;
+      }
+
+      .pain-point {
+        border-left: 3px solid var(--accent);
+        padding-left: 20px;
+      }
+
+      .pain-point h4 {
+        margin: 0 0 8px;
+        color: var(--accent);
+        font-size: 16px;
+      }
+
+      .pain-point p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 60px;
+      }
+
+      footer .wrap {
+        padding-top: 14px;
+        padding-bottom: 18px;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.95em;
+        color: rgba(243, 243, 244, 0.92);
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+
+      .cta {
+        display: inline-block;
+        background: var(--accent);
+        color: var(--bg);
+        padding: 12px 24px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: transform 0.2s, background-color 0.2s;
+      }
+
+      .cta:hover {
+        transform: translateY(-1px);
+        background: #ff6336;
+      }
+
+      @media (max-width: 768px) {
+        .hero h2 {
+          font-size: 32px;
+        }
+        
+        .hero p {
+          font-size: 16px;
+        }
+        
+        h1 {
+          font-size: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="title">
+          <div>
+            <h1>Roam</h1>
+            <p class="tagline">"Roam remembers so the choreographer doesn't have to."</p>
+          </div>
+          <div class="pill">v1.0</div>
+        </div>
+        <p class="sub">
+          A mobile-first choreography app designed to help dancers and choreographers capture, organize, and refine their creative work. Every feature exists to eliminate friction and let artists focus on what matters: the movement.
+        </p>
+        <nav class="nav">
+          <a href="#overview">Overview</a>
+          <a href="#features">Features</a>
+          <a href="#problem">Problem</a>
+          <a href="#tech">Technology</a>
+          <a href="#screens">Design Screens</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h2>The Canvas for Choreography</h2>
+        <p>Dance is the only major art form with no persistent memory. Roam fixes that. It holds the work so the artist can focus on creating.</p>
+        <a href="#screens" class="cta">View Design Screens</a>
+      </section>
+
+      <section id="overview">
+        <div class="wrap">
+          <h2>What Is Roam?</h2>
+          <p>Roam is a comprehensive choreography tool that addresses the core problems dancers face every day:</p>
+          
+          <div class="features">
+            <div class="feature">
+              <h3> Capture-First Entry</h3>
+              <p>Record ideas instantly, organize later. One tap to record, zero setup required. No more losing brilliant moments to setup friction.</p>
+            </div>
+            
+            <div class="feature">
+              <h3>Session Workbench</h3>
+              <p>All creation tools in one unified timeline view. Multi-track timeline with music, clips, notes, and loop regions.</p>
+            </div>
+            
+            <div class="feature">
+              <h3>Voice-First Notes</h3>
+              <p>Pin thoughts at timecodes without breaking creative flow. Text or voice notes attached to specific moments in the music.</p>
+            </div>
+            
+            <div class="feature">
+              <h3>Structured Feedback</h3>
+              <p>Share work with guided critique using the Liz Lerman method. Turn casual opinions into actionable feedback.</p>
+            </div>
+            
+            <div class="feature">
+              <h3>Formation Mapping</h3>
+              <p>Visual floor marks for dancer positioning. 2D top-down view for choreographing group formations.</p>
+            </div>
+            
+            <div class="feature">
+              <h3>Reference Integration</h3>
+              <p>Import YouTube, Bilibili, and Xiaohongshu videos directly. Mirror, slow motion, and A-B loop without leaving the app.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="problem">
+        <div class="wrap">
+          <h2>The Problems Roam Solves</h2>
+          <p>These pain points happened in a single rehearsal session. They're not theoretical - they're daily realities for dancers:</p>
+          
+          <div class="pain-points">
+            <div class="pain-point">
+              <h4>1. Loop Resets</h4>
+              <p>Bilibili's A-B loop resets on every interaction. 20-30 minutes lost per session to manual re-scrubbing. This is the single highest time cost in active rehearsal.</p>
+            </div>
+            
+            <div class="pain-point">
+              <h4>2. Can't Save Reference Moments</h4>
+              <p>A move spotted in a tutorial video cannot be bookmarked. It must be re-found every time. Mental overhead compounds across a session.</p>
+            </div>
+            
+            <div class="pain-point">
+              <h4>3. Ideas Evaporate Between Partners</h4>
+              <p>Person A proposes something, isn't sure of the exact form. Person B waits. No shared working memory. The idea is gone before evaluation.</p>
+            </div>
+            
+            <div class="pain-point">
+              <h4>4. Composed Parts Get Abandoned</h4>
+              <p>Invented sections aren't attached to song structure. At assembly time, they have no home. They're left out of the final piece.</p>
+            </div>
+            
+            <div class="pain-point">
+              <h4>5. Solo Work Stalls Without Movement Bank</h4>
+              <p>Alone in the studio with a song you know deeply, you freeze. No record of your own movements. No scaffolding to build from.</p>
+            </div>
+            
+            <div class="pain-point">
+              <h4>6. The Creative Freeze</h4>
+              <p>The inspiration is there, but there's no structure to hold the creative energy. No place for the half-formed thing to land before it disappears.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tech">
+        <div class="wrap">
+          <h2>Technology Stack</h2>
+          <p>Built with modern tools for reliability, performance, and cross-platform compatibility:</p>
+          
+          <div class="tech-grid">
+            <div class="tech-item">
+              <div class="tech-icon">M</div>
+              <div>
+                <strong>Mobile:</strong> Expo React Native
+                <br><small>Single codebase for iOS/Android</small>
+              </div>
+            </div>
+            
+            <div class="tech-item">
+              <div class="tech-icon">A</div>
+              <div>
+                <strong>API:</strong> Node.js + Hono
+                <br><small>Lightweight, fast backend</small>
+              </div>
+            </div>
+            
+            <div class="tech-item">
+              <div class="tech-icon">D</div>
+              <div>
+                <strong>Database:</strong> Supabase
+                <br><small>PostgreSQL with auth & storage</small>
+              </div>
+            </div>
+            
+            <div class="tech-item">
+              <div class="tech-icon">V</div>
+              <div>
+                <strong>Video:</strong> Mux
+                <br><small>Upload, encoding, CDN playback</small>
+              </div>
+            </div>
+            
+            <div class="tech-item">
+              <div class="tech-icon">W</div>
+              <div>
+                <strong>Web:</strong> Next.js
+                <br><small>Share pages with SSR</small>
+              </div>
+            </div>
+            
+            <div class="tech-item">
+              <div class="tech-icon">P</div>
+              <div>
+                <strong>Python:</strong> Audio Analysis
+                <br><small>BPM detection, beat grids</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="screens">
+        <div class="wrap">
+          <h2>App Design Screens</h2>
+          <p>The complete Roam app design flow, optimized for web viewing. Scroll through each screen to see the full user experience:</p>
+        </div>
+        
+        <div class="sequence">
+          <figure>
+            <div class="screen-container">
+              <img
+                src="App%20Build/ROAM_Design_Screens%20Complete_page-0001.jpg"
+                alt="Roam design screen 1 of 9 - Onboarding and home screen"
+                loading="eager"
+                decoding="async"
+              />
+            </div>
+            <figcaption>
+              <span class="idx">01</span>
+              <span class="screen-title">Onboarding & Home Screen</span>
+            </figcaption>
+          </figure>
+
+          <figure>
+            <div class="screen-container">
+              <img
+                src="App%20Build/ROAM_Design_Screens%20Complete_page-0002.jpg"
+                alt="Roam design screen 2 of 9 - Session creation and music setup"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <figcaption>
+              <span class="idx">02</span>
+              <span class="screen-title">Session Creation & Music Setup</span>
+            </figcaption>
+          </figure>
+
+          <figure>
+            <div class="screen-container">
+              <img
+                src="App%20Build/ROAM_Design_Screens%20Complete_page-0003.jpg"
+                alt="Roam design screen 3 of 9 - Session workbench timeline"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <figcaption>
+              <span class="idx">03</span>
+              <span class="screen-title">Session Workbench Timeline</span>
+            </figcaption>
+          </figure>
+
+          <figure>
+            <div class="screen-container">
+              <img
+                src="App%20Build/ROAM_Design_Screens%20Complete_page-0004.jpg"
+                alt="Roam design screen 4 of 9 - Capture and recording"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <figcaption>
+              <span class="idx">04</span>
+              <span class="screen-title">Capture & Recording</span>
+            </figcaption>
+          </figure>
+
+          <figure>
+            <div class="screen-container">
+              <img
+                src="App%20Build/ROAM_Design_Screens%20Complete_page-0005.jpg"
+                alt="Roam design screen 5 of 9 - Clip organization and tagging"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <figcaption>
+              <span class="idx">05</span>
+              <span class="screen-title">Clip Organization & Tagging</span>
+            </figcaption>
+          </figure>
+
+          <figure>
+            <div class="screen-container">
+              <img
+                src="App%20Build/ROAM_Design_Screens%20Complete_page-0006.jpg"
+                alt="Roam design screen 6 of 9 - Song mapping and sections"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <figcaption>
+              <span class="idx">06</span>
+              <span class="screen-title">Song Mapping & Sections</span>
+            </figcaption>
+          </figure>
+
+          <figure>
+            <div class="screen-container">
+              <img
+                src="App%20Build/ROAM_Design_Screens%20Complete_page-0007.jpg"
+                alt="Roam design screen 7 of 9 - Feedback and sharing"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <figcaption>
+              <span class="idx">07</span>
+              <span class="screen-title">Feedback & Sharing</span>
+            </figcaption>
+          </figure>
+
+          <figure>
+            <div class="screen-container">
+              <img
+                src="App%20Build/ROAM_Design_Screens%20Complete_page-0008.jpg"
+                alt="Roam design screen 8 of 9 - Library and search"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <figcaption>
+              <span class="idx">08</span>
+              <span class="screen-title">Library & Search</span>
+            </figcaption>
+          </figure>
+
+          <figure>
+            <div class="screen-container">
+              <img
+                src="App%20Build/ROAM_Design_Screens%20Complete_page-0009.jpg"
+                alt="Roam design screen 9 of 9 - Advanced features"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <figcaption>
+              <span class="idx">09</span>
+              <span class="screen-title">Advanced Features</span>
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>© 2026 Roam - Built for choreographers, by people who understand the creative process.</p>
+        <p>Source folder: <code>C:\Users\Georges\Documents\Cursor 2 V3\App Build</code></p>
+      </div>
+    </footer>
+  </body>
+</html>

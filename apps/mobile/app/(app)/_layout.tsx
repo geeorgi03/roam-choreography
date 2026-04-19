@@ -1,48 +1,43 @@
 import { router, Tabs } from 'expo-router';
-import { TouchableOpacity, Text, View } from 'react-native';
+import { View } from 'react-native';
 import { getActiveSessionId } from '../../lib/storage';
 import { useInboxCount } from '../../lib/contexts/InboxCountContext';
 import { useTheme } from '../../lib/contexts/ThemeContext';
+import { useTranslation } from '../../lib/i18n';
+import { IconInbox } from '../../components/icons/SessionChromeIcons';
+import { AppTabHeaderRight } from '../../components/AppTabHeaderRight';
+import { HeaderBackButton } from '../../components/HeaderBackButton';
 
 export default function AppStackLayout() {
   const { count } = useInboxCount();
-  const { colors, toggleMode, mode } = useTheme();
+  const { colors } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Tabs
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerStyle: { backgroundColor: colors.ground },
         headerTintColor: colors.active,
         headerTitleStyle: { fontWeight: '700' },
         tabBarStyle: { backgroundColor: colors.ground },
         tabBarActiveTintColor: colors.active,
         tabBarInactiveTintColor: colors.muted,
-      }}
+        headerRight: () => <AppTabHeaderRight showProfileLink={route.name !== 'profile'} />,
+        headerLeft: route.name === 'profile' ? () => <HeaderBackButton /> : undefined,
+      })}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Session',
-          headerRight: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                onPress={toggleMode}
-                style={{ padding: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel={mode === 'night' ? 'Switch to day mode' : 'Switch to night mode'}
-              >
-                <Text style={{ fontSize: 20 }}>{mode === 'night' ? '☀' : '🌙'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push('/profile')} style={{ padding: 8 }}>
-                <Text style={{ color: colors.active, fontSize: 20 }}>⚙</Text>
-              </TouchableOpacity>
-            </View>
-          ),
+          title: t('tabs.home'),
         }}
       />
       <Tabs.Screen
         name="map"
-        options={{ title: 'Map' }}
+        options={{
+          title: t('tabs.song'),
+          tabBarLabel: t('tabs.song'),
+        }}
         listeners={{
           tabPress: (e) => {
             const activeSessionId = getActiveSessionId();
@@ -53,21 +48,21 @@ export default function AppStackLayout() {
           },
         }}
       />
-      <Tabs.Screen name="library" options={{ title: 'Library' }} />
+      <Tabs.Screen
+        name="library"
+        options={{
+          title: t('tabs.library'),
+        }}
+      />
       <Tabs.Screen
         name="inbox"
         options={{
-          title: 'Inbox',
+          title: t('tabs.inbox'),
           headerShown: true,
           tabBarIcon: ({ focused }) => (
-            <Text
-              style={{
-                color: focused ? colors.active : colors.muted,
-                fontSize: 18,
-              }}
-            >
-              🔔
-            </Text>
+            <View style={{ opacity: focused ? 1 : 0.55 }}>
+              <IconInbox size={22} color={focused ? colors.active : colors.muted} />
+            </View>
           ),
           tabBarBadge: count > 0 ? count : undefined,
         }}
@@ -76,7 +71,8 @@ export default function AppStackLayout() {
         name="profile"
         options={{
           href: null,
-          headerShown: false,
+          headerShown: true,
+          title: t('tabs.profile'),
         }}
       />
       <Tabs.Screen

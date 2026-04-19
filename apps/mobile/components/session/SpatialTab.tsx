@@ -17,9 +17,9 @@ import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useTranslation } from '../../lib/i18n';
 import { theme } from '../../lib/theme';
 import type { Moment, QualityData } from '@roam/types';
-const DOT_SIZE = 14;
+const DOT_SIZE = 16;
 const DOT_RADIUS = DOT_SIZE / 2;
-const SELECTED_DOT_SIZE = 20;
+const SELECTED_DOT_SIZE = 22;
 const PATH_TOUCH_RADIUS = 18;
 
 interface Dancer {
@@ -633,7 +633,7 @@ export function SpatialTab() {
     <View style={styles.container}>
       {/* Canvas zone */}
       <View style={styles.canvasZone}>
-        {/* Moment strip */}
+        <View style={styles.momentStripShell}>
         <ScrollView 
           horizontal 
           style={styles.momentStrip}
@@ -674,6 +674,7 @@ export function SpatialTab() {
             <Text style={styles.addMomentText}>+</Text>
           </TouchableOpacity>
         </ScrollView>
+        </View>
 
         <View style={styles.formationHint}>
           <Text style={styles.formationHintText}>{t('spatial.formationAutoSave')}</Text>
@@ -757,6 +758,7 @@ export function SpatialTab() {
               isToolSelected('position') && styles.toolButtonActive
             ]}
             onPress={() => setSelectedTool('position')}
+            activeOpacity={0.78}
           >
             <Text style={[
               styles.toolButtonText,
@@ -774,6 +776,7 @@ export function SpatialTab() {
             ]}
             onPress={() => setSelectedTool('path')}
             disabled={isToolLocked('path')}
+            activeOpacity={0.78}
           >
             <Text style={[
               styles.toolButtonText,
@@ -791,6 +794,7 @@ export function SpatialTab() {
             ]}
             onPress={() => setSelectedTool('relationship')}
             disabled={isToolLocked('relationship')}
+            activeOpacity={0.78}
           >
             <Text style={[
               styles.toolButtonText,
@@ -805,7 +809,7 @@ export function SpatialTab() {
       {/* Right panel */}
       <View style={styles.rightPanel}>
         <View style={styles.rightPanelHeader}>
-          <TouchableOpacity style={styles.groupChip} onPress={() => setActiveTab('group')}>
+          <TouchableOpacity style={styles.groupChip} onPress={() => setActiveTab('group')} activeOpacity={0.8}>
             <Text style={styles.groupChipText}>{t('spatial.groupJump')}</Text>
           </TouchableOpacity>
         </View>
@@ -827,7 +831,7 @@ export function SpatialTab() {
           {renderWaveformBars()}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.loopButtonRow} onPress={() => handleLoopToggle()}>
+        <TouchableOpacity style={styles.loopButtonRow} onPress={() => handleLoopToggle()} activeOpacity={0.8}>
           <Text
             style={[
               styles.loopButtonRowText,
@@ -942,12 +946,21 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     flexDirection: 'column',
     position: 'relative',
   },
-  momentStrip: {
-    height: 36,
+  momentStripShell: {
+    marginHorizontal: 10,
+    marginTop: 8,
+    marginBottom: 6,
+    borderRadius: 12,
     backgroundColor: colors.chrome,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  momentStrip: {
+    height: 32,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 4,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -967,9 +980,10 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     backgroundColor: colors.mineBg,
   },
   momentChipText: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
   },
   momentChipTextActive: {
     color: colors.active,
@@ -1021,9 +1035,12 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     left: 0,
     right: 0,
     textAlign: 'center',
-    fontSize: 7,
-    color: colors.inactive,
-    fontFamily: 'JetBrainsMono',
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   audienceLabel: {
     position: 'absolute',
@@ -1031,9 +1048,12 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     left: 0,
     right: 0,
     textAlign: 'center',
-    fontSize: 7,
-    color: colors.inactive,
-    fontFamily: 'JetBrainsMono',
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   dancerDot: {
     position: 'absolute',
@@ -1072,39 +1092,49 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
   },
   dancerInitial: {
     color: '#fff',
-    fontSize: 7,
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: theme.typography.bodyFamily,
   },
   dancerInitialSelected: {
-    fontSize: 8,
+    fontSize: 13,
   },
   toolBar: {
     position: 'absolute',
-    bottom: 12,
-    left: 0,
-    right: 0,
+    bottom: 14,
+    left: 12,
+    right: 12,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
   },
   toolButton: {
-    height: 32,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    borderWidth: 0.5,
+    minHeight: theme.typography.tool.controlMinHeight,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.ground,
+    backgroundColor: colors.chrome,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   toolButtonActive: {
     backgroundColor: colors.active,
     borderColor: colors.active,
+    shadowOpacity: 0.12,
+    elevation: 2,
   },
   toolButtonText: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.label,
     color: colors.muted,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
   },
   toolButtonTextActive: {
     color: toolActiveLabelColor,
@@ -1122,18 +1152,21 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     marginBottom: 8,
   },
   groupChip: {
-    height: 22,
-    paddingHorizontal: 8,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.mine,
+    backgroundColor: colors.mineBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   groupChipText: {
-    fontSize: 9,
+    fontSize: theme.typography.tool.caption,
     color: colors.mine,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
   },
   miniWaveform: {
     height: 48,
@@ -1148,14 +1181,16 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
   },
   loopButtonRow: {
     width: '100%',
-    height: 32,
+    minHeight: 40,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
+    paddingVertical: 6,
   },
   loopButtonRowText: {
-    fontSize: 9,
-    fontFamily: 'JetBrainsMono',
+    fontSize: theme.typography.tool.label,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
     textAlign: 'center',
   },
   waveformBar: {
@@ -1172,22 +1207,30 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     marginBottom: 8,
   },
   qualityHeaderText: {
-    fontSize: 9,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
   },
   expandButton: {
-    width: 20,
-    height: 20,
+    width: 32,
+    height: 32,
     borderRadius: 10,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.ground,
+    backgroundColor: colors.chrome,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
   expandButtonText: {
-    fontSize: 12,
+    fontSize: 16,
     color: colors.muted,
     fontWeight: '600',
   },
@@ -1198,18 +1241,21 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     gap: 4,
   },
   fieldLabel: {
-    fontSize: 8,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
   },
   fieldInput: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.body,
     color: colors.active,
-    padding: 6,
-    borderWidth: 0.5,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 4,
-    backgroundColor: colors.ground,
+    borderRadius: 10,
+    backgroundColor: colors.chrome,
+    fontFamily: theme.typography.bodyFamily,
   },
   noteField: {
     borderLeftWidth: 0,
@@ -1219,16 +1265,16 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     borderLeftColor: colors.mine,
   },
   noteInput: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.body,
     color: colors.active,
-    padding: 6,
-    borderWidth: 0.5,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 4,
-    backgroundColor: colors.ground,
-    fontFamily: 'Fraunces',
-    fontStyle: 'italic',
-    minHeight: 40,
+    borderRadius: 10,
+    backgroundColor: colors.chrome,
+    fontFamily: theme.typography.bodyFamily,
+    minHeight: 48,
   },
   referenceField: {
     padding: 8,
@@ -1239,23 +1285,27 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     alignItems: 'center',
   },
   referenceText: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
   },
   formationHint: {
     paddingHorizontal: 16,
     paddingVertical: 4,
   },
   formationHintText: {
-    fontSize: 11,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
   },
   syncStatusText: {
     marginTop: 2,
-    fontSize: 10,
-    color: colors.inactive,
-    fontFamily: 'JetBrainsMono',
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
   },
   connectionErrorBanner: {
     backgroundColor: connectionBannerBg,
@@ -1265,24 +1315,27 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     paddingVertical: 8,
   },
   connectionErrorText: {
-    fontSize: 12,
+    fontSize: theme.typography.tool.body,
     color: connectionText,
     textAlign: 'center',
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
   },
   connectionRetryButton: {
     marginTop: 8,
     alignSelf: 'center',
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: connectionText,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    minHeight: 40,
+    backgroundColor: colors.chrome,
   },
   connectionRetryText: {
-    fontSize: 11,
+    fontSize: theme.typography.tool.caption,
     color: connectionText,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
     fontWeight: '600',
   },
 });

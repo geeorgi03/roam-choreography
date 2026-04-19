@@ -26,6 +26,7 @@ import NetInfo from '@react-native-community/netinfo';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { InboxCountProvider } from '../lib/contexts/InboxCountContext';
 import { ThemeProvider } from '../lib/contexts/ThemeContext';
+import { LocaleProvider } from '../lib/i18n';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -322,7 +323,7 @@ function RootNavigator() {
     const t = setTimeout(() => {
       if (!session && !skipToAuth && !devBypass) {
         if (!pathname || !pathname.startsWith('/auth')) {
-          router.replace('/auth/sign-up');
+          router.replace('/auth/sign-in');
         }
         return;
       }
@@ -431,7 +432,9 @@ function AppTree() {
       <SafeFirstFrame>
         <View style={{ flex: 1 }}>
           <ThemeProvider>
-            <RootNavigator />
+            <LocaleProvider>
+              <RootNavigator />
+            </LocaleProvider>
           </ThemeProvider>
         </View>
       </SafeFirstFrame>
@@ -441,7 +444,9 @@ function AppTree() {
     <SafeFirstFrame>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
-          <RootNavigator />
+          <LocaleProvider>
+            <RootNavigator />
+          </LocaleProvider>
         </ThemeProvider>
       </GestureHandlerRootView>
     </SafeFirstFrame>

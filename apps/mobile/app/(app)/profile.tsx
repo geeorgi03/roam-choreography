@@ -8,6 +8,8 @@ import {
   TextInput,
   Alert,
   ScrollView,
+  Platform,
+  ActionSheetIOS,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
@@ -18,12 +20,22 @@ type SupabaseClient = Awaited<typeof import('../../lib/supabase')>['supabase'];
 
 import { API_BASE, getApiBaseOverride, setApiBaseOverride } from '../../lib/api';
 import { useTranslation } from '../../lib/i18n';
+import type { LocalePreference } from '../../lib/i18n';
 import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 const SUCCESS_URL = 'https://roamdance.com/billing/success';
 const PORTAL_RETURN_URL = 'https://roamdance.com/profile';
 
+const LOCALE_MENU: { value: LocalePreference; labelKey: string }[] = [
+  { value: 'system', labelKey: 'profile.langOptionSystem' },
+  { value: 'en', labelKey: 'profile.langOptionEn' },
+  { value: 'ja', labelKey: 'profile.langOptionJa' },
+  { value: 'ko', labelKey: 'profile.langOptionKo' },
+  { value: 'zh', labelKey: 'profile.langOptionZh' },
+  { value: 'km', labelKey: 'profile.langOptionKm' },
+];
+
 export default function ProfileScreen() {
-  const { t } = useTranslation();
+  const { t, preference, setLocalePreference } = useTranslation();
   const { colors, mode, toggleMode } = useTheme();
   const styles = useMemo(() => createProfileStyles(colors), [colors]);
   const { session } = useSession();
@@ -131,6 +143,47 @@ export default function ProfileScreen() {
     }
   };
 
+  const languageHint =
+    preference === 'system'
+      ? t('profile.languageHintSystem')
+      : t('profile.languageHintFixed').replace(
+          '{name}',
+          t(LOCALE_MENU.find((x) => x.value === preference)?.labelKey ?? 'profile.langOptionEn')
+        );
+
+  const openLanguagePicker = () => {
+    const labels = LOCALE_MENU.map((item) => t(item.labelKey));
+    const cancel = t('profile.langPickerCancel');
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: [...labels, cancel],
+          cancelButtonIndex: labels.length,
+          title: t('profile.chooseLanguage'),
+        },
+        (idx) => {
+          if (idx == null || idx === labels.length) return;
+          setLocalePreference(LOCALE_MENU[idx].value);
+        }
+      );
+      return;
+    }
+
+    Alert.alert(
+      t('profile.chooseLanguage'),
+      undefined,
+      [
+        ...LOCALE_MENU.map((item) => ({
+          text: t(item.labelKey),
+          onPress: () => setLocalePreference(item.value),
+        })),
+        { text: cancel, style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
+  };
+
   const handleSaveApiUrl = () => {
     const trimmed = apiUrlInput.trim();
     if (trimmed && !trimmed.startsWith('http')) {
@@ -184,6 +237,18 @@ export default function ProfileScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity
+        style={styles.appearanceRow}
+        onPress={openLanguagePicker}
+        activeOpacity={0.88}
+      >
+        <View>
+          <Text style={styles.appearanceLabel}>{t('profile.language')}</Text>
+          <Text style={styles.appearanceHint}>{languageHint}</Text>
+        </View>
+        <Text style={styles.languageChevron}>›</Text>
+      </TouchableOpacity>
 
       <View style={styles.section}>
         <Text style={styles.label}>{t('profile.currentPlan')}</Text>
@@ -335,6 +400,11 @@ function createProfileStyles(colors: ThemePalette) {
     fontSize: 13,
     fontWeight: '700',
     color: colors.active,
+  },
+  languageChevron: {
+    fontSize: 22,
+    color: colors.muted,
+    fontWeight: '600',
   },
   section: {
     marginBottom: 24,

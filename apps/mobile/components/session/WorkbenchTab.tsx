@@ -940,23 +940,29 @@ export function WorkbenchTab() {
                 {musicInfoMode === 'lyrics' ? (
                   <View style={styles.lyricsPanel}>
                     <Text style={styles.lyricsHint}>{t('workbench.lyricsHint')}</Text>
-                    <View style={styles.lyricsSearchRow}>
+                    <View style={styles.lyricsSearchBar}>
                       <TextInput
-                        style={styles.lyricsInput}
+                        style={styles.lyricsSearchInputInline}
                         placeholder={t('workbench.lyricsPlaceholder')}
                         placeholderTextColor={colors.muted}
                         value={lyricsQuery}
                         onChangeText={setLyricsQuery}
                         autoCapitalize="none"
                         autoCorrect={false}
+                        returnKeyType="search"
+                        onSubmitEditing={() => {
+                          if (!lyricsLoading) void handleFetchLyrics();
+                        }}
                       />
                       <TouchableOpacity
-                        style={styles.lyricsSearchBtn}
-                        onPress={handleFetchLyrics}
+                        style={[styles.lyricsSearchSubmit, lyricsLoading && styles.lyricsSearchSubmitDisabled]}
+                        onPress={() => void handleFetchLyrics()}
                         disabled={lyricsLoading}
-                        activeOpacity={0.8}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('workbench.findLyrics')}
                       >
-                        <Text style={styles.lyricsSearchBtnText}>
+                        <Text style={styles.lyricsSearchSubmitText}>
                           {lyricsLoading ? t('workbench.loadingLyrics') : t('workbench.findLyrics')}
                         </Text>
                       </TouchableOpacity>
@@ -1465,29 +1471,38 @@ function createWorkbenchStyles(colors: ThemePalette) {
     color: colors.muted,
     fontSize: 11,
   },
-  lyricsSearchRow: {
+  lyricsSearchBar: {
     flexDirection: 'row',
-    gap: 8,
     alignItems: 'center',
-  },
-  lyricsInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: spacing.radiusSm,
+    minHeight: 42,
+    borderRadius: spacing.radiusLg,
     backgroundColor: colors.ground,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingLeft: 12,
+    paddingRight: 4,
+    gap: 4,
+  },
+  lyricsSearchInputInline: {
+    flex: 1,
+    fontSize: 13,
     color: colors.active,
-    fontSize: 12,
-    paddingHorizontal: 10,
     paddingVertical: 8,
+    paddingRight: 6,
   },
-  lyricsSearchBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: spacing.radiusSm,
+  lyricsSearchSubmit: {
+    height: 32,
+    minWidth: 56,
+    paddingHorizontal: 12,
+    borderRadius: 10,
     backgroundColor: colors.active,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  lyricsSearchBtnText: {
+  lyricsSearchSubmitDisabled: {
+    opacity: 0.55,
+  },
+  lyricsSearchSubmitText: {
     color: '#fff',
     fontSize: 11,
     fontWeight: '700',

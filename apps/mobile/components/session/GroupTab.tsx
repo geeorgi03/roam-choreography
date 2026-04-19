@@ -1,14 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, Image, Animated, Share, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  FlatList,
+  Image,
+  Animated,
+  Share,
+  Alert,
+  Pressable,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
 import { useGroupRealtime } from '../../lib/hooks/useGroupRealtime';
 import { supabase } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import { API_BASE } from '../../lib/api';
-
-const colors = theme.light;
 
 interface Dancer {
   id: string;
@@ -59,7 +71,7 @@ const DANCER_POSITION_FALLBACKS: Array<{ top: number; left: number }> = [
 ];
 
 const FALLBACK_DANCERS: Dancer[] = [
-  { id: 'd1', userId: 'd1', name: 'Amber', color: '#7FD1BF', online: true, positionX: null, positionY: null, positionNote: null },
+  { id: 'd1', userId: 'd1', name: 'Amber', color: theme.light.mine, online: true, positionX: null, positionY: null, positionNote: null },
   { id: 'd2', userId: 'd2', name: 'Jules', color: '#F08A6C', online: true, positionX: null, positionY: null, positionNote: null },
   { id: 'd3', userId: 'd3', name: 'Maya', color: '#8C6CE7', online: false, positionX: null, positionY: null, positionNote: null },
   { id: 'd4', userId: 'd4', name: 'Noah', color: '#56B3FF', online: false, positionX: null, positionY: null, positionNote: null },
@@ -91,6 +103,8 @@ function getDancerForClip(clip: ClipIdentity, dancers: Dancer[], participants: A
 }
 
 export function GroupTab() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createGroupStyles(colors), [colors]);
   const router = useRouter();
   const { share_token, token } = useLocalSearchParams<{ share_token?: string; token?: string }>();
   const inviteShareToken =
@@ -146,7 +160,7 @@ export function GroupTab() {
   const participantByUserIdRef = useRef<Map<string, (typeof participants)[number]>>(new Map());
   const setActiveMomentRef = useRef(setActiveMoment);
   const setActiveSectionRef = useRef(setActiveSection);
-  const myPresenceRef = useRef<{ name: string; color: string }>({ name: 'User', color: colors.mine });
+  const myPresenceRef = useRef<{ name: string; color: string }>({ name: 'User', color: theme.light.mine });
   const suppressFormationEmitRef = useRef(false);
   const submittedRef = useRef(false);
   const myUserId = myParticipant?.user_id ?? session?.user?.id ?? null;
@@ -788,7 +802,7 @@ export function GroupTab() {
               >
                 <View style={[styles.rosterDot, { backgroundColor: dancer.color, opacity: dancer.online ? 1 : 0.3 }]} />
                 <Text style={styles.rosterName}>{dancer.name}</Text>
-                <Text style={styles.rosterStatus}>{dancer.online ? '● active' : 'offline'}</Text>
+                <Text style={styles.rosterStatus}>{dancer.online ? 'Live' : 'Offline'}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -822,9 +836,14 @@ export function GroupTab() {
             </ScrollView>
           </View>
 
-          <TouchableOpacity style={styles.recordFab} onPress={handleRecordPress}>
+          <Pressable
+            style={({ pressed }) => [styles.recordFab, styles.recordFabDocked, pressed && styles.recordFabPressed]}
+            onPress={handleRecordPress}
+            accessibilityRole="button"
+            accessibilityLabel="Record"
+          >
             <View style={styles.recordFabInner} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     );
@@ -935,16 +954,22 @@ export function GroupTab() {
         <View style={styles.dancerFabContainer}>
           <Text style={styles.dancerFabLabel}>record your take</Text>
           <Text style={styles.dancerFabSublabel}>visible to the group</Text>
-          <TouchableOpacity style={styles.recordFab} onPress={handleRecordPress}>
+          <Pressable
+            style={({ pressed }) => [styles.recordFab, pressed && styles.recordFabPressed]}
+            onPress={handleRecordPress}
+            accessibilityRole="button"
+            accessibilityLabel="Record your take"
+          >
             <View style={styles.recordFabInner} />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+function createGroupStyles(colors: ThemePalette) {
+  return StyleSheet.create({
   container: { flex: 1, flexDirection: 'row', backgroundColor: colors.ground },
   choreographerHeader: {
     position: 'absolute',
@@ -978,27 +1003,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionChip: {
-    height: 20,
-    paddingHorizontal: 6,
-    marginRight: 4,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 6,
     borderRadius: 10,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.ground,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sectionChipActive: { borderColor: colors.mine, backgroundColor: colors.mineBg },
-  sectionChipText: { fontSize: 8, color: colors.muted, fontWeight: '500' },
+  sectionChipText: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
+  },
   sectionChipTextActive: { color: colors.active },
   floorCanvas: { flex: 1, backgroundColor: '#faf8f5', position: 'relative' },
   gridLine: { position: 'absolute', backgroundColor: '#ede8e0' },
   horizontalGridLine: { height: 0.5, left: 0 },
   verticalGridLine: { width: 0.5, top: 0 },
-  backstageLabel: { position: 'absolute', top: 8, left: 0, right: 0, textAlign: 'center', fontSize: 7, color: colors.inactive, fontFamily: 'JetBrainsMono' },
-  audienceLabel: { position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center', fontSize: 7, color: colors.inactive, fontFamily: 'JetBrainsMono' },
-  dancerDot: { position: 'absolute', width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  dancerInitial: { color: '#fff', fontSize: 7, fontWeight: 'bold' },
+  backstageLabel: {
+    position: 'absolute',
+    top: 8,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
+  },
+  audienceLabel: {
+    position: 'absolute',
+    bottom: 8,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
+  },
+  dancerDot: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dancerInitial: {
+    color: '#fff',
+    fontSize: theme.typography.tool.caption,
+    fontWeight: '700',
+    fontFamily: theme.typography.bodyFamily,
+  },
   momentStrip: {
     height: 32,
     backgroundColor: colors.chrome,
@@ -1009,20 +1078,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   momentChip: {
-    height: 20,
-    paddingHorizontal: 6,
-    marginRight: 4,
-    borderRadius: 10,
-    borderWidth: 0.5,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 6,
+    borderRadius: 12,
+    borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.ground,
     alignItems: 'center',
     justifyContent: 'center',
   },
   momentChipActive: { borderColor: colors.mine, backgroundColor: colors.mineBg },
-  momentChipText: { fontSize: 8, color: colors.muted, fontWeight: '500' },
+  momentChipText: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
+  },
   momentChipTextActive: { color: colors.active },
-  renameInput: { fontSize: 8, color: colors.active, fontWeight: '500', textAlign: 'center', minWidth: 40 },
+  renameInput: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.active,
+    fontWeight: '600',
+    textAlign: 'center',
+    minWidth: 48,
+    fontFamily: theme.typography.bodyFamily,
+  },
   rightPanel: { flex: 0.43, backgroundColor: colors.chrome, padding: 12, position: 'relative' },
   miniWaveform: {
     height: 44,
@@ -1037,7 +1119,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   waveformBar: { width: 2, borderRadius: 1 },
-  loopStatus: { fontSize: 9, color: colors.muted, marginBottom: 12, minHeight: 12 },
+  loopStatus: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    marginBottom: 12,
+    minHeight: 16,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+  },
   roster: { flex: 1, marginBottom: 12 },
   rosterRow: {
     height: 36,
@@ -1055,28 +1144,109 @@ const styles = StyleSheet.create({
   rosterStatus: { fontSize: 11, color: colors.muted },
   rosterRowSelected: { backgroundColor: colors.mineBg, borderColor: colors.mine },
   broadcastRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  broadcastInput: { flex: 1, fontSize: 11, color: colors.muted, padding: 8, borderWidth: 0.5, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.ground },
-  charCount: { fontSize: 9, color: colors.muted },
-  broadcastButton: { paddingHorizontal: 8, paddingVertical: 6 },
-  broadcastButtonText: { color: colors.mine, fontWeight: '700', fontSize: 11 },
+  broadcastInput: {
+    flex: 1,
+    fontSize: theme.typography.tool.body,
+    color: colors.active,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    backgroundColor: colors.chrome,
+    fontFamily: theme.typography.bodyFamily,
+  },
+  charCount: { fontSize: theme.typography.tool.caption, color: colors.muted, fontFamily: theme.typography.bodyFamily },
+  broadcastButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: colors.mine,
+    borderWidth: 1,
+    borderColor: colors.mine,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  broadcastButtonText: { color: '#ffffff', fontWeight: '700', fontSize: theme.typography.tool.label, fontFamily: theme.typography.bodyFamily },
   broadcastHint: { fontSize: 10, color: colors.warm, marginBottom: 66 },
   shareErrorText: { fontSize: 10, color: colors.warm, marginLeft: 8 },
   receivedNotesPanel: { maxHeight: 72, marginBottom: 72 },
-  receivedNotesHeader: { fontSize: 9, color: colors.muted, marginBottom: 4, fontFamily: 'JetBrainsMono' },
+  receivedNotesHeader: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    marginBottom: 6,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase' as const,
+  },
   receivedNotesList: { borderWidth: 0.5, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.ground },
-  receivedNoteText: { fontSize: 10, color: colors.active, paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  recordFab: { position: 'absolute', bottom: 10, right: 10, width: 64, height: 64, borderRadius: 32, backgroundColor: '#e67c5c', alignItems: 'center', justifyContent: 'center' },
-  recordFabInner: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff' },
+  receivedNoteText: {
+    fontSize: theme.typography.tool.label,
+    color: colors.active,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    fontFamily: theme.typography.bodyFamily,
+    lineHeight: 20,
+  },
+  recordFabDocked: {
+    position: 'absolute',
+    bottom: 16,
+    right: 12,
+    zIndex: 3,
+  },
+  recordFab: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.capture,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  recordFabPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.96 }],
+  },
+  recordFabInner: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff' },
   dancerContainer: { flex: 1, backgroundColor: colors.ground },
   dancerFloorCanvas: { height: 260, backgroundColor: '#faf8f5', position: 'relative' },
-  selfDot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.mine },
-  otherDot: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: '#fff' },
+  selfDot: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.mine },
+  otherDot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: '#fff' },
   selectedDancerDot: { borderWidth: 3, borderColor: colors.active },
   positionNoteBand: { backgroundColor: colors.mineBg, paddingVertical: 8, paddingHorizontal: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  positionNoteText: { fontSize: 9, color: colors.active, fontFamily: 'JetBrainsMono', textAlign: 'center' },
+  positionNoteText: {
+    fontSize: theme.typography.tool.label,
+    color: colors.active,
+    fontFamily: theme.typography.bodyFamily,
+    textAlign: 'center',
+    fontWeight: '600',
+    lineHeight: 20,
+  },
   dancerRightPanel: { flex: 1, padding: 12 },
   choreographerNotes: { maxHeight: 80, marginBottom: 12 },
-  choreographerNotesHeader: { fontSize: 8, color: colors.muted, fontFamily: 'JetBrainsMono', marginBottom: 6 },
+  choreographerNotesHeader: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '700',
+    marginBottom: 8,
+    letterSpacing: 0.8,
+  },
   newNoteSlideIn: {
     backgroundColor: colors.mineBg,
     borderLeftWidth: 2,
@@ -1086,10 +1256,29 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     borderRadius: 4,
   },
-  choreographerNoteText: { fontSize: 10, color: colors.active, borderBottomWidth: 0.5, borderBottomColor: colors.border, paddingVertical: 4 },
+  choreographerNoteText: {
+    fontSize: theme.typography.tool.label,
+    color: colors.active,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    paddingVertical: 8,
+    fontFamily: theme.typography.bodyFamily,
+    lineHeight: 20,
+  },
   clipsGridLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  clipsGridLabel: { fontSize: 11, color: colors.muted, fontFamily: 'JetBrainsMono' },
-  newClipCue: { fontSize: 10, color: '#2aaea1', fontFamily: 'JetBrainsMono' },
+  clipsGridLabel: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  newClipCue: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.mine,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
+  },
   clipThumb: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden', position: 'relative', backgroundColor: colors.ground },
   clipThumbImage: { width: '100%', height: '100%' },
   clipDancerInitialBadge: {
@@ -1101,11 +1290,30 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     backgroundColor: 'rgba(255,255,255,0.85)',
   },
-  clipDancerInitialText: { fontSize: 7, fontWeight: '700' },
+  clipDancerInitialText: { fontSize: theme.typography.tool.caption, fontWeight: '700', fontFamily: theme.typography.bodyFamily },
   dancerFabContainer: { position: 'absolute', bottom: 10, right: 10, alignItems: 'center' },
-  dancerFabLabel: { fontSize: 9, color: colors.muted, marginBottom: 2 },
-  dancerFabSublabel: { fontSize: 9, color: colors.inactive, marginBottom: 8 },
-  activeMomentHint: { fontSize: 8, color: colors.inactive, marginTop: 4 },
+  dancerFabLabel: {
+    fontSize: theme.typography.tool.label,
+    color: colors.active,
+    marginBottom: 4,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  dancerFabSublabel: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    marginBottom: 10,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  activeMomentHint: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    marginTop: 6,
+    fontFamily: theme.typography.bodyFamily,
+  },
   connectionErrorBanner: {
     backgroundColor: '#fee2e2',
     borderBottomWidth: 0.5,
@@ -1114,9 +1322,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   connectionErrorText: {
-    fontSize: 12,
+    fontSize: theme.typography.tool.body,
     color: '#dc2626',
     textAlign: 'center',
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
   },
 });
+}
