@@ -258,10 +258,143 @@ function createSessionShellStyles(colors: ThemePalette) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.ground,
+      backgroundColor: colors.ground, // #0A0908 - ROAM dark background
+    },
+    content: {
+      flex: 1,
+      paddingTop: 8,
     },
     tabContent: {
       flex: 1,
     },
+    // ROAM Design Screens specific styles
+    sessionHeader: {
+      backgroundColor: colors.surface, // #1E1C18 - Phone silhouette color
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border, // #3A3530 - Phone border color
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    sessionTitle: {
+      fontFamily: 'Georgia, serif', // Georgia serif from ROAM wordmark
+      fontSize: 24,
+      fontWeight: '600',
+      color: colors.active, // #F4EBD6 - Warm off-white text
+      flex: 1,
+    },
+    sessionActions: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    sessionActionButton: {
+      width: 40,
+      height: 40,
+      backgroundColor: colors.surfaceElevated, // #252322
+      borderWidth: 1,
+      borderColor: colors.border, // #3A3530
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    videoContainer: {
+      backgroundColor: colors.surface, // #1E1C18
+      margin: 16,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border, // #3A3530
+      overflow: 'hidden',
+    },
+    videoPlayer: {
+      width: '100%',
+      height: 300,
+      backgroundColor: colors.surfaceElevated, // #252322
+    },
+    videoControls: {
+      backgroundColor: 'rgba(30, 28, 24, 0.9)',
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+    },
+    playButton: {
+      width: 48,
+      height: 48,
+      backgroundColor: colors.primary, // #E06E3F - Coral accent
+      borderRadius: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    progressBar: {
+      flex: 1,
+      height: 4,
+      backgroundColor: colors.border, // #3A3530
+      borderRadius: 2,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: colors.primary, // #E06E3F - Coral accent
+      width: '45%',
+    },
+    timeText: {
+      fontSize: 12,
+      color: colors.muted, // #B8B3A8
+    },
+    clipsGrid: {
+      padding: 16,
+    },
+    clipsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 16,
+    },
+    clipsTitle: {
+      fontFamily: 'Georgia, serif',
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.active, // #F4EBD6
+    },
+    clipsGridContainer: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    clipItem: {
+      width: '48%',
+      backgroundColor: colors.surface, // #1E1C18
+      borderWidth: 1,
+      borderColor: colors.border, // #3A3530
+      borderRadius: 12,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    clipThumbnail: {
+      width: 60,
+      height: 60,
+      backgroundColor: colors.surfaceElevated, // #252322
+      borderRadius: 8,
+      marginRight: 12,
+      borderWidth: 1,
+      borderColor: colors.border, // #3A3530
+    },
+    clipInfo: {
+      flex: 1,
+    },
+    clipName: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.active, // #F4EBD6
+      marginBottom: 2,
+    },
+    clipDuration: {
+      fontSize: 12,
+      color: colors.muted, // #B8B3A8
+    },
   });
 }
+
+// ...
