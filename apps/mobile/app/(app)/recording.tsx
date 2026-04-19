@@ -136,10 +136,11 @@ function createStyles(colors: any) {
       justifyContent: 'space-between',
     },
     title: {
-      fontFamily: 'Georgia, serif',
-      fontSize: 24,
-      fontWeight: '600',
+      fontFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontSize: 28,
+      fontWeight: '700',
       color: colors.active, // #F4EBD6
+      letterSpacing: -0.3,
     },
     closeButton: {
       fontSize: 32,
@@ -198,11 +199,12 @@ function createStyles(colors: any) {
       alignItems: 'center',
     },
     timer: {
-      fontFamily: 'Georgia, serif',
-      fontSize: 48,
-      fontWeight: '700',
+      fontFamily: 'JetBrains Mono, SF Mono, Consolas, Monaco, monospace',
+      fontSize: 56,
+      fontWeight: '600',
       color: colors.active, // #F4EBD6
       marginBottom: 32,
+      letterSpacing: 0,
     },
     buttonContainer: {
       flexDirection: 'row',
@@ -223,9 +225,11 @@ function createStyles(colors: any) {
       elevation: 8,
     },
     recordButtonText: {
+      fontFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',
       color: colors.active, // #F4EBD6
       fontSize: 16,
       fontWeight: '700',
+      letterSpacing: 0,
     },
     pauseButton: {
       width: 80,

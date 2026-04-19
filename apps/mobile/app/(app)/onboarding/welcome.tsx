@@ -72,16 +72,21 @@ function createStyles(colors: any) {
       marginBottom: 60,
     },
     logo: {
-      fontFamily: 'Georgia, serif',
-      fontSize: 48,
+      fontFamily: 'Georgia Pro, Georgia, serif',
+      fontSize: 56,
       fontStyle: 'italic',
+      fontWeight: '700',
       color: colors.active, // #F4EBD6
       marginBottom: 8,
+      letterSpacing: -0.5,
     },
     tagline: {
+      fontFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',
       fontSize: 18,
+      fontWeight: '500',
       color: colors.muted, // #B8B3A8
       textAlign: 'center',
+      letterSpacing: -0.2,
     },
     illustration: {
       width: 300,
@@ -161,9 +166,11 @@ function createStyles(colors: any) {
       elevation: 8,
     },
     getStartedText: {
+      fontFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',
       color: colors.active, // #F4EBD6
       fontSize: 18,
       fontWeight: '600',
+      letterSpacing: 0,
     },
   });
 }

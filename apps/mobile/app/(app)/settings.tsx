@@ -114,10 +114,11 @@ function createStyles(colors: any) {
       fontWeight: '300',
     },
     title: {
-      fontFamily: 'Georgia, serif',
-      fontSize: 24,
-      fontWeight: '600',
+      fontFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontSize: 28,
+      fontWeight: '700',
       color: colors.active, // #F4EBD6
+      letterSpacing: -0.3,
     },
     placeholder: {
       width: 32,
@@ -147,10 +148,11 @@ function createStyles(colors: any) {
       marginRight: 12,
     },
     sectionTitle: {
-      fontFamily: 'Georgia, serif',
-      fontSize: 18,
+      fontFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',
+      fontSize: 20,
       fontWeight: '600',
       color: colors.active, // #F4EBD6
+      letterSpacing: -0.1,
     },
     settingItem: {
       paddingHorizontal: 20,
@@ -169,15 +171,20 @@ function createStyles(colors: any) {
       marginRight: 16,
     },
     settingLabel: {
+      fontFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',
       fontSize: 16,
       fontWeight: '500',
       color: colors.active, // #F4EBD6
       marginBottom: 4,
+      letterSpacing: -0.1,
     },
     settingDescription: {
+      fontFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',
       fontSize: 14,
+      fontWeight: '400',
       color: colors.muted, // #B8B3A8
       lineHeight: 20,
+      letterSpacing: 0.1,
     },
   });
 }

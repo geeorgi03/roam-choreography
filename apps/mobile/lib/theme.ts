@@ -134,9 +134,11 @@ export const theme = {
   untaggedText: '#8A8278',
   borderRadius: 12,
   typography: {
-    displayFamily: 'Georgia, serif',  // Georgia serif from ROAM wordmark
-    monoFamily: 'SF Mono, Consolas, Monaco, monospace',
-    bodyFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+    // Premium Display Fonts
+    displayFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',  // Modern, professional display
+    brandFamily: 'Georgia Pro, Georgia, serif',  // Premium serif for branding
+    bodyFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',  // Consistent body text
+    monoFamily: 'JetBrains Mono, SF Mono, Consolas, Monaco, monospace',  // Professional monospace
     sizes: {
       '4xl': 36,
       '3xl': 30,
