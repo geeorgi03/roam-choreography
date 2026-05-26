@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useChoreographyTheme } from '../../lib/contexts/ChoreographyThemeContext';
 import type { ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useTranslation } from '../../lib/i18n';
 import { formatTimecode, sectionsWithSpan } from '../../lib/premiumUtils';
 import { sectionColorForIndex } from '../../lib/choreographyTheme';
 import { MonoCaps } from './ChoreographyPrimitives';
@@ -13,6 +14,7 @@ export function ChoreographyTransport() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colors = useChoreographyTheme();
+  const { t } = useTranslation();
   const styles = useMemo(
     () => createStyles(colors, insets.bottom),
     [colors, insets.bottom]
@@ -37,7 +39,9 @@ export function ChoreographyTransport() {
     <View style={styles.wrap}>
       {loopRegion ? (
         <View style={styles.loopRow}>
-          <MonoCaps>Loop · {activeSection}</MonoCaps>
+          <MonoCaps>
+            {t('choreo.transport.loop').replace('{section}', activeSection)}
+          </MonoCaps>
         </View>
       ) : null}
       <View style={styles.timelineWrap}>
@@ -109,7 +113,7 @@ export function ChoreographyTransport() {
             router.push({ pathname: './music-setup', params: { sessionId } })
           }
         >
-          <MonoCaps style={{ color: colors.primary }}>Add reference track</MonoCaps>
+          <MonoCaps style={{ color: colors.primary }}>{t('choreo.transport.addReference')}</MonoCaps>
         </Pressable>
       ) : null}
     </View>

@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, Text, ScrollView } from 'react-native';
 import { useChoreographyTheme } from '../../lib/contexts/ChoreographyThemeContext';
 import type { ThemePalette } from '../../lib/contexts/ThemeContext';
 import { DisplayTitle, MonoCaps } from './ChoreographyPrimitives';
+import { useTranslation } from '../../lib/i18n';
 
 const PROMPTS = [
   { movement: 'Fold', quality: 'Weighted', spatial: 'Low · Wide' },
@@ -12,19 +13,20 @@ const PROMPTS = [
 
 export function ChoreographyExploreView() {
   const colors = useChoreographyTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [index, setIndex] = useState(0);
   const prompt = PROMPTS[index % PROMPTS.length]!;
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <DisplayTitle>Improv Lab</DisplayTitle>
-      <MonoCaps style={styles.sub}>Freestyle prompts — show the work, not a score</MonoCaps>
+      <DisplayTitle>{t('choreo.explore.title')}</DisplayTitle>
+      <MonoCaps style={styles.sub}>{t('choreo.explore.subtitle')}</MonoCaps>
 
       <View style={styles.bpmRow}>
-        <MonoCaps>BPM 92</MonoCaps>
+        <MonoCaps>{t('choreo.explore.bpm').replace('{bpm}', '92')}</MonoCaps>
         <Pressable style={styles.tapBtn}>
-          <MonoCaps style={{ color: colors.active }}>TAP</MonoCaps>
+          <MonoCaps style={{ color: colors.active }}>{t('choreo.explore.tap')}</MonoCaps>
         </Pressable>
       </View>
 
@@ -38,12 +40,17 @@ export function ChoreographyExploreView() {
         style={styles.generateBtn}
         onPress={() => setIndex((i) => i + 1)}
       >
-        <Text style={styles.generateLabel}>GENERATE</Text>
+        <Text style={styles.generateLabel}>{t('choreo.explore.generate')}</Text>
       </Pressable>
 
       <View style={styles.filters}>
-        <MonoCaps style={styles.filterHeading}>Body focus</MonoCaps>
-        {['Arms', 'Torso', 'Legs', 'Full'].map((f) => (
+        <MonoCaps style={styles.filterHeading}>{t('choreo.explore.bodyFocus')}</MonoCaps>
+        {[
+          t('choreo.explore.focusArms'),
+          t('choreo.explore.focusTorso'),
+          t('choreo.explore.focusLegs'),
+          t('choreo.explore.focusFull'),
+        ].map((f) => (
           <Pressable key={f} style={styles.filterChip}>
             <MonoCaps>{f}</MonoCaps>
           </Pressable>

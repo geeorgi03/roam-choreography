@@ -82,10 +82,10 @@ function GalleryBody({
               onPress={() => setFilter((prev) => (prev === 'recent' ? 'all' : 'recent'))}
               hitSlop={8}
             >
-              <Text style={styles.headerLink}>Select</Text>
+              <Text style={styles.headerLink}>{t('gallery.select')}</Text>
             </Pressable>
             <Pressable onPress={onNewProject} hitSlop={8}>
-              <Text style={styles.headerLink}>Import</Text>
+              <Text style={styles.headerLink}>{t('gallery.import')}</Text>
             </Pressable>
             <Pressable onPress={onSettings} hitSlop={8}>
               <Text style={styles.headerLink}>{t('gallery.settings')}</Text>

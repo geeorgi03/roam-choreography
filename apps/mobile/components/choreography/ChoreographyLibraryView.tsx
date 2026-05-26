@@ -10,11 +10,13 @@ import { useChoreographyTheme } from '../../lib/contexts/ChoreographyThemeContex
 import type { ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { DisplayTitle, MonoCaps } from './ChoreographyPrimitives';
+import { useTranslation } from '../../lib/i18n';
 
 type Filter = 'ALL' | 'MINE' | 'REF';
 
 export function ChoreographyLibraryView() {
   const colors = useChoreographyTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { clips, openSheet } = useSessionContext();
   const [filter, setFilter] = useState<Filter>('ALL');
@@ -28,7 +30,7 @@ export function ChoreographyLibraryView() {
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <DisplayTitle>Library</DisplayTitle>
+        <DisplayTitle>{t('choreo.library.title')}</DisplayTitle>
         <View style={styles.filters}>
           {(['ALL', 'MINE', 'REF'] as const).map((f) => (
             <Pressable
@@ -36,7 +38,13 @@ export function ChoreographyLibraryView() {
               onPress={() => setFilter(f)}
               style={[styles.filterChip, filter === f && styles.filterChipActive]}
             >
-              <MonoCaps style={filter === f ? { color: colors.active } : undefined}>{f}</MonoCaps>
+              <MonoCaps style={filter === f ? { color: colors.active } : undefined}>
+                {f === 'ALL'
+                  ? t('choreo.library.filterAll')
+                  : f === 'MINE'
+                    ? t('choreo.library.filterMine')
+                    : t('choreo.library.filterRef')}
+              </MonoCaps>
             </Pressable>
           ))}
         </View>
@@ -48,7 +56,7 @@ export function ChoreographyLibraryView() {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <MonoCaps style={styles.empty}>No clips in this session yet</MonoCaps>
+          <MonoCaps style={styles.empty}>{t('choreo.library.empty')}</MonoCaps>
         }
         renderItem={({ item }) => {
           const isRef = item.clip_type === 'REF';
@@ -60,10 +68,10 @@ export function ChoreographyLibraryView() {
               <View style={[styles.thumb, isRef && styles.thumbRef]} />
               <View style={styles.cardMeta}>
                 <MonoCaps style={{ color: isRef ? colors.ref : colors.primary }}>
-                  {isRef ? 'REF' : 'MINE'}
+                  {isRef ? t('choreo.clip.ref') : t('choreo.clip.mine')}
                 </MonoCaps>
                 <Text style={styles.cardTitle} numberOfLines={2}>
-                  {item.label ?? item.move_name ?? 'Clip'}
+                  {item.label ?? item.move_name ?? t('choreo.clip.clip')}
                 </Text>
               </View>
             </Pressable>

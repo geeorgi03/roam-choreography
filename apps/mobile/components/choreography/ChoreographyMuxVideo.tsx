@@ -13,6 +13,7 @@ import { useChoreographyTheme } from '../../lib/contexts/ChoreographyThemeContex
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import type { ClipRow } from '../../lib/database';
 import { useChoreographyWorkbench } from '../../lib/contexts/ChoreographyWorkbenchContext';
+import { useTranslation } from '../../lib/i18n';
 import {
   extractYoutubeVideoId,
   getClipVideoUri,
@@ -31,6 +32,7 @@ type Props = {
 
 export function ChoreographyMuxVideo({ clip, practiceLoupe }: Props) {
   const colors = useChoreographyTheme();
+  const { t } = useTranslation();
   const videoRef = useRef<Video>(null);
   const { isPlaying, playbackSpeed, setPlayheadMs, setDurationMs } = useSessionContext();
   const { mirror, loupe, setLoupe } = useChoreographyWorkbench();
@@ -151,7 +153,7 @@ export function ChoreographyMuxVideo({ clip, practiceLoupe }: Props) {
         ) : null}
         {!youtubeReady ? (
           <View style={styles.refOverlay}>
-            <Text style={styles.refHint}>Loading reference…</Text>
+            <Text style={styles.refHint}>{t('choreo.video.loadingReference')}</Text>
           </View>
         ) : null}
       </View>
@@ -168,7 +170,7 @@ export function ChoreographyMuxVideo({ clip, practiceLoupe }: Props) {
         <ExternalRefWebPlayer url={refUrl} style={styles.wrap} />
         <View style={styles.embedCaption} pointerEvents="none">
           <Text style={styles.refHint}>
-            Use controls in the embed. Roam playhead may not track external players.
+            {t('choreo.video.embedHint')}
           </Text>
         </View>
       </View>

@@ -7,12 +7,14 @@ import type { ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { sectionsWithSpan } from '../../lib/premiumUtils';
 import { DisplayTitle, MonoCaps } from './ChoreographyPrimitives';
+import { useTranslation } from '../../lib/i18n';
 type Props = {
   onJumpToWork: (sectionLabel: string) => void;
 };
 
 export function ChoreographyMapView({ onJumpToWork }: Props) {
   const colors = useChoreographyTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { musicTrack, clips, durationMs, setActiveSection } = useSessionContext();
 
@@ -25,7 +27,7 @@ export function ChoreographyMapView({ onJumpToWork }: Props) {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <DisplayTitle>Song Map</DisplayTitle>
+      <DisplayTitle>{t('choreo.map.title')}</DisplayTitle>
       <View style={styles.bar}>
         {spans.map((s, i) => (
           <View
@@ -54,14 +56,14 @@ export function ChoreographyMapView({ onJumpToWork }: Props) {
               <View style={[styles.cardStripe, { backgroundColor: sectionColorForIndex(i) }]} />
               <Text style={styles.cardTitle}>{s.label}</Text>
               <MonoCaps>
-                {mine} clips
+                {t('choreo.map.clipsCount').replace('{count}', String(mine))}
               </MonoCaps>
             </Pressable>
           );
         })}
       </View>
       {spans.length === 0 ? (
-        <MonoCaps style={styles.empty}>Add a reference track to see sections</MonoCaps>
+        <MonoCaps style={styles.empty}>{t('choreo.map.empty')}</MonoCaps>
       ) : null}
     </ScrollView>
   );

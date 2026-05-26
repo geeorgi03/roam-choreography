@@ -9,12 +9,14 @@ import {
   type ChoreographyDrawStroke,
 } from '../../lib/choreographyDrawStrokes';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useTranslation } from '../../lib/i18n';
 import { MonoCaps } from './ChoreographyPrimitives';
 
 const COLORS = ['#FF2D6B', '#FFE135', '#3B82F6', '#10B981', '#F59E0B', '#EEEEF5', '#8B5CF6', '#fff'];
 
 export function ChoreographyDrawCanvas() {
   const colors = useChoreographyTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { sessionId, activeSection } = useSessionContext();
   const [strokes, setStrokes] = useState<ChoreographyDrawStroke[]>([]);
@@ -150,10 +152,12 @@ export function ChoreographyDrawCanvas() {
           ))}
         </View>
         <Pressable onPress={() => setEraser((e) => !e)} style={styles.toolBtn}>
-          <Text style={styles.toolBtnText}>{eraser ? 'Pen' : 'Erase'}</Text>
+          <Text style={styles.toolBtnText}>
+            {eraser ? t('choreo.draw.pen') : t('choreo.draw.erase')}
+          </Text>
         </Pressable>
         <Pressable onPress={clearAll} style={styles.toolBtn}>
-          <Text style={styles.toolBtnText}>Clear</Text>
+          <Text style={styles.toolBtnText}>{t('choreo.draw.clear')}</Text>
         </Pressable>
       </View>
     </View>

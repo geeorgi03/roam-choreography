@@ -22,11 +22,13 @@ import { ChoreographyFloatingPanel } from './panels/ChoreographyFloatingPanel';
 import { ChoreographyDrawCanvas } from './ChoreographyDrawCanvas';
 import { ChoreographyComposeView } from './ChoreographyComposeView';
 import { useChoreographyFonts } from '../../lib/hooks/useChoreographyFonts';
+import { useTranslation } from '../../lib/i18n';
 
 function WorkbenchBody() {
   const router = useRouter();
   const colors = useChoreographyTheme();
   const fonts = useChoreographyFonts();
+  const { t } = useTranslation();
   const styles = useMemo(() => createStyles(colors, fonts.display), [colors, fonts.display]);
   const {
     musicTrack,
@@ -109,7 +111,7 @@ function WorkbenchBody() {
                     label={activeSection}
                     active
                     color={colors.primary}
-                    onPress={() => {}}
+                    onPress={closePanel}
                   />
                 )}
               </ScrollView>
@@ -118,7 +120,7 @@ function WorkbenchBody() {
             <View style={styles.canvasTopRight}>
               <Pressable onPress={() => setMirror(!mirror)}>
                 <GlassBar style={styles.toolChip}>
-                  <MonoCaps>{mirror ? 'Mirror on' : 'Mirror'}</MonoCaps>
+                  <MonoCaps>{mirror ? t('choreo.workbench.mirrorOn') : t('choreo.workbench.mirror')}</MonoCaps>
                 </GlassBar>
               </Pressable>
               <Pressable onPress={cycleSpeed}>
@@ -140,7 +142,7 @@ function WorkbenchBody() {
                 <Pressable style={styles.recordBtn} onPress={goRecord}>
                   <View style={styles.recordDot} />
                   <Text style={[styles.recordLabel, { fontFamily: fonts.display }]}>
-                    RECORD
+                    {t('choreo.workbench.record')}
                   </Text>
                 </Pressable>
                 <ScrollView
@@ -163,10 +165,10 @@ function WorkbenchBody() {
                         onPress={() => setCanvasClip(clip)}
                       >
                         <MonoCaps style={{ color: isRef ? colors.ref : colors.primary }}>
-                          {isRef ? 'REF' : 'MINE'}
+                          {isRef ? t('choreo.clip.ref') : t('choreo.clip.mine')}
                         </MonoCaps>
                         <Text style={styles.clipLabel} numberOfLines={1}>
-                          {clip.label ?? clip.move_name ?? 'Clip'}
+                          {clip.label ?? clip.move_name ?? t('choreo.clip.clip')}
                         </Text>
                       </Pressable>
                     );

@@ -10,15 +10,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useChoreographyTheme } from '../../lib/contexts/ChoreographyThemeContext';
 import type { ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useTranslation } from '../../lib/i18n';
 import { MonoCaps } from './ChoreographyPrimitives';
 
 export type ChoreographyViewId = 'work' | 'map' | 'library' | 'explore';
 
-const NAV: { id: ChoreographyViewId; label: string }[] = [
-  { id: 'work', label: 'Work' },
-  { id: 'map', label: 'Map' },
-  { id: 'library', label: 'Library' },
-  { id: 'explore', label: 'Explore' },
+const NAV: { id: ChoreographyViewId; labelKey: string }[] = [
+  { id: 'work', labelKey: 'choreo.nav.work' },
+  { id: 'map', labelKey: 'choreo.nav.map' },
+  { id: 'library', labelKey: 'choreo.nav.library' },
+  { id: 'explore', labelKey: 'choreo.nav.explore' },
 ];
 
 type Props = {
@@ -32,6 +33,7 @@ export function ChoreographyTopChrome({ view, onChangeView, onSettings }: Props)
   const colors = useChoreographyTheme();
   const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
   const { sessionName } = useSessionContext();
+  const { t } = useTranslation();
 
   return (
     <View style={styles.root}>
@@ -58,7 +60,7 @@ export function ChoreographyTopChrome({ view, onChangeView, onSettings }: Props)
               style={[styles.navItem, active && styles.navItemActive]}
             >
               <MonoCaps style={active ? { color: colors.active } : undefined}>
-                {item.label}
+                {t(item.labelKey)}
               </MonoCaps>
             </Pressable>
           );
