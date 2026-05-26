@@ -1,12 +1,11 @@
 export const theme = {
   light: {
     /** Premium Daylight Mode — combining all reference designs */
-    ground: '#0A0908',              // Dark charcoal background from design
-    chrome: '#1A1917',              // Slightly lighter surface
-    surface: '#1E1C18',             // Phone silhouette color
+    ground: '#14120F',              // Premium workbench studio black
+    chrome: '#1A1815',
+    surface: '#1E1C18',
     surfaceElevated: '#252322',    // Elevated surfaces
     chromeElevated: '#2A2825',     // Chrome elevated
-    shadow: '#000000',             // Pure black shadows
     border: '#3A3530',             // Phone border color
     borderLight: '#4A4540',        // Lighter borders
     borderStrong: '#5A5550',       // Strong borders
@@ -18,6 +17,10 @@ export const theme = {
     secondary: '#D4A574',          // Warm secondary accent
     accent: '#E06E3F',             // Same as primary - coral
     capture: '#E06E3F',            // Recording indicator color
+    mine: '#7DB9A8',               // "MINE" / loop idle accent (teal)
+    mineBg: 'rgba(125, 185, 168, 0.22)',
+    ref: '#E06E3F',                // Primary CTA (create / reference)
+    inactive: 'rgba(184, 176, 165, 0.45)',
     success: '#4CAF50',            // Fresh green
     warning: '#E06E3F',            // Same as coral
     error: '#F44336',              // Error red
@@ -32,6 +35,17 @@ export const theme = {
     teal: '#5AC8FA',               // Teal accent
     untaggedBg: 'rgba(224, 110, 63, 0.08)',  // Untagged background
     untaggedText: '#E06E3F',      // Untagged text
+    /** New UX — section hues + hairlines */
+    sage: '#8FA88E',
+    gold: '#C9A46B',
+    plum: '#9A6F84',
+    hair: 'rgba(245, 235, 215, 0.07)',
+    hair2: 'rgba(245, 235, 215, 0.12)',
+    hairStrong: 'rgba(245, 235, 215, 0.2)',
+    surface3: '#2C2924',
+    dockBg: 'rgba(20, 18, 15, 0.92)',
+    text3: 'rgba(244, 235, 214, 0.5)',
+    text4: 'rgba(244, 235, 214, 0.3)',
     /** Premium gradients combining all references */
     gradientPrimary: 'linear-gradient(135deg, #E06E3F 0%, #F4EBD6 100%)',
     gradientSecondary: 'linear-gradient(135deg, #4CAF50 0%, #F4EBD6 100%)',
@@ -54,8 +68,6 @@ export const theme = {
     bannerCacheBg: 'rgba(224, 110, 63, 0.08)',
     bannerCacheText: '#E06E3F',
     /** Premium surface system */
-    surface: '#1E1C18',
-    surfaceElevated: '#252322',
     surfaceElevated2: '#2A2825',
     surfaceGlass: 'rgba(30, 28, 24, 0.85)',
     surfaceGlassDark: 'rgba(30, 28, 24, 0.7)',
@@ -64,12 +76,11 @@ export const theme = {
   },
   night: {
     /** Professional Tool Dark Theme — combining tool and premium aesthetics */
-    ground: '#0D0D0C',              // Even darker for professional feel
-    chrome: '#1A1A18',              // Tool surface
-    surface: '#252522',             // Tool panels
+    ground: '#14120F',
+    chrome: '#1A1815',
+    surface: '#1E1C18',
     surfaceElevated: '#2A2A28',    // Elevated tool surfaces
     chromeElevated: '#30302D',     // Chrome elevated
-    shadow: '#000000',             // Pure black shadows
     border: '#3A3A35',             // Tool borders
     borderLight: '#4A4A45',        // Lighter tool borders
     borderStrong: '#5A5A55',       // Strong tool borders
@@ -81,6 +92,10 @@ export const theme = {
     secondary: '#D4A574',          // Warm secondary
     accent: '#CE9178',             // Syntax highlighting orange
     capture: '#E06E3F',            // Recording indicator
+    mine: '#4EC9B0',               // Tool teal — loop idle / mine accent
+    mineBg: 'rgba(78, 201, 176, 0.22)',
+    ref: '#E06E3F',
+    inactive: 'rgba(184, 176, 165, 0.4)',
     success: '#4EC9B0',            // Tool green
     warning: '#CE9178',            // Tool orange
     error: '#F48771',              // Tool red
@@ -95,6 +110,16 @@ export const theme = {
     teal: '#4EC9B0',               // Tool teal
     untaggedBg: 'rgba(206, 145, 120, 0.08)',  // Untagged background
     untaggedText: '#CE9178',      // Untagged text
+    sage: '#8FA88E',
+    gold: '#C9A46B',
+    plum: '#9A6F84',
+    hair: 'rgba(245, 235, 215, 0.07)',
+    hair2: 'rgba(245, 235, 215, 0.12)',
+    hairStrong: 'rgba(245, 235, 215, 0.2)',
+    surface3: '#2C2924',
+    dockBg: 'rgba(20, 18, 15, 0.92)',
+    text3: 'rgba(244, 235, 214, 0.5)',
+    text4: 'rgba(244, 235, 214, 0.3)',
     /** Premium gradients combining all references */
     gradientPrimary: 'linear-gradient(135deg, #E06E3F 0%, #FFFFFF 100%)',
     gradientSecondary: 'linear-gradient(135deg, #4EC9B0 0%, #FFFFFF 100%)',
@@ -117,8 +142,6 @@ export const theme = {
     bannerCacheBg: 'rgba(224, 110, 63, 0.15)',
     bannerCacheText: '#E06E3F',
     /** Professional surface system */
-    surface: '#252522',
-    surfaceElevated: '#2A2A28',
     surfaceElevated2: '#30302D',
     surfaceGlass: 'rgba(37, 37, 34, 0.85)',
     surfaceGlassDark: 'rgba(37, 37, 34, 0.7)',
@@ -136,9 +159,16 @@ export const theme = {
   typography: {
     // Premium Display Fonts
     displayFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',  // Modern, professional display
-    brandFamily: 'Georgia Pro, Georgia, serif',  // Premium serif for branding
+    brandFamily: 'Georgia, Fraunces, serif',  // Premium serif for branding
+    serifFamily: 'Georgia, Fraunces, serif',
     bodyFamily: 'Inter Display, -apple-system, BlinkMacSystemFont, sans-serif',  // Consistent body text
     monoFamily: 'JetBrains Mono, SF Mono, Consolas, Monaco, monospace',  // Professional monospace
+    tool: {
+      caption: 11,
+      label: 12,
+      body: 14,
+      controlMinHeight: 44,
+    },
     sizes: {
       '4xl': 36,
       '3xl': 30,
@@ -156,6 +186,7 @@ export const theme = {
       semibold: '600',
       bold: '700',
       extrabold: '800',
+      black: '900',
     },
     lineHeights: {
       tight: 1.1,

@@ -25,7 +25,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { apiRequest, ApiRequestError } from '../../lib/api';
 import { cacheSession, cacheSessionList, getCachedSessionList } from '../../lib/sessionCache';
 import { useTranslation } from '../../lib/i18n';
-import { getRuntimeDiagnosticsSnapshot, probeApiHealth } from '../../lib/runtimeDiagnostics';
+import { getRuntimeDiagnosticsSnapshot, runConnectivityDiagnostics } from '../../lib/runtimeDiagnostics';
 import {
   clearLastOpenedSessionId,
   dismissHomePlusCoach,
@@ -135,20 +135,21 @@ export default function HomeScreen() {
       return;
     }
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const sessionTimeoutMs = 35_000;
+    const timeoutId = setTimeout(() => controller.abort(), sessionTimeoutMs);
     try {
       let res = await apiRequest(`/sessions/`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
         signal: controller.signal,
         retries: 2,
-        timeoutMs: 10_000,
+        timeoutMs: sessionTimeoutMs,
       });
       if (res.status === 404) {
         res = await apiRequest(`/sessions`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
           signal: controller.signal,
           retries: 1,
-          timeoutMs: 8_000,
+          timeoutMs: sessionTimeoutMs,
         });
       }
       clearTimeout(timeoutId);
@@ -184,8 +185,7 @@ export default function HomeScreen() {
         }
       }
     } catch (error) {
-      // API unreachable, timeout, or network error
-      const apiHealthy = await probeApiHealth();
+      const connectivity = await runConnectivityDiagnostics();
       const diag = getRuntimeDiagnosticsSnapshot();
       const cachedSessions = getCachedSessionList().map(mapCachedToSession);
       setSessions(cachedSessions.length > 0 ? cachedSessions : []);
@@ -194,21 +194,32 @@ export default function HomeScreen() {
       }
       const reason = error instanceof ApiRequestError ? error.reason : 'unknown';
       if (cachedSessions.length === 0) {
-        if (reason === 'timeout') {
-          setLoadError(`${t('home.unableToLoadSessions')} (${t('home.timeoutLabel')})`);
+        let detail = diag.apiBase;
+        try {
+          detail = new URL(diag.apiBase).host;
+        } catch {
+          // keep raw
+        }
+        if (connectivity.issue === 'supabase_unreachable' && connectivity.supabaseHost) {
+          setLoadError(t('home.backendSupabaseDown').replace('{host}', connectivity.supabaseHost));
+        } else if (connectivity.issue === 'api_wrong_service') {
+          setLoadError(t('home.backendApiWrong').replace('{host}', connectivity.apiHost));
+        } else if (connectivity.issue === 'api_unreachable') {
+          setLoadError(t('home.backendApiDown').replace('{host}', connectivity.apiHost));
+        } else if (reason === 'timeout') {
+          setLoadError(`${t('home.unableToLoadSessions')} (${t('home.timeoutLabel')}) — ${detail}`);
         } else if (reason === 'network' || reason === 'offline') {
-          setLoadError(`${t('home.unableToLoadSessions')} (${t('home.offlineLabel')})`);
+          setLoadError(`${t('home.unableToLoadSessions')} (${t('home.offlineLabel')}) — ${detail}`);
         } else {
           setLoadError(
-            `${t('home.unableToLoadSessions')} (${apiHealthy ? 'api_auth_issue' : 'api_unreachable'})`
+            `${t('home.unableToLoadSessions')} (${connectivity.apiHealthy ? 'auth' : 'api'}) — ${detail}`
           );
         }
       }
       console.warn('[Home] session load fallback', {
-        apiHealthy,
+        connectivity,
         apiBase: diag.apiBase,
-        hasSupabaseUrl: diag.hasSupabaseUrl,
-        hasSupabaseAnonKey: diag.hasSupabaseAnonKey,
+        supabaseHost: diag.supabaseHost,
       });
     } finally {
       clearTimeout(timeoutId);
@@ -462,6 +473,13 @@ export default function HomeScreen() {
           <View style={styles.hubBlock}>
             <Text style={styles.hubEmptyTitle}>{t('home.hubEmptyTitle')}</Text>
             <Text style={styles.hubEmptySubtitle}>{t('home.hubEmptySubtitle')}</Text>
+            <TouchableOpacity
+              style={styles.emptyPrimaryBtn}
+              onPress={openNewProjectMenu}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.emptyPrimaryBtnText}>{t('home.startSession')}</Text>
+            </TouchableOpacity>
             <Text style={styles.emptyTapPlus}>{t('home.emptyTapPlus')}</Text>
             {loadError ? (
               <View style={styles.errorWrap}>
@@ -626,7 +644,24 @@ function createHomeStyles(colors: ThemePalette) {
       fontSize: theme.typography.sizes.lg,
       lineHeight: theme.typography.lineHeights.relaxed,
       color: colors.muted,
+      marginBottom: theme.spacing['4'],
+    },
+    emptyPrimaryBtn: {
+      alignSelf: 'stretch',
+      backgroundColor: colors.capture,
+      borderRadius: theme.spacing.radiusMd,
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      alignItems: 'center',
       marginBottom: theme.spacing['3'],
+    },
+    emptyPrimaryBtnText: {
+      color: '#ffffff',
+      fontSize: theme.typography.sizes.base,
+      fontWeight: theme.typography.weights.bold,
+      fontFamily: theme.typography.monoFamily,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase',
     },
     emptyTapPlus: {
       fontSize: theme.typography.sizes.base,

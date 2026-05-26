@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "pnpm exec turbo run build --filter=@roam/db",
+    "predev": "pnpm exec turbo run build --filter=@roam/db --filter=@roam/marking-fingerprint",
     "build": "tsc",
+    "start": "node dist/index.js",
     "dev": "tsx watch --env-file=.env src/index.ts",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "clean": "rm -rf dist"
@@ -13,8 +14,10 @@
   "dependencies": {
     "@hono/node-server": "^1.13.0",
     "@roam/db": "workspace:*",
+    "@roam/marking-fingerprint": "workspace:*",
     "@roam/types": "workspace:*",
     "hono": "^4.6.0",
+    "jimp": "^0.22.12",
     "pdfkit": "^0.17.2",
     "stripe": "^16.12.0"
   },

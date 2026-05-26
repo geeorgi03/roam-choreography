@@ -16,6 +16,7 @@ import type { ClipRow } from '../../lib/database';
 import { useSession } from '../../lib/hooks/useSession';
 import { useNotePins } from '../../lib/hooks/useNotePins';
 import { ClipViewerSheetStandalone } from '../../components/session/ClipViewerSheetStandalone';
+import { MarkingSearchPanel } from '../../components/library/MarkingSearchPanel';
 import { useTranslation } from '../../lib/i18n';
 
 import { API_BASE } from '../../lib/api';
@@ -38,6 +39,7 @@ export default function LibraryScreen() {
   const [q, setQ] = useState<string>('');
   const [debouncedQ, setDebouncedQ] = useState<string>('');
   const [filterSegment, setFilterSegment] = useState<'All' | 'REF' | 'MINE' | 'Shared'>('All');
+  const [markingSearchOpen, setMarkingSearchOpen] = useState(false);
 
   const clipSheetRef = useRef<any>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -215,6 +217,16 @@ export default function LibraryScreen() {
               />
             </View>
 
+            <TouchableOpacity
+              style={styles.markingSearchBtn}
+              onPress={() => setMarkingSearchOpen(true)}
+              activeOpacity={0.85}
+              disabled={!token}
+            >
+              <Text style={styles.markingSearchBtnText}>{t('markingSearch.open')}</Text>
+              <Text style={styles.markingSearchBtnSub}>{t('markingSearch.subtitle')}</Text>
+            </TouchableOpacity>
+
             <View style={styles.segmented}>
               {(['All', 'REF', 'MINE', 'Shared'] as const).map((seg) => {
                 const active = filterSegment === seg;
@@ -302,6 +314,17 @@ export default function LibraryScreen() {
         allNotes={selectedSessionNotes}
         onOpenClip={setSelectedClip}
       />
+
+      <MarkingSearchPanel
+        visible={markingSearchOpen}
+        onClose={() => setMarkingSearchOpen(false)}
+        token={token}
+        clips={clips}
+        onOpenMatch={(clip) => {
+          setMarkingSearchOpen(false);
+          openClipSheet(clip);
+        }}
+      />
     </View>
   );
 }
@@ -336,6 +359,26 @@ function createLibraryStyles(colors: ThemePalette) {
     flex: 1,
     color: colors.active,
     fontSize: 16,
+  },
+  markingSearchBtn: {
+    marginTop: 10,
+    backgroundColor: colors.amberBg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.radiusMd,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  markingSearchBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.active,
+  },
+  markingSearchBtnSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: colors.muted,
+    lineHeight: 17,
   },
   segmented: {
     marginTop: 10,

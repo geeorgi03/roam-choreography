@@ -1,29 +1,26 @@
 import { API_BASE } from './api';
+import {
+  getConfiguredSupabaseUrl,
+  hostFromUrl,
+  probeApiHealth,
+  runConnectivityDiagnostics,
+} from './connectivityDiagnostics';
+
+export { probeApiHealth, runConnectivityDiagnostics };
 
 export interface RuntimeDiagnosticsSnapshot {
   apiBase: string;
+  supabaseHost: string | null;
   hasSupabaseUrl: boolean;
   hasSupabaseAnonKey: boolean;
 }
 
 export function getRuntimeDiagnosticsSnapshot(): RuntimeDiagnosticsSnapshot {
+  const supabaseUrl = getConfiguredSupabaseUrl();
   return {
     apiBase: API_BASE,
-    hasSupabaseUrl: Boolean(process.env.EXPO_PUBLIC_SUPABASE_URL),
+    supabaseHost: supabaseUrl ? hostFromUrl(supabaseUrl) : null,
+    hasSupabaseUrl: Boolean(supabaseUrl),
     hasSupabaseAnonKey: Boolean(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY),
   };
 }
-
-export async function probeApiHealth(timeoutMs = 2500): Promise<boolean> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${API_BASE}/health`, { signal: controller.signal });
-    return res.ok;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-

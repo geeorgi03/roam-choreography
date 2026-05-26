@@ -14,6 +14,8 @@ import { useSupabaseSafe } from '../../lib/hooks/useSupabaseSafe';
 import { theme } from '../../lib/theme';
 import { setDevBypassAuth } from '../../lib/devBypassAuth';
 import { useTranslation } from '../../lib/i18n';
+import { mapAuthErrorMessage } from '../../lib/connectivityDiagnostics';
+import ConnectivityBanner from '../../components/ConnectivityBanner';
 
 export default function SignInScreen() {
   const { t } = useTranslation();
@@ -30,7 +32,12 @@ export default function SignInScreen() {
     const { error: e } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (e) {
-      setError(e.message);
+      const kind = mapAuthErrorMessage(e.message);
+      setError(
+        kind === 'network'
+          ? t('signIn.networkHint')
+          : e.message
+      );
       return;
     }
     // Root layout will redirect to app stack
@@ -39,6 +46,7 @@ export default function SignInScreen() {
   if (configLoading) {
     return (
       <View style={styles.container}>
+        <ConnectivityBanner />
         <View style={styles.content}>
           <ActivityIndicator size="large" color={theme.light.active} />
         </View>
@@ -50,6 +58,7 @@ export default function SignInScreen() {
     const isConfig = configError?.message?.includes('EXPO_PUBLIC_');
     return (
       <View style={styles.container}>
+        <ConnectivityBanner />
         <View style={styles.content}>
           <Text style={styles.brandTitle}>{t('signIn.brandTitle')}</Text>
           <Text style={[styles.error, { marginBottom: 24 }]}>
@@ -84,6 +93,7 @@ export default function SignInScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <ConnectivityBanner />
       <View style={styles.content}>
         <Text style={styles.brandTitle}>{t('signIn.brandTitle')}</Text>
         <Text style={styles.tagline}>{t('signIn.tagline')}</Text>

@@ -46,6 +46,10 @@ const PORT = parsedPort;
 
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
+import { securityHeaders } from './middleware/securityHeaders.js';
+import { corsPolicy } from './middleware/corsPolicy.js';
+import { requestGuards } from './middleware/requestGuards.js';
+import { rateLimit } from './middleware/rateLimit.js';
 import { sessionsRoutes } from './routes/sessions.js';
 import { clipsRoutes } from './routes/clips.js';
 import { shareRoutes } from './routes/share.js';
@@ -60,12 +64,20 @@ import { muxRoutes } from './routes/mux.js';
 import { publicFeedbackRoutes } from './routes/feedbackPublic.js';
 import { webhooksRoutes } from './routes/webhooks.js';
 import { libraryRoutes } from './routes/library.js';
+import { markingSearchRoutes } from './routes/markingSearch.js';
 import { billingRoutes } from './routes/billing.js';
 import { inboxRoutes } from './routes/inbox.js';
 import { notePinsRoutes } from './routes/notePins.js';
 import { clipShareRoutes } from './routes/share.js';
 
 const app = new Hono();
+
+app.use('*', securityHeaders);
+app.use('*', requestGuards);
+app.use('*', corsPolicy);
+app.use('*', rateLimit({ scope: 'api', max: 180, windowMs: 60_000 }));
+app.use('/feedback', rateLimit({ scope: 'feedback', max: 20, windowMs: 60_000 }));
+app.use('/share', rateLimit({ scope: 'share', max: 60, windowMs: 60_000 }));
 
 const BUILD_SHA =
   process.env.RENDER_GIT_COMMIT ||
@@ -101,7 +113,10 @@ app.route('/inbox', inboxRoutes);
 app.route('/feedback', publicFeedbackRoutes);
 app.route('/webhooks', webhooksRoutes); // POST /webhooks/mux
 app.route('/library', libraryRoutes);
+app.route('/library/marking-search', markingSearchRoutes);
 app.route('/billing', billingRoutes);
+
+app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
 app.onError((err, c) => {
   console.error(err);

@@ -11,9 +11,32 @@ try {
   // MMKV unavailable — runtime override won't persist
 }
 
+/** Stale overrides from old builds / local dev that break production APKs. */
+const BLOCKED_API_HOSTS = [
+  'roam-api.onrender.com',
+  'localhost',
+  '127.0.0.1',
+  '10.0.2.2',
+];
+
+function isBlockedApiOverride(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return BLOCKED_API_HOSTS.some((blocked) => host === blocked || host.endsWith(`.${blocked}`));
+  } catch {
+    return true;
+  }
+}
+
 function resolveApiBase(): string {
   const override = _mmkv?.getString(API_URL_STORAGE_KEY);
-  if (override) return override;
+  if (override) {
+    if (isBlockedApiOverride(override)) {
+      _mmkv?.delete(API_URL_STORAGE_KEY);
+    } else {
+      return override;
+    }
+  }
 
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
@@ -76,7 +99,10 @@ function jitteredBackoff(baseDelayMs: number, attempt: number): number {
   return Math.round(raw * jitter);
 }
 
-function mergeAbortSignals(signal?: AbortSignal | null, timeoutMs = 10_000): {
+/** Default fetch timeout — Render cold starts on mobile can exceed 10s. */
+export const DEFAULT_API_TIMEOUT_MS = 35_000;
+
+function mergeAbortSignals(signal?: AbortSignal | null, timeoutMs = DEFAULT_API_TIMEOUT_MS): {
   controller: AbortController;
   timeoutId: ReturnType<typeof setTimeout>;
 } {
@@ -94,7 +120,7 @@ function mergeAbortSignals(signal?: AbortSignal | null, timeoutMs = 10_000): {
 
 export async function apiRequest(path: string, options: ApiRequestOptions = {}): Promise<Response> {
   const {
-    timeoutMs = 10_000,
+    timeoutMs = DEFAULT_API_TIMEOUT_MS,
     retries = 2,
     retryDelayMs = 300,
     shouldRetry,

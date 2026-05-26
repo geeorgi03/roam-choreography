@@ -88,6 +88,21 @@ export function IconSkipForward({ size = 18, color }: IconProps) {
   );
 }
 
+export function IconLoop({ size = 18, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityElementsHidden>
+      <Path
+        d="M17 2l4 4-4 4M3 13v-1a4 4 0 014-4h14M7 22l-4-4 4-4M21 11v1a4 4 0 01-4 4H3"
+        stroke={color}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
 /** Settings — horizontal sliders (tool-style, reads at small sizes). */
 export function IconGear({ size = 20, color }: IconProps) {
   return (

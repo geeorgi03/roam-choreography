@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../middleware/auth.js';
 import { supabase } from '../lib/supabase.js';
+import { isUuid } from '../lib/sanitize.js';
+import { jsonSafeError } from '../middleware/safeErrors.js';
 
 const app = new Hono<{ Variables: { userId: string } }>().use('*', requireAuth);
 const clipShareApp = new Hono<{ Variables: { userId: string } }>().use('*', requireAuth);
@@ -139,10 +141,13 @@ clipShareApp.delete('/:id/share', async (c) => {
 export const clipShareRoutes = clipShareApp;
 
 publicShareApp.get('/:token', async (c) => {
-  const token = c.req.param('token');
+  const token = c.req.param('token')?.trim() ?? '';
+  if (!isUuid(token)) {
+    return c.json({ error: 'Not found' }, 404);
+  }
   const { data, error } = await supabase.rpc('get_shared_session', { p_token: token });
 
-  if (error) return c.json({ error: error.message }, 500);
+  if (error) return jsonSafeError(c, error.message, 500);
   if (!data) return c.json({ error: 'Not found' }, 404);
 
   const shared = data as {

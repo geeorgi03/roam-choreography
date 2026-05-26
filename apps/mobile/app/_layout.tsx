@@ -22,11 +22,13 @@ import { getDevBypassAuth } from '../lib/devBypassAuth';
 import { API_BASE } from '../lib/api';
 import { drainQueue } from '../lib/writeQueue';
 import OfflineBanner from '../components/OfflineBanner';
+import ConnectivityBanner from '../components/ConnectivityBanner';
 import NetInfo from '@react-native-community/netinfo';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { InboxCountProvider } from '../lib/contexts/InboxCountContext';
 import { ThemeProvider } from '../lib/contexts/ThemeContext';
 import { LocaleProvider } from '../lib/i18n';
+import { ChoreographyFontsLoader } from '../components/choreography/ChoreographyFontsLoader';
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -376,6 +378,7 @@ function RootNavigator() {
       </ErrorBoundary>
       <Toast />
       <OfflineBanner />
+      <ConnectivityBanner />
       
       {pendingShareUrl && (
         <Modal
@@ -433,7 +436,9 @@ function AppTree() {
         <View style={{ flex: 1 }}>
           <ThemeProvider>
             <LocaleProvider>
-              <RootNavigator />
+              <ChoreographyFontsLoader>
+                <RootNavigator />
+              </ChoreographyFontsLoader>
             </LocaleProvider>
           </ThemeProvider>
         </View>
@@ -445,7 +450,9 @@ function AppTree() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
           <LocaleProvider>
-            <RootNavigator />
+            <ChoreographyFontsLoader>
+              <RootNavigator />
+            </ChoreographyFontsLoader>
           </LocaleProvider>
         </ThemeProvider>
       </GestureHandlerRootView>

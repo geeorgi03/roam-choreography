@@ -11,15 +11,27 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import Svg, { Circle as SvgCircle, Line as SvgLine } from 'react-native-svg';
+import Svg, { Circle as SvgCircle, Line as SvgLine, Polyline as SvgPolyline } from 'react-native-svg';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useTranslation } from '../../lib/i18n';
+import { useTabletLandscape } from '../../lib/hooks/useTabletLandscape';
 import { theme } from '../../lib/theme';
+import { PremiumTabHeader } from '../premium-workbench/PremiumTabHeader';
+import { SpatialCoachOverlay } from './SpatialCoachOverlay';
+import { isSpatialCoachDismissed } from '../../lib/spatialCoachState';
 import type { Moment, QualityData } from '@roam/types';
-const DOT_SIZE = 16;
-const DOT_RADIUS = DOT_SIZE / 2;
-const SELECTED_DOT_SIZE = 22;
+
+type CanvasMode = 'move' | 'pen' | 'path' | 'erase';
+
+interface FreehandStroke {
+  id: string;
+  points: { xPct: number; yPct: number }[];
+  color: string;
+}
+
+const DOT_SIZE_PHONE = 16;
+const DOT_RADIUS = DOT_SIZE_PHONE / 2;
 const PATH_TOUCH_RADIUS = 18;
 
 interface Dancer {
@@ -64,7 +76,9 @@ const INITIAL_DANCERS: Dancer[] = [
 export function SpatialTab() {
   const { t } = useTranslation();
   const { colors, mode } = useTheme();
+  const { isTabletLandscape } = useTabletLandscape();
   const isNight = mode === 'night';
+  const DOT_SIZE = isTabletLandscape ? 22 : DOT_SIZE_PHONE;
   const styles = useMemo(() => createSpatialStyles(colors, isNight), [colors, isNight]);
   const defaultDancers = useMemo(
     (): Dancer[] => [
@@ -118,6 +132,19 @@ export function SpatialTab() {
   const [selectedDancerId, setSelectedDancerId] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<SelectedTool>('position');
   const [pathsByDancer, setPathsByDancer] = useState<Record<string, PathModel>>({});
+  const [freehandStrokes, setFreehandStrokes] = useState<FreehandStroke[]>([]);
+  const [canvasMode, setCanvasMode] = useState<CanvasMode>('move');
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [showSpatialCoach, setShowSpatialCoach] = useState(() => !isSpatialCoachDismissed());
+  const [liveStroke, setLiveStroke] = useState<FreehandStroke | null>(null);
+  const liveStrokeRef = useRef<FreehandStroke | null>(null);
+  const undoStackRef = useRef<
+    Array<{
+      dancers: Dancer[];
+      pathsByDancer: Record<string, PathModel>;
+      freehandStrokes: FreehandStroke[];
+    }>
+  >([]);
   const [waveformWidth, setWaveformWidth] = useState(0);
   
   // Tool progression state
@@ -153,6 +180,7 @@ export function SpatialTab() {
       dancers?: Dancer[];
       pathsByDancer?: Record<string, PathModel>;
       toolState?: ToolState;
+      freehandStrokes?: FreehandStroke[];
     }
   ) => {
     // Backend requires `formation` to be a plain object (or null). Keep payload shape stable.
@@ -160,6 +188,7 @@ export function SpatialTab() {
       dancers: overrides?.dancers ?? latestDancersRef.current,
       paths: overrides?.pathsByDancer ?? pathsByDancer,
       toolState: overrides?.toolState ?? toolState,
+      freehandStrokes: overrides?.freehandStrokes ?? freehandStrokes,
     };
     setSyncStatus('pending');
     try {
@@ -188,6 +217,7 @@ export function SpatialTab() {
       if (identityChanged) {
         setDancers([...defaultDancers]);
         setPathsByDancer({});
+        setFreehandStrokes([]);
         setSelectedDancerId(null);
         setToolState(DEFAULT_TOOL_STATE);
         setHasDot(false);
@@ -204,6 +234,7 @@ export function SpatialTab() {
       dancers?: Dancer[];
       paths?: Record<string, PathModel>;
       toolState?: ToolState;
+      freehandStrokes?: FreehandStroke[];
     };
 
     const formation = activeMomentRecord.formation as PersistedFormation | null;
@@ -220,6 +251,9 @@ export function SpatialTab() {
       formation?.paths && typeof formation.paths === 'object' && !Array.isArray(formation.paths)
         ? (formation.paths as Record<string, PathModel>)
         : {};
+    const hydratedFreehand = Array.isArray(formation?.freehandStrokes)
+      ? formation.freehandStrokes
+      : [];
 
     // Avoid overwriting an in-progress drag when the same moment is refetched from the server.
     if (identityChanged) {
@@ -228,6 +262,7 @@ export function SpatialTab() {
     if ((identityChanged || !isDraggingDancerRef.current) && shouldApplySpatialHydration) {
       setDancers(hydratedDancers);
       setPathsByDancer(hydratedPathsByDancer);
+      setFreehandStrokes(hydratedFreehand);
     }
     if (shouldApplySpatialHydration && incomingLastModifiedAt) {
       lastSyncedAtRef.current = incomingLastModifiedAt;
@@ -313,6 +348,43 @@ export function SpatialTab() {
   const maxTopPx = Math.max(0, canvasSize.height - DOT_SIZE);
 
   const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+  const pushUndoSnapshot = () => {
+    undoStackRef.current.push({
+      dancers: [...latestDancersRef.current],
+      pathsByDancer: { ...pathsByDancer },
+      freehandStrokes: [...freehandStrokes],
+    });
+    if (undoStackRef.current.length > 20) undoStackRef.current.shift();
+  };
+
+  const snapPct = (pct: number) => {
+    if (!snapToGrid || canvasSize.width <= 0) return pct;
+    const step = (22 / canvasSize.width) * 100;
+    return Math.round(pct / step) * step;
+  };
+
+  const touchToPct = (x: number, y: number) => ({
+    xPct: snapPct(clamp((x / Math.max(canvasSize.width, 1)) * 100, 0, 100)),
+    yPct: snapPct(clamp((y / Math.max(canvasSize.height, 1)) * 100, 0, 100)),
+  });
+
+  const handleUndo = () => {
+    const prev = undoStackRef.current.pop();
+    if (!prev) return;
+    setDancers(prev.dancers);
+    latestDancersRef.current = prev.dancers;
+    setPathsByDancer(prev.pathsByDancer);
+    setFreehandStrokes(prev.freehandStrokes);
+    const targetMomentId = activeMomentRef.current;
+    if (targetMomentId) {
+      void persistFormation(targetMomentId, {
+        dancers: prev.dancers,
+        pathsByDancer: prev.pathsByDancer,
+        freehandStrokes: prev.freehandStrokes,
+      });
+    }
+  };
 
   const leftPctToPx = (leftPct: number) => (maxLeftPx === 0 ? 0 : (leftPct / 100) * maxLeftPx);
   const topPctToPx = (topPct: number) => (maxTopPx === 0 ? 0 : (topPct / 100) * maxTopPx);
@@ -420,8 +492,73 @@ export function SpatialTab() {
   };
 
   const handleCanvasTap = (event: GestureResponderEvent) => {
-    createPathForSelectedDancer(event);
+    if (canvasMode === 'erase') {
+      const { locationX, locationY } = event.nativeEvent;
+      const hit = touchToPct(locationX, locationY);
+      const threshold = 4;
+      const next = freehandStrokes.filter((stroke) =>
+        !stroke.points.some(
+          (p) =>
+            Math.abs(p.xPct - hit.xPct) < threshold && Math.abs(p.yPct - hit.yPct) < threshold
+        )
+      );
+      if (next.length !== freehandStrokes.length) {
+        pushUndoSnapshot();
+        setFreehandStrokes(next);
+        const targetMomentId = activeMomentRef.current;
+        if (targetMomentId) void persistFormation(targetMomentId, { freehandStrokes: next });
+      }
+      return;
+    }
+    if (canvasMode === 'path') {
+      createPathForSelectedDancer(event);
+    }
   };
+
+  const canvasDrawPan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => canvasMode === 'pen',
+        onMoveShouldSetPanResponder: () => canvasMode === 'pen',
+        onPanResponderGrant: (event) => {
+          if (canvasMode !== 'pen') return;
+          pushUndoSnapshot();
+          const { locationX, locationY } = event.nativeEvent;
+          const pt = touchToPct(locationX, locationY);
+          const stroke: FreehandStroke = {
+            id: `fh-${Date.now()}`,
+            points: [pt],
+            color: colors.capture,
+          };
+          liveStrokeRef.current = stroke;
+          setLiveStroke(stroke);
+        },
+        onPanResponderMove: (event) => {
+          if (canvasMode !== 'pen' || !liveStrokeRef.current) return;
+          const { locationX, locationY } = event.nativeEvent;
+          const pt = touchToPct(locationX, locationY);
+          const nextStroke = {
+            ...liveStrokeRef.current,
+            points: [...liveStrokeRef.current.points, pt],
+          };
+          liveStrokeRef.current = nextStroke;
+          setLiveStroke(nextStroke);
+        },
+        onPanResponderRelease: () => {
+          const finished = liveStrokeRef.current;
+          liveStrokeRef.current = null;
+          setLiveStroke(null);
+          if (!finished || finished.points.length < 2) return;
+          setFreehandStrokes((prev) => {
+            const next = [...prev, finished];
+            const targetMomentId = activeMomentRef.current;
+            if (targetMomentId) void persistFormation(targetMomentId, { freehandStrokes: next });
+            return next;
+          });
+        },
+      }),
+    [canvasMode, canvasSize, colors.capture, freehandStrokes, snapToGrid]
+  );
 
   const startDancerDrag = (dancer: Dancer) => {
     dragStartRef.current[dancer.id] = {
@@ -484,6 +621,7 @@ export function SpatialTab() {
     dancers.forEach((dancer) => {
       responders[dancer.id] = PanResponder.create({
         onStartShouldSetPanResponder: () => {
+          if (canvasMode === 'pen' || canvasMode === 'erase') return false;
           const isPathTargetTap =
             selectedTool === 'path' &&
             toolState.path === 'active' &&
@@ -514,7 +652,7 @@ export function SpatialTab() {
       });
     });
     return responders;
-  }, [dancers, selectedDancerId, selectedTool, toolState.path]);
+  }, [canvasMode, dancers, selectedDancerId, selectedTool, toolState.path]);
 
   const renderGridLines = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
@@ -568,6 +706,37 @@ export function SpatialTab() {
 
   const isToolLocked = (tool: keyof ToolState) => toolState[tool] === 'locked';
   const isToolSelected = (tool: keyof ToolState) => selectedTool === tool;
+
+  const renderFreehandStrokes = () => {
+    if (!canvasSize.width || !canvasSize.height) return null;
+    const strokes = liveStroke ? [...freehandStrokes, liveStroke] : freehandStrokes;
+    return (
+      <Svg
+        pointerEvents="none"
+        width={canvasSize.width}
+        height={canvasSize.height}
+        style={StyleSheet.absoluteFill}
+      >
+        {strokes.map((stroke) => {
+          if (stroke.points.length < 2) return null;
+          const points = stroke.points
+            .map((p) => `${leftPctToPx(p.xPct)},${topPctToPx(p.yPct)}`)
+            .join(' ');
+          return (
+            <SvgPolyline
+              key={stroke.id}
+              points={points}
+              fill="none"
+              stroke={stroke.color}
+              strokeWidth={isTabletLandscape ? 3 : 2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          );
+        })}
+      </Svg>
+    );
+  };
 
   const renderAuthoredPaths = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
@@ -629,8 +798,11 @@ export function SpatialTab() {
     });
   };
 
+  const selectedDotSize = DOT_SIZE + 6;
+
   return (
     <View style={styles.container}>
+      <PremiumTabHeader title={t('spatial.tabTitle')} subtitle={t('spatial.tabSubtitle')} />
       {/* Canvas zone */}
       <View style={styles.canvasZone}>
         <View style={styles.momentStripShell}>
@@ -697,22 +869,24 @@ export function SpatialTab() {
         )}
 
         {/* Floor canvas */}
-        <TouchableOpacity 
+        <View
           style={styles.floorCanvas}
-          onPress={handleCanvasTap}
-          activeOpacity={1}
-          onLayout={(e) => setCanvasSize({
-            width: e.nativeEvent.layout.width,
-            height: e.nativeEvent.layout.height
-          })}
+          onLayout={(e) =>
+            setCanvasSize({
+              width: e.nativeEvent.layout.width,
+              height: e.nativeEvent.layout.height,
+            })
+          }
+          {...(canvasMode === 'pen' ? canvasDrawPan.panHandlers : {})}
         >
           {renderGridLines()}
           {renderAuthoredPaths()}
-          
+          {renderFreehandStrokes()}
+
           {/* Dancer dots */}
           {dancers.map((dancer) => {
             const isSelected = selectedDancerId === dancer.id;
-            const dotSize = isSelected ? SELECTED_DOT_SIZE : DOT_SIZE;
+            const dotSize = isSelected ? selectedDotSize : DOT_SIZE;
             const positionOffset = (DOT_SIZE - dotSize) / 2;
 
             return (
@@ -748,59 +922,74 @@ export function SpatialTab() {
           
           <Text style={styles.backstageLabel}>{t('spatial.backstage')}</Text>
           <Text style={styles.audienceLabel}>{t('spatial.audience')}</Text>
-        </TouchableOpacity>
+          {(canvasMode === 'path' || canvasMode === 'erase') && (
+            <View
+              style={StyleSheet.absoluteFill}
+              onStartShouldSetResponder={() => true}
+              onResponderRelease={handleCanvasTap}
+            />
+          )}
+        </View>
 
         {/* Tool bar */}
         <View style={styles.toolBar}>
           <TouchableOpacity
-            style={[
-              styles.toolButton,
-              isToolSelected('position') && styles.toolButtonActive
-            ]}
-            onPress={() => setSelectedTool('position')}
+            style={[styles.toolButton, canvasMode === 'move' && styles.toolButtonActive]}
+            onPress={() => {
+              setCanvasMode('move');
+              setSelectedTool('position');
+            }}
             activeOpacity={0.78}
           >
-            <Text style={[
-              styles.toolButtonText,
-              isToolSelected('position') && styles.toolButtonTextActive
-            ]}>
-              {t('spatial.toolPosition')}
+            <Text style={[styles.toolButtonText, canvasMode === 'move' && styles.toolButtonTextActive]}>
+              {t('spatial.toolMove')}
             </Text>
           </TouchableOpacity>
-          
+          <TouchableOpacity
+            style={[styles.toolButton, canvasMode === 'pen' && styles.toolButtonActive]}
+            onPress={() => setCanvasMode('pen')}
+            activeOpacity={0.78}
+          >
+            <Text style={[styles.toolButtonText, canvasMode === 'pen' && styles.toolButtonTextActive]}>
+              {t('spatial.toolPen')}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.toolButton,
-              isToolSelected('path') && styles.toolButtonActive,
+              canvasMode === 'path' && styles.toolButtonActive,
               isToolLocked('path') && { opacity: 0.3 },
             ]}
-            onPress={() => setSelectedTool('path')}
+            onPress={() => {
+              setCanvasMode('path');
+              setSelectedTool('path');
+            }}
             disabled={isToolLocked('path')}
             activeOpacity={0.78}
           >
-            <Text style={[
-              styles.toolButtonText,
-              isToolSelected('path') && styles.toolButtonTextActive
-            ]}>
+            <Text style={[styles.toolButtonText, canvasMode === 'path' && styles.toolButtonTextActive]}>
               {t('spatial.toolPath')}
             </Text>
           </TouchableOpacity>
-          
           <TouchableOpacity
-            style={[
-              styles.toolButton,
-              isToolSelected('relationship') && styles.toolButtonActive,
-              isToolLocked('relationship') && { opacity: 0.3 },
-            ]}
-            onPress={() => setSelectedTool('relationship')}
-            disabled={isToolLocked('relationship')}
+            style={[styles.toolButton, canvasMode === 'erase' && styles.toolButtonActive]}
+            onPress={() => setCanvasMode('erase')}
             activeOpacity={0.78}
           >
-            <Text style={[
-              styles.toolButtonText,
-              isToolSelected('relationship') && styles.toolButtonTextActive
-            ]}>
-              {t('spatial.toolRelationship')}
+            <Text style={[styles.toolButtonText, canvasMode === 'erase' && styles.toolButtonTextActive]}>
+              {t('spatial.toolErase')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.toolButton} onPress={handleUndo} activeOpacity={0.78}>
+            <Text style={styles.toolButtonText}>{t('spatial.toolUndo')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toolButton, snapToGrid && styles.toolButtonActive]}
+            onPress={() => setSnapToGrid((v) => !v)}
+            activeOpacity={0.78}
+          >
+            <Text style={[styles.toolButtonText, snapToGrid && styles.toolButtonTextActive]}>
+              {t('spatial.toolSnap')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -925,6 +1114,15 @@ export function SpatialTab() {
           )}
         </View>
       </View>
+      {showSpatialCoach ? (
+        <SpatialCoachOverlay
+          onDone={() => {
+            setShowSpatialCoach(false);
+            setCanvasMode('pen');
+            setSelectedTool('position');
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -940,6 +1138,7 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.ground,
+    position: 'relative',
   },
   canvasZone: {
     flex: 0.65,
@@ -1057,8 +1256,6 @@ function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
   },
   dancerDot: {
     position: 'absolute',
-    width: DOT_SIZE,
-    height: DOT_SIZE,
     borderRadius: DOT_RADIUS,
     borderWidth: 1.5,
     borderColor: '#fff',

@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import { theme } from '../../lib/theme';
+import { PremiumTabHeader } from '../premium-workbench/PremiumTabHeader';
 import type { Moment } from '@roam/types';
 
-const colors = theme.light;
-
 export function SongMapTab() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { 
     sessionName,
     activeMoment, 
@@ -119,12 +121,7 @@ export function SongMapTab() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
-        <Text style={styles.topBarSessionName}>{sessionName}</Text>
-        <View style={styles.topBarRight}>
-          <Text style={styles.topBarSectionLabel}>{activeSection}</Text>
-        </View>
-      </View>
+      <PremiumTabHeader title="Song map" subtitle={sessionName} />
 
       {!momentsConnectionStatus.isConnected && (
         <View style={styles.connectionErrorBanner}>
@@ -270,36 +267,12 @@ export function SongMapTab() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'column',
     backgroundColor: colors.ground,
-  },
-  topBar: {
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    backgroundColor: colors.chrome,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-  },
-  topBarSessionName: {
-    fontFamily: 'Fraunces',
-    fontSize: 18,
-    color: colors.active,
-  },
-  topBarRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  topBarSectionLabel: {
-    fontFamily: 'JetBrainsMono',
-    fontSize: 10,
-    color: colors.muted,
   },
   middleRow: {
     flex: 1,
@@ -485,8 +458,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionRowActive: {
-    borderColor: '#7db9a8',
-    backgroundColor: 'rgba(125,185,168,0.12)',
+    borderColor: colors.capture,
+    backgroundColor: colors.mineBg,
   },
   sectionRowText: {
     fontSize: theme.typography.tool.label,
@@ -517,6 +490,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#dc2626',
     textAlign: 'center',
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.monoFamily,
   },
 });
+}

@@ -1,13 +1,14 @@
+# Roam API on Render — Node runtime (no local Docker required).
+# Connect repo → Blueprint or sync this file → set secret env vars in dashboard.
 services:
   - type: web
     name: roam-api
-    runtime: docker
-    dockerfilePath: apps/api/Dockerfile
-    dockerContext: .
+    runtime: node
+    plan: free
+    buildCommand: chmod +x scripts/render-build-api.sh && ./scripts/render-build-api.sh
+    startCommand: node apps/api/dist/index.js
     healthCheckPath: /health
     envVars:
-      - key: PORT
-        value: "3001"
       - key: NODE_ENV
         value: production
       - key: SUPABASE_URL
@@ -26,7 +27,6 @@ services:
         sync: false
       - key: SHARE_BASE_URL
         sync: false
-      # Stripe is deferred for this phase; declared here for completeness but not required for soft launch.
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET

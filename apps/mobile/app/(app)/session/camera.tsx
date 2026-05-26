@@ -38,6 +38,7 @@ export default function CameraScreen() {
   const [showFallbackNotice, setShowFallbackNotice] = useState(false);
   const [showRecordErrorNotice, setShowRecordErrorNotice] = useState(false);
   const [voiceMemoNotice, setVoiceMemoNotice] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
   const [sessionName, setSessionName] = useState<string | null>(null);
@@ -165,6 +166,18 @@ export default function CameraScreen() {
       stopFpsMonitor();
     };
   }, [dualEnabled, isRecording, stopFpsMonitor, triggerFallback]);
+
+  useEffect(() => {
+    if (!isRecording) {
+      setRecSeconds(0);
+      return;
+    }
+    const started = Date.now();
+    const id = setInterval(() => {
+      setRecSeconds((Date.now() - started) / 1000);
+    }, 67);
+    return () => clearInterval(id);
+  }, [isRecording]);
 
   useEffect(() => {
     if (recordedUri && autoOpenQuickSaveRef.current) {
@@ -498,6 +511,32 @@ export default function CameraScreen() {
           <CameraView ref={frontCameraRef} style={StyleSheet.absoluteFill} mode="video" facing="front" />
         </View>
       ) : null}
+      {isRecording ? (
+        <>
+          <View style={styles.gridOverlay} pointerEvents="none">
+            {[33, 66].map((pct) => (
+              <View key={`h-${pct}`} style={[styles.gridLineH, { top: `${pct}%` }]} />
+            ))}
+            {[33, 66].map((pct) => (
+              <View key={`v-${pct}`} style={[styles.gridLineV, { left: `${pct}%` }]} />
+            ))}
+          </View>
+          <View style={styles.recHud} pointerEvents="none">
+            <View style={styles.recHudCard}>
+              <View style={styles.recHudRow}>
+                <View style={styles.recHudDot} />
+                <Text style={styles.recHudLabel}>{t('camera.capturing')}</Text>
+              </View>
+              <Text style={styles.recHudTime}>{formatRecTime(recSeconds)}</Text>
+              {sectionName ? (
+                <Text style={styles.recHudMeta}>
+                  {sectionName}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        </>
+      ) : null}
       {showRecordErrorNotice ? (
         <View style={styles.fallbackNotice}>
           <Text style={styles.fallbackNoticeText}>{t('camera.recordErrorNotice')}</Text>
@@ -545,6 +584,14 @@ export default function CameraScreen() {
       </View>
     </View>
   );
+}
+
+function formatRecTime(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  const cs = String(Math.floor((sec % 1) * 100)).padStart(2, '0');
+  return `${m}:${ss}.${cs}`;
 }
 
 const t = theme.night;
@@ -786,5 +833,71 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.xs,
     color: colors.chrome,
     fontWeight: '600',
+  },
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    margin: 20,
+  },
+  gridLineH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(244,235,214,0.12)',
+  },
+  gridLineV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(244,235,214,0.12)',
+  },
+  recHud: {
+    position: 'absolute',
+    top: 72,
+    left: 16,
+    right: 16,
+  },
+  recHudCard: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(14,12,10,0.72)',
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(244,235,214,0.15)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  recHudRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 4,
+  },
+  recHudDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: colors.capture,
+  },
+  recHudLabel: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    color: colors.capture,
+  },
+  recHudTime: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 22,
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  recHudMeta: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 10,
+    color: 'rgba(244,235,214,0.45)',
+    marginTop: 2,
+    textTransform: 'lowercase',
   },
 });

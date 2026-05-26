@@ -1,0 +1,40 @@
+name: roam-site-ci
+
+on:
+  push:
+    branches:
+      - "**"
+    paths:
+      - "roam-site/**"
+      - ".github/workflows/roam-site-ci.yml"
+  pull_request:
+    paths:
+      - "roam-site/**"
+      - ".github/workflows/roam-site-ci.yml"
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: roam-site
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: roam-site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run CI quality gate
+        run: npm run test:ci

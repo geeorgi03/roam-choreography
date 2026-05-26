@@ -13,13 +13,15 @@ import {
   Alert,
   Pressable,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
-import { useGroupRealtime } from '../../lib/hooks/useGroupRealtime';
+import { useSessionCollab } from '../../lib/contexts/SessionCollabContext';
 import { supabase } from '../../lib/supabase';
 import { theme } from '../../lib/theme';
 import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
+import { PremiumTabHeader } from '../premium-workbench/PremiumTabHeader';
+import { CollabStatusBar } from './CollabStatusBar';
 import { API_BASE } from '../../lib/api';
 
 interface Dancer {
@@ -106,13 +108,6 @@ export function GroupTab() {
   const { colors } = useTheme();
   const styles = useMemo(() => createGroupStyles(colors), [colors]);
   const router = useRouter();
-  const { share_token, token } = useLocalSearchParams<{ share_token?: string; token?: string }>();
-  const inviteShareToken =
-    typeof share_token === 'string' && share_token.length > 0
-      ? share_token
-      : typeof token === 'string' && token.length > 0
-        ? token
-        : null;
   const { session } = useSession();
   const {
     sessionId,
@@ -129,11 +124,8 @@ export function GroupTab() {
     musicTrack,
     openSheet,
   } = useSessionContext();
-  const { participants, myParticipant, isChoreographer, broadcasts, sendBroadcast, updatePosition, connectionStatus } = useGroupRealtime(
-    sessionId,
-    session?.access_token,
-    inviteShareToken
-  );
+  const { participants, myParticipant, isChoreographer, broadcasts, sendBroadcast, updatePosition, connectionStatus } =
+    useSessionCollab();
 
   const [renamingMomentId, setRenamingMomentId] = useState<string | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
@@ -696,14 +688,15 @@ export function GroupTab() {
   if (isChoreographer) {
     return (
       <View style={styles.container}>
-        <View style={styles.choreographerHeader}>
-          <View style={styles.choreographerHeaderActions}>
-            <TouchableOpacity style={styles.headerIconButton} onPress={handleShare} activeOpacity={0.8}>
-              <Text style={styles.headerIcon}>↗</Text>
-            </TouchableOpacity>
-            {shareError ? <Text style={styles.shareErrorText}>{shareError}</Text> : null}
-          </View>
-        </View>
+        <PremiumTabHeader title="Group" subtitle="Choreographer · live floor" />
+        <CollabStatusBar
+          connected={connectionStatus.isConnected}
+          hasError={connectionStatus.hasError}
+          participantCount={participants.length}
+          showInvite
+          onInvite={handleShare}
+        />
+        {shareError ? <Text style={styles.shareErrorText}>{shareError}</Text> : null}
         {!connectionStatus.isConnected && (
           <View style={styles.connectionErrorBanner}>
             <Text style={styles.connectionErrorText}>
@@ -851,6 +844,12 @@ export function GroupTab() {
 
   return (
     <View style={styles.dancerContainer}>
+      <PremiumTabHeader title="Group" subtitle="Dancer view" />
+      <CollabStatusBar
+        connected={connectionStatus.isConnected}
+        hasError={connectionStatus.hasError}
+        participantCount={participants.length}
+      />
       {!connectionStatus.isConnected && (
         <View style={styles.connectionErrorBanner}>
           <Text style={styles.connectionErrorText}>

@@ -6,7 +6,7 @@ import { SessionProvider, useSessionContext } from '../../../lib/contexts/Sessio
 import { FeelingStrip } from '../../../components/session/FeelingStrip';
 import { SessionTabBar } from '../../../components/session/SessionTabBar';
 import { TransportBar } from '../../../components/session/TransportBar';
-import { WorkbenchTab } from '../../../components/session/WorkbenchTab';
+import { PremiumWorkbenchTab } from '../../../components/premium-workbench/PremiumWorkbenchTab';
 import { SongMapTab } from '../../../components/session/SongMapTab';
 import { SpatialTab } from '../../../components/session/SpatialTab';
 import { GroupTab } from '../../../components/session/GroupTab';
@@ -17,14 +17,21 @@ import { NotePinSheet } from '../../../components/NotePinSheet';
 import { ClipViewerSheet } from '../../../components/session/ClipViewerSheet';
 import { OfflineBanner } from '../../../components/session/OfflineBanner';
 import { PaywallSheet } from '../../../components/PaywallSheet';
-import { theme } from '../../../lib/theme';
 import { useTheme, type ThemePalette } from '../../../lib/contexts/ThemeContext';
+import { useTabletLandscape } from '../../../lib/hooks/useTabletLandscape';
+import { SessionTabletShell } from '../../../components/landscape';
+import { ChoreographyShell } from '../../../components/choreography';
+import { SessionCollabProvider, useSessionCollab } from '../../../lib/contexts/SessionCollabContext';
+import { DancerSessionView } from '../../../components/session/DancerSessionView';
+import { USE_CHOREOGRAPHY_UI } from '../../../lib/choreographyUiFlag';
 import { setActiveSessionId } from '../../../lib/storage';
 import { setLastOpenedSessionId } from '../../../lib/homeHubState';
 import { addUploadQueueListener } from '../../../services/uploadQueue';
 
 function SessionShellContent() {
   const { colors } = useTheme();
+  const { isTabletLandscape } = useTabletLandscape();
+  const { isDancerMode } = useSessionCollab();
   const styles = useMemo(() => createSessionShellStyles(colors), [colors]);
   const { id, tab } = useLocalSearchParams<{ id: string; tab?: string }>();
   const router = useRouter();
@@ -39,6 +46,7 @@ function SessionShellContent() {
     musicTrack,
     clips,
     openSheet,
+    activeSection,
   } = useSessionContext();
 
   // ── Bottom-sheet refs ────────────────────────────────────────────────────
@@ -154,7 +162,7 @@ function SessionShellContent() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'workbench':
-        return <WorkbenchTab />;
+        return <PremiumWorkbenchTab />;
       case 'song-map':
         return <SongMapTab />;
       case 'spatial':
@@ -162,12 +170,12 @@ function SessionShellContent() {
       case 'group':
         return <GroupTab />;
       default:
-        return <WorkbenchTab />;
+        return <PremiumWorkbenchTab />;
     }
   };
 
   // ── Transport variant based on active tab ───────────────────────────────
-  const transportVariant = activeTab === 'workbench' ? 'full' : 'reduced';
+  const transportVariant = activeTab === 'workbench' ? 'hidden' : 'reduced';
   const untaggedClipCount = clips.filter((clip) => {
     return (
       !clip.move_name &&
@@ -179,17 +187,129 @@ function SessionShellContent() {
     );
   }).length;
 
+  const tabBody = renderTabContent();
+
+  if (USE_CHOREOGRAPHY_UI && !isDancerMode) {
+    return (
+      <View style={styles.container}>
+        <OfflineBanner />
+        <ChoreographyShell />
+        <ShareSheet
+          sessionId={id!}
+          sessionName={sessionName}
+          hasMusic={!!musicTrack}
+          untaggedClipCount={untaggedClipCount}
+          bottomSheetRef={shareSheetRef}
+          onClose={() => closeSheetIfActive('share')}
+        />
+        <CaptureSheet
+          bottomSheetRef={captureSheetRef}
+          sectionName={activeSection}
+          inboxCount={0}
+          onRecord={() =>
+            router.push({
+              pathname: './camera',
+              params: { id: id!, sectionName: activeSection },
+            })
+          }
+          onInbox={() =>
+            router.push({
+              pathname: '/inbox',
+              params: { sessionId: id!, sectionName: activeSection },
+            })
+          }
+        />
+        <ClipShareSheet
+          bottomSheetRef={clipShareSheetRef}
+          clipId={selectedClipForSheet?.server_id ?? null}
+          clipLabel={selectedClipForSheet?.label ?? 'Clip'}
+          sectionName={activeSection}
+          duration="0:00"
+        />
+        <NotePinSheet
+          bottomSheetRef={notePinSheetRef}
+          sessionId={id}
+          timecode="00:00.0"
+          sectionName={activeSection}
+          onSave={async () => {}}
+        />
+        <ClipViewerSheet
+          ref={clipViewerSheetRef}
+          onClose={() => closeSheetIfActive('clip-viewer')}
+        />
+        <PaywallSheet
+          bottomSheetRef={paywallSheetRef}
+          onDismiss={() => closeSheetIfActive('paywall')}
+        />
+      </View>
+    );
+  }
+
+  if (isDancerMode) {
+    return (
+      <View style={styles.container}>
+        <OfflineBanner />
+        <DancerSessionView />
+        <ShareSheet
+          sessionId={id!}
+          sessionName={sessionName}
+          hasMusic={!!musicTrack}
+          untaggedClipCount={untaggedClipCount}
+          bottomSheetRef={shareSheetRef}
+          onClose={() => closeSheetIfActive('share')}
+        />
+        <CaptureSheet
+          bottomSheetRef={captureSheetRef}
+          sectionName={activeSection}
+          inboxCount={0}
+          onRecord={() =>
+            router.push({
+              pathname: './camera',
+              params: { id: id!, sectionName: activeSection },
+            })
+          }
+          onInbox={() =>
+            router.push({
+              pathname: '/inbox',
+              params: { sessionId: id!, sectionName: activeSection },
+            })
+          }
+        />
+        <ClipViewerSheet
+          ref={clipViewerSheetRef}
+          onClose={() => closeSheetIfActive('clip-viewer')}
+        />
+        <PaywallSheet
+          bottomSheetRef={paywallSheetRef}
+          onDismiss={() => closeSheetIfActive('paywall')}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <OfflineBanner />
-      <FeelingStrip />
-      <SessionTabBar />
-      
-      <View style={styles.tabContent}>
-        {renderTabContent()}
-      </View>
-
-      <TransportBar variant={transportVariant} />
+      {isTabletLandscape ? (
+        <>
+          {activeTab !== 'workbench' ? <FeelingStrip /> : null}
+          <View style={styles.tabContent}>
+            <SessionTabletShell>{tabBody}</SessionTabletShell>
+          </View>
+          {transportVariant !== 'hidden' ? (
+            <TransportBar variant={transportVariant} />
+          ) : null}
+        </>
+      ) : (
+        <>
+          {activeTab !== 'workbench' ? <FeelingStrip /> : null}
+          <SessionTabBar />
+          <View style={styles.tabContent}>{tabBody}</View>
+          {transportVariant !== 'hidden' ? (
+            <TransportBar variant={transportVariant} />
+          ) : null}
+        </>
+      )}
 
       {/* Sheets */}
       <ShareSheet
@@ -249,7 +369,9 @@ export default function SessionWorkbenchScreen() {
 
   return (
     <SessionProvider sessionId={id}>
-      <SessionShellContent />
+      <SessionCollabProvider sessionId={id}>
+        <SessionShellContent />
+      </SessionCollabProvider>
     </SessionProvider>
   );
 }

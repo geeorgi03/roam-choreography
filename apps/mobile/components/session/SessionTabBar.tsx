@@ -2,16 +2,18 @@ import React, { useMemo, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, Animated } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
+import { useTranslation } from '../../lib/i18n';
 import { theme } from '../../lib/theme';
 
-const tabs = [
-  { id: 'workbench', fullLabel: 'Workbench', shortLabel: 'Work' },
-  { id: 'song-map', fullLabel: 'Map', shortLabel: 'Map' },
-  { id: 'spatial', fullLabel: 'Spatial', shortLabel: 'Space' },
-  { id: 'group', fullLabel: 'Group', shortLabel: 'Group' },
+const TAB_DEFS = [
+  { id: 'workbench', labelKey: 'session.tab.workbench', shortKey: 'session.tab.workbenchShort' },
+  { id: 'song-map', labelKey: 'session.tab.songMap', shortKey: 'session.tab.songMapShort' },
+  { id: 'spatial', labelKey: 'session.tab.spatial', shortKey: 'session.tab.spatialShort' },
+  { id: 'group', labelKey: 'session.tab.group', shortKey: 'session.tab.groupShort' },
 ] as const;
 
 export function SessionTabBar() {
+  const { t } = useTranslation();
   const { colors, mode } = useTheme();
   const styles = useMemo(() => createTabBarStyles(colors, mode === 'night'), [colors, mode]);
   const { activeTab, setActiveTab, closeSheet } = useSessionContext();
@@ -19,7 +21,7 @@ export function SessionTabBar() {
   
   // Animation values for tab transitions
   const tabAnimations = useRef(
-    tabs.reduce((acc, tab) => {
+    TAB_DEFS.reduce((acc, tab) => {
       acc[tab.id] = new Animated.Value(activeTab === tab.id ? 1 : 0);
       return acc;
     }, {} as Record<string, Animated.Value>)
@@ -27,7 +29,7 @@ export function SessionTabBar() {
   
   // Update animations when active tab changes
   React.useEffect(() => {
-    tabs.forEach((tab) => {
+    TAB_DEFS.forEach((tab) => {
       Animated.timing(tabAnimations[tab.id], {
         toValue: activeTab === tab.id ? 1 : 0,
         duration: 200,
@@ -39,8 +41,10 @@ export function SessionTabBar() {
   return (
     <View style={styles.outer}>
       <View style={styles.track}>
-        {tabs.map((tab) => {
+        {TAB_DEFS.map((tab) => {
           const active = activeTab === tab.id;
+          const label =
+            width >= 600 ? t(tab.labelKey) : t(tab.shortKey);
           return (
             <Animated.View
               key={tab.id}
@@ -88,7 +92,7 @@ export function SessionTabBar() {
                     },
                   ]}
                 >
-                  {width >= 600 ? tab.fullLabel : tab.shortLabel}
+                  {label}
                 </Animated.Text>
               </TouchableOpacity>
             </Animated.View>

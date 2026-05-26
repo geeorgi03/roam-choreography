@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, PanResponder, Alert } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
@@ -7,6 +7,9 @@ import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useSession } from '../../lib/hooks/useSession';
 import type { NotePin } from '../../lib/hooks/useNotePins';
 import { theme } from '../../lib/theme';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
+import { PremiumClipActionBar } from '../premium-workbench/PremiumClipActionBar';
+import { PremiumOtherTakesRow } from '../premium-workbench/PremiumOtherTakesRow';
 import { supabase } from '../../lib/supabase';
 import { apiRequest } from '../../lib/api';
 import Toast from 'react-native-toast-message';
@@ -16,8 +19,8 @@ import { TagSheet } from '../TagSheet';
 import { TagHistorySheet } from '../../components/TagHistorySheet';
 import type { ClipRow } from '../../lib/database';
 
-const colors = theme.light;
 const nightColors = theme.night;
+const staticLight = theme.light;
 
 interface ClipViewerSheetProps {
   onClose: () => void;
@@ -39,7 +42,10 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
     openClipSheet,
     setSelectedClipForSheet,
     refreshCount,
+    openSheet,
   } = useSessionContext();
+  const { colors } = useTheme();
+  const lightStyles = useMemo(() => createLightStyles(colors), [colors]);
   const { session } = useSession();
   const videoRef = useRef<Video>(null);
   const feedbackSheetRef = useRef<BottomSheet>(null);
@@ -179,6 +185,34 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
   // Determine if this is a MINE clip (can trim)
   const isMineClip = (selectedClipForSheet.clip_type === 'MINE' || selectedClipForSheet.clip_type == null) && selectedClipForSheet.mux_playback_id;
 
+  const sectionTakeClips = useMemo(() => {
+    const ids = new Set(
+      sectionClips
+        .filter((sc) => sc.section_label === activeSection)
+        .map((sc) => sc.clip_id)
+    );
+    return clips.filter((c) => c.server_id && ids.has(c.server_id));
+  }, [clips, sectionClips, activeSection]);
+
+  const takeIndex = Math.max(
+    0,
+    sectionTakeClips.findIndex(
+      (c) =>
+        c.local_id === selectedClipForSheet.local_id ||
+        c.server_id === selectedClipForSheet.server_id
+    )
+  );
+
+  const handleLoopAction = () => {
+    if (activeLoop && videoRef.current) {
+      void videoRef.current.setPositionAsync(activeLoop.start_ms);
+      return;
+    }
+    if (loopRegion && videoRef.current) {
+      void videoRef.current.setPositionAsync(loopRegion.start);
+    }
+  };
+
   const handleSaveToSession = async () => {
     if (!selectedClipForSheet.server_id || !session?.access_token) return;
     
@@ -317,7 +351,14 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       <View style={styles.darkZone}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.clipLabel}>{selectedClipForSheet.label || 'Untitled Clip'}</Text>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.takeMeta}>
+              Take {String(takeIndex + 1).padStart(2, '0')} · {activeSection}
+            </Text>
+            <Text style={styles.clipLabel}>
+              {selectedClipForSheet.label || activeSection}
+            </Text>
+          </View>
           {clipTypeBadge && (
             <View style={[styles.typeBadge, { backgroundColor: clipTypeBadge.backgroundColor }]}>
               <Text style={styles.typeBadgeText}>{clipTypeBadge.label}</Text>
@@ -329,9 +370,6 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
           >
             <Text style={styles.historyIconText}>🕘</Text>
           </TouchableOpacity>
-          <View style={styles.mirrorPill}>
-            <Text style={styles.mirrorPillText}>mirror</Text>
-          </View>
         </View>
 
         {/* Video */}
@@ -430,7 +468,42 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
       </View>
 
       {/* Light zone */}
-        <View style={styles.lightZone}>
+        <View style={lightStyles.lightZone}>
+        <PremiumClipActionBar
+          actions={[
+            { key: 'loop', label: 'Loop', onPress: handleLoopAction },
+            {
+              key: 'trim',
+              label: 'Trim',
+              onPress: isMineClip
+                ? trimStart === null
+                  ? handleInitializeTrim
+                  : handleSaveSegment
+                : undefined,
+              disabled: !isMineClip,
+            },
+            {
+              key: 'share',
+              label: 'Share',
+              onPress: selectedClipForSheet.server_id
+                ? () => openSheet('clip-share')
+                : undefined,
+              disabled: !selectedClipForSheet.server_id,
+            },
+            {
+              key: 'keep',
+              label: 'Keep',
+              onPress: handleSaveToSession,
+              disabled: isClipInSession,
+            },
+          ]}
+        />
+        <PremiumOtherTakesRow
+          clips={sectionTakeClips.length > 0 ? sectionTakeClips : clips}
+          activeClipId={selectedClipForSheet.local_id}
+          sectionLabel={activeSection}
+          onSelectClip={(clip) => setSelectedClipForSheet(clip)}
+        />
         {(parentClip || inspiredNote) && (
           <View style={styles.lineageContainer}>
             {parentClip && (
@@ -565,25 +638,23 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
+  },
+  headerTextBlock: { flex: 1, paddingRight: 8 },
+  takeMeta: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 10,
+    color: 'rgba(244,235,214,0.5)',
+    textTransform: 'uppercase',
+    marginBottom: 4,
   },
   clipLabel: {
     color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
+    fontFamily: theme.typography.serifFamily ?? theme.typography.brandFamily,
+    fontSize: 22,
+    letterSpacing: -0.2,
     flex: 1,
-  },
-  mirrorPill: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  mirrorPillText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
   },
   typeBadge: {
     paddingHorizontal: 4,
@@ -685,11 +756,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  lightZone: {
-    backgroundColor: colors.ground,
-    padding: 16,
-    paddingTop: 8,
-  },
   lineageContainer: {
     borderTopWidth: 0.5,
     borderTopColor: '#e8e3dc',
@@ -701,18 +767,18 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   parentClipText: {
-    color: colors.muted,
+    color: staticLight.muted,
     fontSize: 13,
   },
   parentClipLabel: {
-    color: colors.active,
+    color: staticLight.active,
     fontWeight: '700',
   },
   inspiredNoteRow: {
     paddingVertical: 2,
   },
   inspiredNoteText: {
-    color: colors.muted,
+    color: staticLight.muted,
     fontSize: 13,
     fontStyle: 'italic',
   },
@@ -720,16 +786,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   loopChip: {
-    backgroundColor: colors.mineBg,
+    backgroundColor: staticLight.mineBg,
     borderWidth: 1,
-    borderColor: colors.mine,
+    borderColor: staticLight.mine,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     marginRight: 8,
   },
   loopChipText: {
-    color: colors.mine,
+    color: staticLight.mine,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -738,14 +804,14 @@ const styles = StyleSheet.create({
   },
   tagsButton: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: staticLight.border,
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center',
-    backgroundColor: colors.chrome,
+    backgroundColor: staticLight.chrome,
   },
   tagsButtonText: {
-    color: colors.active,
+    color: staticLight.active,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -756,7 +822,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveButtonDisabled: {
-    backgroundColor: colors.chrome,
+    backgroundColor: staticLight.chrome,
     opacity: 0.5,
   },
   saveButtonText: {
@@ -765,11 +831,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveButtonTextDisabled: {
-    color: colors.muted,
+    color: staticLight.muted,
   },
   momentButton: {
     borderWidth: 1,
-    borderColor: colors.amber,
+    borderColor: staticLight.amber,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -778,20 +844,20 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   momentButtonText: {
-    color: colors.amber,
+    color: staticLight.amber,
     fontSize: 14,
     fontStyle: 'italic',
     fontWeight: '600',
   },
   feedbackButton: {
     borderWidth: 1,
-    borderColor: colors.mine,
+    borderColor: staticLight.mine,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   feedbackButtonText: {
-    color: colors.mine,
+    color: staticLight.mine,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -800,7 +866,7 @@ const styles = StyleSheet.create({
     top: -11,
     width: 12,
     height: 24,
-    backgroundColor: colors.amber,
+    backgroundColor: staticLight.amber,
     borderRadius: 6,
     zIndex: 10,
   },
@@ -808,24 +874,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     height: '100%',
-    backgroundColor: colors.amber + '40', // 25% opacity
+    backgroundColor: staticLight.amber + '40', // 25% opacity
     borderRadius: 1,
   },
   setTrimButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: colors.amber,
+    borderColor: staticLight.amber,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   setTrimButtonText: {
-    color: colors.amber,
+    color: staticLight.amber,
     fontSize: 14,
     fontWeight: '600',
   },
   saveSegmentButton: {
-    backgroundColor: colors.amber,
+    backgroundColor: staticLight.amber,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -839,3 +905,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+function createLightStyles(colors: ThemePalette) {
+  return StyleSheet.create({
+    lightZone: {
+      backgroundColor: colors.ground,
+      padding: 16,
+      paddingTop: 8,
+    },
+    lineageContainer: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.hair ?? colors.border,
+      paddingTop: 10,
+      marginBottom: 12,
+      gap: 8,
+    },
+    parentClipText: { color: colors.muted, fontSize: 13 },
+    parentClipLabel: { color: colors.active, fontWeight: '700' },
+    inspiredNoteText: { color: colors.muted, fontSize: 13, fontStyle: 'italic' },
+  });
+}

@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { supabase } from '../lib/supabase.js';
+import { clampString, isUuid } from '../lib/sanitize.js';
+import { jsonSafeError } from '../middleware/safeErrors.js';
 
 const app = new Hono();
 
@@ -19,27 +21,29 @@ app.post('/', async (c) => {
     return c.json({ error: 'Invalid request body' }, 400);
   }
 
-  const clip_id = body?.clip_id;
+  const clip_id = typeof body?.clip_id === 'string' && isUuid(body.clip_id) ? body.clip_id.trim() : null;
   const timecode_ms = body?.timecode_ms;
-  const text = body?.text;
-  const category = typeof body?.category === 'string' ? body.category.trim() : '';
-  const commenter_name = body?.commenter_name ?? null;
-  const share_token = body?.share_token;
+  const text = clampString(body?.text, 4000);
+  const category = clampString(body?.category, 64) ?? '';
+  const commenter_name = clampString(body?.commenter_name, 120);
+  const share_token =
+    typeof body?.share_token === 'string' && isUuid(body.share_token)
+      ? body.share_token.trim()
+      : null;
 
-  if (!clip_id || typeof timecode_ms !== 'number' || typeof text !== 'string' || text.trim() === '') {
+  if (!clip_id || typeof timecode_ms !== 'number' || !Number.isFinite(timecode_ms) || !text) {
     return c.json({ error: 'clip_id, timecode_ms, and text are required' }, 400);
   }
 
-  if (!share_token || typeof share_token !== 'string' || share_token.trim() === '') {
+  if (timecode_ms < 0 || timecode_ms > 86_400_000) {
+    return c.json({ error: 'Invalid timecode_ms' }, 400);
+  }
+
+  if (!share_token) {
     return c.json({ error: 'share_token is required' }, 400);
   }
 
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidRegex.test(share_token.trim())) {
-    return c.json({ error: 'Invalid or expired share token' }, 403);
-  }
-
-  const trimmedShareToken = share_token.trim();
+  const trimmedShareToken = share_token;
 
   const { data: clipRow, error: clipError } = await supabase
     .from('clips')
@@ -81,7 +85,7 @@ app.post('/', async (c) => {
     .eq('status', 'open')
     .limit(1);
 
-  if (fetchError) return c.json({ error: fetchError.message }, 500);
+  if (fetchError) return jsonSafeError(c, fetchError.message, 500);
   const openRequest = openRequests?.[0] ?? null;
   if (!openRequest) {
     return c.json({ error: 'Feedback not open for this clip' }, 403);
@@ -99,10 +103,10 @@ app.post('/', async (c) => {
       session_id: openRequest.session_id,
       timecode_ms,
       text: normalizedText,
-      commenter_name: typeof commenter_name === 'string' ? commenter_name.trim() || null : null,
+      commenter_name,
     });
 
-  if (error) return c.json({ error: error.message }, 500);
+  if (error) return jsonSafeError(c, error.message, 500);
   return c.json({ ok: true, feedback_category: normalizedCategory, feedback_text: text.trim() }, 201);
 });
 

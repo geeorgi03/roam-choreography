@@ -1,6 +1,6 @@
 # ROAM PRD Implementation Matrix
 
-Last updated: 2026-04-18
+Last updated: 2026-05-18
 
 This matrix is the living source of truth for implementation and acceptance.
 
@@ -41,6 +41,16 @@ Status legend:
 - Monorepo lint is not fully green yet due pre-existing baseline issues in `@roam/types` and `@roam/api`.
 - PRD feature surface is broad, but many items remain `Partial` because measured runtime evidence is missing.
 - Product should not be marked as fully PRD-accepted until the runtime protocol is completed and evidence is attached.
+
+### May 2026 UX / tablet notes (code landed; verdicts unchanged)
+
+- Premium workbench + tab chrome (`PremiumTabHeader`) on Song map, Spatial, Group.
+- Clip detail sheet: Loop / Trim / Share / Keep actions + horizontal other-takes row.
+- iPad landscape: `useTabletLandscape` + `SessionTabletShell` split layout (sidebar tabs, main canvas, section/loop/takes panel).
+- Spatial: pen/erase/undo/snap freehand strokes persisted in moment `formation.freehandStrokes`.
+- Collab: `CollabStatusBar` + [COLLAB_SYNC.md](./COLLAB_SYNC.md). Device proof: [MOBILE_DEP3_SMOKE.md](./MOBILE_DEP3_SMOKE.md).
+
+**Do not set matrix rows to `Done` without device evidence per [RUNTIME_ACCEPTANCE_PROTOCOL.md](./RUNTIME_ACCEPTANCE_PROTOCOL.md).**
 
 ## Ticket correction: [W10-C] (`0487d433-9f11-49e1-bdfd-65a393e1bff0`)
 

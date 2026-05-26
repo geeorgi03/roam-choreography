@@ -10,6 +10,7 @@ import {
 import BottomSheet from '@gorhom/bottom-sheet';
 import Toast from 'react-native-toast-message';
 import { theme } from '../lib/theme';
+import { useTheme, type ThemePalette } from '../lib/contexts/ThemeContext';
 import { useSession } from '../lib/hooks/useSession';
 import { API_BASE } from '../lib/api';
 import { saveClip, saveInboxClip, type SaveClipResult } from '../lib/saveClip';
@@ -39,7 +40,9 @@ export function QuickSaveSheet({
   onDone,
 }: QuickSaveSheetProps) {
   const { t } = useTranslation();
-  const snapPoints = useMemo(() => ['55%'], []);
+  const { colors } = useTheme();
+  const styles = useMemo(() => createQuickSaveStyles(colors), [colors]);
+  const snapPoints = useMemo(() => ['58%'], []);
   const { session } = useSession();
   const [mode, setMode] = useState<Mode>('saved');
   const [loading, setLoading] = useState(false);
@@ -265,22 +268,34 @@ export function QuickSaveSheet({
       }}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>{t('quickSave.title')}</Text>
+        <View style={styles.handleWrap}>
+          <View style={styles.handleBar} />
+        </View>
+        <Text style={styles.title}>{t('quickSave.keepTitle')}</Text>
+        <Text style={styles.subtitle}>{t('quickSave.keepSubtitle')}</Text>
 
         {mode === 'saved' ? (
           <>
-            <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={saveLater}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={theme.light.active} size="small" />
-              ) : (
-                <Text style={styles.secondaryBtnText}>{t('quickSave.later')}</Text>
-                
-              )}
-            </TouchableOpacity>
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={styles.inboxBtn}
+                onPress={saveLater}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.active} size="small" />
+                ) : (
+                  <Text style={styles.inboxBtnText}>{t('quickSave.inbox')}</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={() => setMode('picker')}
+                disabled={loading}
+              >
+                <Text style={styles.saveBtnText}>{t('quickSave.saveToSession')}</Text>
+              </TouchableOpacity>
+            </View>
 
             <TouchableOpacity
               style={styles.secondaryBtn}
@@ -288,16 +303,6 @@ export function QuickSaveSheet({
               disabled={loading}
             >
               <Text style={styles.secondaryBtnText}>{t('quickSave.newSession')}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => {
-                setMode('picker');
-              }}
-              disabled={loading}
-            >
-              <Text style={styles.primaryBtnText}>{t('quickSave.existing')}</Text>
             </TouchableOpacity>
 
             {canSaveToCurrentSection ? (
@@ -319,7 +324,7 @@ export function QuickSaveSheet({
             <Text style={styles.subTitle}>{t('quickSave.chooseSession')}</Text>
             {loadingSessions ? (
               <View style={styles.pickerStatusWrap}>
-                <ActivityIndicator color={theme.light.active} size="small" />
+                <ActivityIndicator color={colors.active} size="small" />
                 <Text style={styles.pickerStatusText}>{t('quickSave.loadingSessions')}</Text>
               </View>
             ) : sessionLoadError ? (
@@ -425,55 +430,109 @@ export function QuickSaveSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  sheet: { backgroundColor: theme.light.ground },
-  handle: { backgroundColor: theme.light.inactive },
-  content: { padding: 20, paddingBottom: 40, gap: 10 },
-  title: { color: theme.light.active, fontSize: 18, fontWeight: '800', marginBottom: 4 },
-  subTitle: { color: theme.light.muted, fontSize: 13, marginBottom: 6 },
-  primaryBtn: {
-    backgroundColor: theme.light.mine,
-    borderRadius: theme.borderRadius,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  primaryBtnText: { color: theme.light.chrome, fontSize: 16, fontWeight: '800' },
-  secondaryBtn: {
-    backgroundColor: theme.light.chrome,
-    borderWidth: 1,
-    borderColor: theme.light.border,
-    borderRadius: theme.borderRadius,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  secondaryBtnText: { color: theme.light.active, fontSize: 16, fontWeight: '700' },
-  linkBtn: { paddingVertical: 10, alignItems: 'center' },
-  linkText: { color: theme.light.mine, fontWeight: '800' },
-  listScroll: { maxHeight: 240 },
-  list: { gap: 10 },
-  pickerStatusWrap: { gap: 12, alignItems: 'center', paddingVertical: 20 },
-  pickerStatusText: { color: theme.light.muted, fontSize: 13, textAlign: 'center' },
-  retrySmallBtn: {
-    borderWidth: 1,
-    borderColor: theme.light.border,
-    borderRadius: theme.borderRadius,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: theme.light.chrome,
-  },
-  retrySmallBtnText: { color: theme.light.active, fontWeight: '700', fontSize: 13 },
-  sessionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: theme.borderRadius,
-    borderWidth: 1,
-    borderColor: theme.light.border,
-    backgroundColor: theme.light.chrome,
-  },
-  sessionText: { color: theme.light.active, fontSize: 16, fontWeight: '700', flex: 1, marginRight: 10 },
-  chev: { color: theme.light.muted, fontSize: 18 },
-});
+function createQuickSaveStyles(colors: ThemePalette) {
+  return StyleSheet.create({
+    sheet: { backgroundColor: colors.chrome },
+    handle: { backgroundColor: colors.hairStrong ?? colors.border },
+    handleWrap: { alignItems: 'center', marginBottom: 8 },
+    handleBar: {
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.hair2 ?? colors.border,
+    },
+    content: { paddingHorizontal: 16, paddingBottom: 40, gap: 10 },
+    title: {
+      fontFamily: theme.typography.serifFamily ?? theme.typography.brandFamily,
+      color: colors.active,
+      fontSize: 22,
+      lineHeight: 26,
+      letterSpacing: -0.2,
+    },
+    subtitle: {
+      color: colors.text3 ?? colors.muted,
+      fontSize: 13,
+      marginBottom: 8,
+    },
+    subTitle: { color: colors.text3 ?? colors.muted, fontSize: 13, marginBottom: 6 },
+    actionRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+    inboxBtn: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.hairStrong ?? colors.borderStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    inboxBtnText: {
+      color: colors.active,
+      fontFamily: theme.typography.monoFamily,
+      fontSize: 10.5,
+      fontWeight: '600',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    saveBtn: {
+      flex: 1.5,
+      height: 44,
+      borderRadius: 10,
+      backgroundColor: colors.capture,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    saveBtnText: {
+      color: '#fff',
+      fontFamily: theme.typography.monoFamily,
+      fontSize: 10.5,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    primaryBtn: {
+      backgroundColor: colors.capture,
+      borderRadius: 10,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    secondaryBtn: {
+      backgroundColor: colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.hair ?? colors.border,
+      borderRadius: 10,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    secondaryBtnText: { color: colors.active, fontSize: 14, fontWeight: '600' },
+    linkBtn: { paddingVertical: 10, alignItems: 'center' },
+    linkText: { color: colors.capture, fontWeight: '700' },
+    listScroll: { maxHeight: 240 },
+    list: { gap: 10 },
+    pickerStatusWrap: { gap: 12, alignItems: 'center', paddingVertical: 20 },
+    pickerStatusText: { color: colors.muted, fontSize: 13, textAlign: 'center' },
+    retrySmallBtn: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      backgroundColor: colors.surface,
+    },
+    retrySmallBtnText: { color: colors.active, fontWeight: '700', fontSize: 13 },
+    sessionRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.hair ?? colors.border,
+      backgroundColor: colors.surface,
+    },
+    sessionText: { color: colors.active, fontSize: 15, fontWeight: '600', flex: 1, marginRight: 10 },
+    chev: { color: colors.muted, fontSize: 18 },
+  });
+}
 

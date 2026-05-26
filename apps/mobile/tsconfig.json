@@ -15,5 +15,6 @@
     "noImplicitAny": false,
     "noImplicitReturns": false
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  
 }

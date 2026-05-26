@@ -295,6 +295,11 @@ export default function ProfileScreen() {
             {t('profile.devCurrent')}
             {API_BASE}
           </Text>
+          {process.env.EXPO_PUBLIC_SUPABASE_URL ? (
+            <Text style={styles.devHint}>
+              Supabase: {process.env.EXPO_PUBLIC_SUPABASE_URL.replace(/^https?:\/\//, '')}
+            </Text>
+          ) : null}
           <TextInput
             style={styles.devInput}
             value={apiUrlInput}
