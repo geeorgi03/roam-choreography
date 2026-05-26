@@ -11,10 +11,14 @@ export function parseLrc(lrc: string): LyricLine[] {
     const min = Number.parseInt(m[1]!, 10);
     const sec = Number.parseInt(m[2]!, 10);
     const fracRaw = m[3] ?? '0';
+    // LRC typically encodes centiseconds as `[mm:ss.xx]`, but some sources use
+    // tenths as `[mm:ss.x]`. Normalize both into milliseconds.
     const fracMs =
-      fracRaw.length <= 2
-        ? Number.parseInt(fracRaw, 10) * 10
-        : Number.parseInt(fracRaw.padEnd(3, '0').slice(0, 3), 10);
+      fracRaw.length === 1
+        ? Number.parseInt(fracRaw, 10) * 100
+        : fracRaw.length === 2
+          ? Number.parseInt(fracRaw, 10) * 10
+          : Number.parseInt(fracRaw.padEnd(3, '0').slice(0, 3), 10);
     const timeMs = (min * 60 + sec) * 1000 + fracMs;
     const text = (m[4] ?? '').trim();
     if (text) lines.push({ timeMs, text });

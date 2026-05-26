@@ -77,16 +77,27 @@ function GalleryBody({
       <View style={styles.header}>
         <Text style={styles.brand}>ROAM</Text>
         <View style={styles.headerActions}>
-          <Pressable onPress={onSettings} hitSlop={8}>
-            <Text style={styles.headerLink}>{t('gallery.settings')}</Text>
-          </Pressable>
-          <Pressable
-            style={styles.plusBtn}
-            onPress={onNewProject}
-            accessibilityLabel={t('gallery.newProjectA11y')}
-          >
-            <Text style={styles.plusText}>+</Text>
-          </Pressable>
+          <View style={styles.headerActionRow}>
+            <Pressable
+              onPress={() => setFilter((prev) => (prev === 'recent' ? 'all' : 'recent'))}
+              hitSlop={8}
+            >
+              <Text style={styles.headerLink}>Select</Text>
+            </Pressable>
+            <Pressable onPress={onNewProject} hitSlop={8}>
+              <Text style={styles.headerLink}>Import</Text>
+            </Pressable>
+            <Pressable onPress={onSettings} hitSlop={8}>
+              <Text style={styles.headerLink}>{t('gallery.settings')}</Text>
+            </Pressable>
+            <Pressable
+              style={styles.plusBtn}
+              onPress={onNewProject}
+              accessibilityLabel={t('gallery.newProjectA11y')}
+            >
+              <Text style={styles.plusText}>+</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -97,23 +108,6 @@ function GalleryBody({
           </MonoCaps>
         </Pressable>
       ) : null}
-
-      <View style={styles.filters}>
-        {(
-          [
-            ['all', t('gallery.filterAll')],
-            ['recent', t('gallery.filterRecent')],
-          ] as const
-        ).map(([id, label]) => (
-          <Pressable
-            key={id}
-            onPress={() => setFilter(id)}
-            style={[styles.filterChip, filter === id && styles.filterChipActive]}
-          >
-            <MonoCaps style={filter === id ? styles.filterTextActive : undefined}>{label}</MonoCaps>
-          </Pressable>
-        ))}
-      </View>
 
       {loading && sessions.length === 0 ? (
         <View style={styles.loadingWrap}>
@@ -217,7 +211,11 @@ function createStyles(
     headerActions: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 20,
+    },
+    headerActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 18,
     },
     headerLink: {
       fontFamily: bodyFont,
@@ -252,26 +250,7 @@ function createStyles(
     inboxPillText: {
       color: colors.primary,
     },
-    filters: {
-      flexDirection: 'row',
-      gap: 8,
-      paddingHorizontal: 20,
-      marginBottom: 12,
-    },
-    filterChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 999,
-      backgroundColor: 'rgba(255,255,255,0.06)',
-    },
-    filterChipActive: {
-      backgroundColor: colors.primaryBg,
-      borderWidth: 1,
-      borderColor: colors.primary,
-    },
-    filterTextActive: {
-      color: colors.active,
-    },
+    // (filter chips are intentionally removed to match the Procreate-style header)
     loadingWrap: {
       flex: 1,
       alignItems: 'center',

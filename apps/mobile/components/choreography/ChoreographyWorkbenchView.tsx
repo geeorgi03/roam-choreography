@@ -84,34 +84,36 @@ function WorkbenchBody() {
           <ChoreographyComposeView />
         ) : (
           <>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.sectionScroll}
-              contentContainerStyle={styles.sectionScrollContent}
-            >
-              {spans.length > 0 ? (
-                spans.map((s, i) => (
+            {canvasMode !== 'video' ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.sectionScroll}
+                contentContainerStyle={styles.sectionScrollContent}
+              >
+                {spans.length > 0 ? (
+                  spans.map((s, i) => (
+                    <SectionPill
+                      key={`${s.label}-${i}`}
+                      label={s.label}
+                      active={activeSection === s.label}
+                      color={sectionColorForIndex(i)}
+                      onPress={() => {
+                        closePanel();
+                        setActiveSection(s.label);
+                      }}
+                    />
+                  ))
+                ) : (
                   <SectionPill
-                    key={`${s.label}-${i}`}
-                    label={s.label}
-                    active={activeSection === s.label}
-                    color={sectionColorForIndex(i)}
-                    onPress={() => {
-                      closePanel();
-                      setActiveSection(s.label);
-                    }}
+                    label={activeSection}
+                    active
+                    color={colors.primary}
+                    onPress={() => {}}
                   />
-                ))
-              ) : (
-                <SectionPill
-                  label={activeSection}
-                  active
-                  color={colors.primary}
-                  onPress={() => {}}
-                />
-              )}
-            </ScrollView>
+                )}
+              </ScrollView>
+            ) : null}
 
             <View style={styles.canvasTopRight}>
               <Pressable onPress={() => setMirror(!mirror)}>
@@ -221,13 +223,15 @@ function createStyles(colors: ThemePalette, displayFont: string) {
     bottomFloat: {
       position: 'absolute',
       bottom: 16,
-      left: 0,
+      left: 12,
       right: 56,
       gap: 12,
       zIndex: 3,
+      flexDirection: 'row',
+      alignItems: 'center',
     },
     recordBtn: {
-      alignSelf: 'center',
+      alignSelf: 'flex-start',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
@@ -250,7 +254,7 @@ function createStyles(colors: ThemePalette, displayFont: string) {
       letterSpacing: 2,
       color: colors.primary,
     },
-    clipStrip: { maxHeight: 72 },
+    clipStrip: { flex: 1, maxHeight: 72 },
     clipStripContent: { paddingHorizontal: 12, gap: 8 },
     clipChip: {
       width: 120,

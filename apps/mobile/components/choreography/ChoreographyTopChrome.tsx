@@ -1,10 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  TextInput,
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,40 +31,15 @@ export function ChoreographyTopChrome({ view, onChangeView, onSettings }: Props)
   const insets = useSafeAreaInsets();
   const colors = useChoreographyTheme();
   const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
-  const { sessionName, isPlaying } = useSessionContext();
-  const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState(sessionName);
+  const { sessionName } = useSessionContext();
 
   return (
     <View style={styles.root}>
       <View style={styles.row}>
         <View style={styles.logoDot} />
-        {editing ? (
-          <View style={styles.nameEditRow}>
-            <TextInput
-              style={styles.nameInput}
-              value={draftName}
-              onChangeText={setDraftName}
-              autoFocus
-              selectTextOnFocus
-            />
-            <Pressable onPress={() => setEditing(false)} hitSlop={8}>
-              <Text style={styles.nameAction}>✓</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Pressable onPress={() => setEditing(true)} style={styles.nameRow}>
-            <Text style={styles.sessionName} numberOfLines={1}>
-              {sessionName}
-            </Text>
-            <Text style={styles.pencil}>✎</Text>
-          </Pressable>
-        )}
-        {isPlaying ? (
-          <View style={styles.playingPill}>
-            <MonoCaps style={{ color: colors.primary }}>Playing</MonoCaps>
-          </View>
-        ) : null}
+        <Text style={styles.sessionName} numberOfLines={1}>
+          {sessionName}
+        </Text>
         <Pressable onPress={onSettings} style={styles.settingsBtn} hitSlop={10}>
           <Text style={styles.settingsIcon}>⚙</Text>
         </Pressable>
@@ -174,12 +148,11 @@ function createStyles(colors: ThemePalette, topInset: number) {
     navItem: {
       paddingHorizontal: 14,
       paddingVertical: 8,
-      borderRadius: 8,
     },
     navItemActive: {
-      backgroundColor: colors.surfaceElevated,
-      borderWidth: 1,
-      borderColor: colors.border,
+      borderBottomWidth: 2,
+      borderBottomColor: colors.primary,
+      backgroundColor: 'transparent',
     },
   });
 }

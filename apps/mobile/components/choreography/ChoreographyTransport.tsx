@@ -5,7 +5,8 @@ import { useRouter } from 'expo-router';
 import { useChoreographyTheme } from '../../lib/contexts/ChoreographyThemeContext';
 import type { ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
-import { formatTimecode } from '../../lib/premiumUtils';
+import { formatTimecode, sectionsWithSpan } from '../../lib/premiumUtils';
+import { sectionColorForIndex } from '../../lib/choreographyTheme';
 import { MonoCaps } from './ChoreographyPrimitives';
 
 export function ChoreographyTransport() {
@@ -22,7 +23,6 @@ export function ChoreographyTransport() {
     playheadMs,
     durationMs,
     handlePlayPause,
-    handleSeekBack,
     loopRegion,
     sessionId,
     activeSection,
@@ -30,6 +30,8 @@ export function ChoreographyTransport() {
 
   const totalMs = Math.max(durationMs, 1);
   const progress = Math.min(1, playheadMs / totalMs);
+  const sections = (musicTrack?.sections ?? []) as Array<{ label: string; start_ms: number }>;
+  const spans = useMemo(() => sectionsWithSpan(sections as any, totalMs), [sections, totalMs]);
 
   return (
     <View style={styles.wrap}>
@@ -38,31 +40,63 @@ export function ChoreographyTransport() {
           <MonoCaps>Loop · {activeSection}</MonoCaps>
         </View>
       ) : null}
-      <View style={styles.waveTrack}>
-        {Array.from({ length: 48 }).map((_, i) => {
-          const h = 8 + Math.sin(i * 0.5) * 12 + (i % 3) * 4;
-          const past = i / 48 <= progress;
-          return (
-            <View
-              key={i}
-              style={[
-                styles.waveBar,
-                { height: h },
-                past && { backgroundColor: colors.primary },
-              ]}
-            />
-          );
-        })}
+      <View style={styles.timelineWrap}>
+        {spans.length > 0 ? (
+          <>
+            <View style={styles.sectionBar}>
+              {spans.map((s, i) => (
+                <View
+                  key={`${s.label}-${i}`}
+                  style={[
+                    styles.sectionSeg,
+                    {
+                      flex: s.flex,
+                      backgroundColor: sectionColorForIndex(i),
+                      opacity: s.label === activeSection ? 1 : 0.65,
+                    },
+                  ]}
+                />
+              ))}
+              <View style={[styles.progressLine, { left: `${progress * 100}%` }]} />
+            </View>
+            <View style={styles.sectionLabelRow}>
+              {spans.map((s, i) => (
+                <View key={`${s.label}-${i}-label`} style={{ flex: s.flex }}>
+                  <MonoCaps
+                    style={[
+                      styles.sectionLabel,
+                      s.label === activeSection && styles.sectionLabelActive,
+                    ]}
+                  >
+                    {s.label}
+                  </MonoCaps>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        <View style={styles.waveTrack}>
+          {Array.from({ length: 48 }).map((_, i) => {
+            const h = 8 + Math.sin(i * 0.5) * 12 + (i % 3) * 4;
+            const past = i / 48 <= progress;
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.waveBar,
+                  { height: h },
+                  past && { backgroundColor: colors.primary },
+                ]}
+              />
+            );
+          })}
+        </View>
       </View>
+
       <View style={styles.transportRow}>
-        <Pressable onPress={handleSeekBack} style={styles.transportBtn}>
-          <Text style={styles.transportIcon}>◀◀</Text>
-        </Pressable>
         <Pressable onPress={handlePlayPause} style={styles.playBtn}>
           <Text style={styles.playIcon}>{isPlaying ? '⏸' : '▶'}</Text>
-        </Pressable>
-        <Pressable style={styles.transportBtn}>
-          <Text style={styles.transportIcon}>▶▶</Text>
         </Pressable>
         <Text style={styles.time}>
           {formatTimecode(playheadMs)} / {formatTimecode(totalMs)}
@@ -95,12 +129,51 @@ function createStyles(colors: ThemePalette, bottomInset: number) {
     loopRow: {
       marginBottom: 6,
     },
+    timelineWrap: {
+      marginBottom: 8,
+    },
+    sectionBar: {
+      position: 'relative',
+      flexDirection: 'row',
+      height: 42,
+      borderRadius: 8,
+      overflow: 'hidden',
+      marginBottom: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.chrome,
+    },
+    sectionSeg: {
+      minWidth: 1,
+    },
+    progressLine: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      width: 2,
+      backgroundColor: colors.primary,
+      opacity: 0.95,
+    },
+    sectionLabelRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 0,
+      height: 18,
+      marginBottom: 8,
+    },
+    sectionLabel: {
+      fontSize: 10,
+      color: colors.muted,
+      textAlign: 'center',
+    },
+    sectionLabelActive: {
+      color: colors.active,
+    },
     waveTrack: {
       flexDirection: 'row',
       alignItems: 'flex-end',
       justifyContent: 'space-between',
-      height: 50,
-      marginBottom: 8,
+      height: 46,
       gap: 2,
     },
     waveBar: {
@@ -113,13 +186,6 @@ function createStyles(colors: ThemePalette, bottomInset: number) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
-    },
-    transportBtn: {
-      padding: 8,
-    },
-    transportIcon: {
-      color: colors.muted,
-      fontSize: 14,
     },
     playBtn: {
       width: 44,
@@ -134,7 +200,6 @@ function createStyles(colors: ThemePalette, bottomInset: number) {
       fontSize: 18,
     },
     time: {
-      marginLeft: 'auto',
       fontSize: 11,
       fontWeight: '500',
       color: colors.muted,

@@ -49,14 +49,14 @@ export function ChoreographyToolRail() {
 
   return (
     <View style={styles.rail}>
-      {panelBtn('sections', 'Sec')}
-      {panelBtn('lyrics', 'Lyr')}
-      {panelBtn('takes', 'Takes')}
+      {panelBtn('sections', '▦')}
+      {panelBtn('lyrics', '♪')}
+      {panelBtn('takes', '▤')}
       <View style={styles.divider} />
-      {modeBtn('practice', 'Prac')}
-      {modeBtn('draw', 'Draw')}
-      {modeBtn('video', 'Vid')}
-      {modeBtn('compose', 'Cmp')}
+      {modeBtn('practice', '◎')}
+      {modeBtn('draw', '✎')}
+      {modeBtn('video', '▸')}
+      {modeBtn('compose', '≡')}
     </View>
   );
 }
@@ -65,8 +65,8 @@ function createStyles(colors: ThemePalette) {
   return StyleSheet.create({
     rail: {
       position: 'absolute',
-      right: 8,
-      top: '28%',
+      right: 10,
+      top: '26%',
       zIndex: 10,
       gap: 6,
       padding: 6,
@@ -77,10 +77,10 @@ function createStyles(colors: ThemePalette) {
     },
     btn: {
       paddingHorizontal: 8,
-      paddingVertical: 10,
+      paddingVertical: 9,
       borderRadius: 8,
       alignItems: 'center',
-      minWidth: 44,
+      minWidth: 40,
     },
     btnActive: {
       backgroundColor: colors.surfaceElevated,
