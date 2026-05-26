@@ -18,6 +18,11 @@ export function ChoreographyMapView({ onJumpToWork }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { musicTrack, clips, durationMs, setActiveSection } = useSessionContext();
 
+  // If there's no reference track (music/vocal), this view should be empty.
+  if (!musicTrack) {
+    return <View style={styles.root} />;
+  }
+
   const sections = musicTrack?.sections ?? [];
   const totalMs = Math.max(durationMs, 1);
   const spans = useMemo(
