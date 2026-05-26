@@ -18,4 +18,5 @@ export function thumbColorsForIndex(index: number): readonly [string, string] {
   return PROJECT_THUMB_COLORS[index % PROJECT_THUMB_COLORS.length]!;
 }
 
-export const GALLERY_SHELL_BG = '#1c1c1e';
+// Slightly deeper + softer than iOS system gray (closer to Procreate)
+export const GALLERY_SHELL_BG = '#161618';

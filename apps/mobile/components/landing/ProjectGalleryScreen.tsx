@@ -270,14 +270,14 @@ function createStyles(
       flexWrap: 'wrap',
     },
     tileThumb: {
-      borderRadius: 16,
+      borderRadius: 22,
       marginBottom: 8,
       overflow: 'hidden',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.4,
-      shadowRadius: 12,
-      elevation: 6,
+      shadowOpacity: 0.28,
+      shadowRadius: 18,
+      elevation: 10,
     },
     thumbFill: {
       ...StyleSheet.absoluteFillObject,
@@ -318,7 +318,7 @@ function createStyles(
       marginTop: 2,
     },
     newTile: {
-      borderRadius: 16,
+      borderRadius: 22,
       borderWidth: 1.5,
       borderStyle: 'dashed',
       borderColor: 'rgba(255,255,255,0.15)',

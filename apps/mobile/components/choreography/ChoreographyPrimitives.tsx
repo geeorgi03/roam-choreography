@@ -104,7 +104,12 @@ function createStyles(
       backgroundColor: colors.surfaceGlass,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 14,
+      borderRadius: 18,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.22,
+      shadowRadius: 18,
+      elevation: 10,
     },
     sectionPill: {
       flexDirection: 'row',
@@ -115,7 +120,7 @@ function createStyles(
       borderRadius: 999,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.chrome,
+      backgroundColor: colors.surfaceGlassDark,
     },
     sectionDot: {
       width: 6,
