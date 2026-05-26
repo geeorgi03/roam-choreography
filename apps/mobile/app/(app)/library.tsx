@@ -9,7 +9,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { theme } from '../../lib/theme';
-import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
+import type { ThemePalette } from '../../lib/contexts/ThemeContext';
+import { useAppChromeTheme } from '../../lib/hooks/useAppChromeTheme';
+import {
+  ChoreographyHubFilterChip,
+  ChoreographyHubSearch,
+} from '../../components/choreography/hub/ChoreographyHubChrome';
+import { DisplayTitle, MonoCaps } from '../../components/choreography/ChoreographyPrimitives';
 import type { Clip } from '@roam/types';
 import { ClipCard } from '../../components/ClipCard';
 import type { ClipRow } from '../../lib/database';
@@ -23,8 +29,8 @@ import { API_BASE } from '../../lib/api';
 const spacing = theme.spacing;
 
 export default function LibraryScreen() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => createLibraryStyles(colors), [colors]);
+  const { colors, isChoreography } = useAppChromeTheme();
+  const styles = useMemo(() => createLibraryStyles(colors, isChoreography), [colors, isChoreography]);
   const { t } = useTranslation();
   const { session } = useSession();
   const token = session?.access_token ?? null;
@@ -204,18 +210,30 @@ export default function LibraryScreen() {
         contentContainerStyle={filteredClips.length === 0 ? styles.emptyList : styles.listContent}
         ListHeaderComponent={
           <View style={styles.header}>
-            <View style={styles.searchRow}>
-              <Text style={styles.searchIcon}>🔍</Text>
-              <TextInput
-                style={styles.searchInput}
-                placeholder={t('library.searchPlaceholder')}
-                placeholderTextColor={colors.muted}
+            {isChoreography ? (
+              <DisplayTitle style={styles.hubTitle}>{t('tabs.library')}</DisplayTitle>
+            ) : null}
+            {isChoreography ? (
+              <ChoreographyHubSearch
                 value={q}
                 onChangeText={setQ}
-                autoCapitalize="none"
-                autoCorrect={false}
+                placeholder={t('library.searchPlaceholder')}
+                style={styles.searchChoreo}
               />
-            </View>
+            ) : (
+              <View style={styles.searchRow}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder={t('library.searchPlaceholder')}
+                  placeholderTextColor={colors.muted}
+                  value={q}
+                  onChangeText={setQ}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            )}
 
             <TouchableOpacity
               style={styles.markingSearchBtn}
@@ -223,39 +241,74 @@ export default function LibraryScreen() {
               activeOpacity={0.85}
               disabled={!token}
             >
-              <Text style={styles.markingSearchBtnText}>{t('markingSearch.open')}</Text>
-              <Text style={styles.markingSearchBtnSub}>{t('markingSearch.subtitle')}</Text>
+              {isChoreography ? (
+                <>
+                  <MonoCaps style={styles.markingSearchBtnText}>{t('markingSearch.open')}</MonoCaps>
+                  <MonoCaps style={styles.markingSearchBtnSub}>{t('markingSearch.subtitle')}</MonoCaps>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.markingSearchBtnText}>{t('markingSearch.open')}</Text>
+                  <Text style={styles.markingSearchBtnSub}>{t('markingSearch.subtitle')}</Text>
+                </>
+              )}
             </TouchableOpacity>
 
-            <View style={styles.segmented}>
-              {(['All', 'REF', 'MINE', 'Shared'] as const).map((seg) => {
-                const active = filterSegment === seg;
-                return (
-                  <TouchableOpacity
-                    key={seg}
-                    style={[styles.segment, active && styles.segmentActive]}
-                    onPress={() => setFilterSegment(seg)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                      {
-                        t(
-                          `library.filter${
-                            seg === 'All'
-                              ? 'All'
-                              : seg === 'REF'
-                                ? 'Ref'
-                                : seg === 'MINE'
-                                  ? 'Mine'
-                                  : 'Shared'
-                          }`
-                        )
-                      }
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {isChoreography ? (
+              <View style={styles.filterRow}>
+                {(['All', 'REF', 'MINE', 'Shared'] as const).map((seg) => {
+                  const label = t(
+                    `library.filter${
+                      seg === 'All'
+                        ? 'All'
+                        : seg === 'REF'
+                          ? 'Ref'
+                          : seg === 'MINE'
+                            ? 'Mine'
+                            : 'Shared'
+                    }`
+                  );
+                  return (
+                    <ChoreographyHubFilterChip
+                      key={seg}
+                      label={label.toUpperCase()}
+                      active={filterSegment === seg}
+                      onPress={() => setFilterSegment(seg)}
+                    />
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.segmented}>
+                {(['All', 'REF', 'MINE', 'Shared'] as const).map((seg) => {
+                  const active = filterSegment === seg;
+                  return (
+                    <TouchableOpacity
+                      key={seg}
+                      style={[styles.segment, active && styles.segmentActive]}
+                      onPress={() => setFilterSegment(seg)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                        {
+                          t(
+                            `library.filter${
+                              seg === 'All'
+                                ? 'All'
+                                : seg === 'REF'
+                                  ? 'Ref'
+                                  : seg === 'MINE'
+                                    ? 'Mine'
+                                    : 'Shared'
+                            }`
+                          )
+                        }
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         }
         ListEmptyComponent={
@@ -329,7 +382,7 @@ export default function LibraryScreen() {
   );
 }
 
-function createLibraryStyles(colors: ThemePalette) {
+function createLibraryStyles(colors: ThemePalette, choreography = false) {
   return StyleSheet.create({
   container: {
     flex: 1,
@@ -339,6 +392,19 @@ function createLibraryStyles(colors: ThemePalette) {
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
+  },
+  hubTitle: {
+    marginBottom: 12,
+    fontSize: 22,
+  },
+  searchChoreo: {
+    marginBottom: 10,
+  },
+  filterRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   searchRow: {
     flexDirection: 'row',
@@ -362,10 +428,10 @@ function createLibraryStyles(colors: ThemePalette) {
   },
   markingSearchBtn: {
     marginTop: 10,
-    backgroundColor: colors.amberBg,
+    backgroundColor: choreography ? colors.surfaceGlass : colors.amberBg,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: spacing.radiusMd,
+    borderRadius: choreography ? 14 : spacing.radiusMd,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },

@@ -147,8 +147,8 @@ Acceptance:
 Acceptance:
 - `P1-AC-020`: **Video** mode plays the active take via Mux HLS in the canvas (not a placeholder).
 - `P1-AC-021`: **Practice** mode shows the same stream with a loupe on press/hold for detail review.
-- `P1-AC-022`: **Draw** mode provides pen/eraser overlay on the canvas with clear/cancel affordances.
-- `P1-AC-023`: **Compose** mode shows a read-only multi-track timeline (song, lyrics, my video, ref, drawing) aligned to session sections.
+- `P1-AC-022`: **Draw** mode provides pen/eraser overlay on the canvas with clear/cancel affordances; strokes persist locally per session + active section (MMKV) and reload when returning to Draw.
+- `P1-AC-023`: **Compose** mode shows a read-only multi-track timeline (song, lyrics, my video, ref, drawing) aligned to session sections, using real section assignments and Mux clip thumbnails (not mock rows).
 
 #### 5.6.3 Floating tools
 

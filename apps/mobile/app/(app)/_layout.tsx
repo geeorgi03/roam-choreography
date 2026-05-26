@@ -38,6 +38,7 @@ export default function AppStackLayout() {
         name="index"
         options={{
           title: t('tabs.home'),
+          headerShown: !USE_CHOREOGRAPHY_UI,
         }}
       />
       <Tabs.Screen
@@ -45,6 +46,7 @@ export default function AppStackLayout() {
         options={{
           title: t('tabs.song'),
           tabBarLabel: t('tabs.song'),
+          headerShown: !USE_CHOREOGRAPHY_UI,
         }}
         listeners={{
           tabPress: (e) => {
@@ -60,13 +62,14 @@ export default function AppStackLayout() {
         name="library"
         options={{
           title: t('tabs.library'),
+          headerShown: !USE_CHOREOGRAPHY_UI,
         }}
       />
       <Tabs.Screen
         name="inbox"
         options={{
           title: t('tabs.inbox'),
-          headerShown: true,
+          headerShown: !USE_CHOREOGRAPHY_UI,
           tabBarIcon: ({ focused }) => (
             <View style={{ opacity: focused ? 1 : 0.55 }}>
               <IconInbox size={22} color={focused ? colors.active : colors.muted} />

@@ -12,7 +12,15 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { theme } from '../../lib/theme';
-import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
+import type { ThemePalette } from '../../lib/contexts/ThemeContext';
+import { useAppChromeTheme } from '../../lib/hooks/useAppChromeTheme';
+import {
+  ChoreographyHubFab,
+  ChoreographyHubHeader,
+  ChoreographyHubBanner,
+} from '../../components/choreography/hub/ChoreographyHubChrome';
+import { ChoreographyHubListRow } from '../../components/choreography/hub/ChoreographyHubListRow';
+import { DisplayTitle, MonoCaps } from '../../components/choreography/ChoreographyPrimitives';
 import type { Session } from '@roam/types';
 import { useSession } from '../../lib/hooks/useSession';
 import { FirstSessionSheet } from '../../components/FirstSessionSheet';
@@ -54,8 +62,8 @@ function mapCachedToSession(
 
 export default function HomeScreen() {
   const { t } = useTranslation();
-  const { colors } = useTheme();
-  const styles = useMemo(() => createHomeStyles(colors), [colors]);
+  const { colors, isChoreography } = useAppChromeTheme();
+  const styles = useMemo(() => createHomeStyles(colors, isChoreography), [colors, isChoreography]);
   const { session } = useSession();
   const createSheetRef = useRef<BottomSheet | null>(null);
   const firstSessionSheetRef = useRef<BottomSheet | null>(null);
@@ -399,17 +407,27 @@ export default function HomeScreen() {
 
   const inboxHeader =
     inboxCount > 0 ? (
-      <TouchableOpacity
-        style={styles.inboxBanner}
-        onPress={() => router.push('/inbox')}
-        activeOpacity={0.85}
-      >
-        <View style={styles.inboxDot} />
-        <Text style={styles.inboxBannerText}>
-          {t('home.unorganisedClipsBanner').replace('{count}', String(inboxCount))}
-        </Text>
-        <Text style={styles.inboxBannerChev}>›</Text>
-      </TouchableOpacity>
+      isChoreography ? (
+        <ChoreographyHubBanner onPress={() => router.push('/inbox')}>
+          <View style={styles.inboxDot} />
+          <MonoCaps style={styles.inboxBannerText}>
+            {t('home.unorganisedClipsBanner').replace('{count}', String(inboxCount))}
+          </MonoCaps>
+          <Text style={styles.inboxBannerChev}>›</Text>
+        </ChoreographyHubBanner>
+      ) : (
+        <TouchableOpacity
+          style={styles.inboxBanner}
+          onPress={() => router.push('/inbox')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.inboxDot} />
+          <Text style={styles.inboxBannerText}>
+            {t('home.unorganisedClipsBanner').replace('{count}', String(inboxCount))}
+          </Text>
+          <Text style={styles.inboxBannerChev}>›</Text>
+        </TouchableOpacity>
+      )
     ) : null;
 
   const showOfflineBanner = !isConnected;
@@ -430,23 +448,35 @@ export default function HomeScreen() {
       ) : showCacheBanner ? (
         <HubOfflineStrip kind="cached" message={t('home.bannerCache')} />
       ) : null}
-      <Animated.View style={[styles.topBar, { opacity: headerOpacity }]}>
-        <View style={styles.titleBlock}>
-          <Text style={styles.topBarTitle}>{t('home.hubTitle')}</Text>
-          <Text style={styles.topBarSubtitle}>{t('home.hubSubtitle')}</Text>
-        </View>
-        <Animated.View style={{ transform: [{ scale: addButtonScale }] }}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={openNewProjectMenu}
-            activeOpacity={0.88}
-            accessibilityRole="button"
-            accessibilityLabel={t('home.newProjectA11y')}
-          >
-            <Text style={styles.addButtonText}>+</Text>
-          </TouchableOpacity>
+      {isChoreography ? (
+        <ChoreographyHubHeader
+          title={t('home.hubTitle')}
+          subtitle={t('home.hubSubtitle')}
+          right={
+            <Animated.View style={{ transform: [{ scale: addButtonScale }] }}>
+              <ChoreographyHubFab onPress={openNewProjectMenu} />
+            </Animated.View>
+          }
+        />
+      ) : (
+        <Animated.View style={[styles.topBar, { opacity: headerOpacity }]}>
+          <View style={styles.titleBlock}>
+            <Text style={styles.topBarTitle}>{t('home.hubTitle')}</Text>
+            <Text style={styles.topBarSubtitle}>{t('home.hubSubtitle')}</Text>
+          </View>
+          <Animated.View style={{ transform: [{ scale: addButtonScale }] }}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={openNewProjectMenu}
+              activeOpacity={0.88}
+              accessibilityRole="button"
+              accessibilityLabel={t('home.newProjectA11y')}
+            >
+              <Text style={styles.addButtonText}>+</Text>
+            </TouchableOpacity>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+      )}
 
       {showHubCoach ? (
         <View style={styles.coachWrap}>
@@ -471,7 +501,11 @@ export default function HomeScreen() {
         >
           {inboxHeader}
           <View style={styles.hubBlock}>
-            <Text style={styles.hubEmptyTitle}>{t('home.hubEmptyTitle')}</Text>
+            {isChoreography ? (
+              <DisplayTitle style={styles.hubEmptyTitle}>{t('home.hubEmptyTitle')}</DisplayTitle>
+            ) : (
+              <Text style={styles.hubEmptyTitle}>{t('home.hubEmptyTitle')}</Text>
+            )}
             <Text style={styles.hubEmptySubtitle}>{t('home.hubEmptySubtitle')}</Text>
             <TouchableOpacity
               style={styles.emptyPrimaryBtn}
@@ -498,14 +532,23 @@ export default function HomeScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={listHeader ?? undefined}
-          renderItem={({ item }) => (
-            <ListRow
-              title={item.name}
-              subtitle={sessionMetaLine(item)}
-              rightMeta={formatDate(item.created_at)}
-              onPress={() => router.push(`/session/${item.id}`)}
-            />
-          )}
+          renderItem={({ item }) =>
+            isChoreography ? (
+              <ChoreographyHubListRow
+                title={item.name}
+                subtitle={sessionMetaLine(item)}
+                rightMeta={formatDate(item.created_at)}
+                onPress={() => router.push(`/session/${item.id}`)}
+              />
+            ) : (
+              <ListRow
+                title={item.name}
+                subtitle={sessionMetaLine(item)}
+                rightMeta={formatDate(item.created_at)}
+                onPress={() => router.push(`/session/${item.id}`)}
+              />
+            )
+          }
         style={{ transform: [{ translateY: contentTranslateY }] }}
         />
       )}
@@ -535,7 +578,7 @@ export default function HomeScreen() {
   );
 }
 
-function createHomeStyles(colors: ThemePalette) {
+function createHomeStyles(colors: ThemePalette, choreography = false) {
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -548,10 +591,10 @@ function createHomeStyles(colors: ThemePalette) {
       paddingHorizontal: theme.spacing['6'],
       paddingTop: theme.spacing['4'],
       paddingBottom: theme.spacing['5'],
-      backgroundColor: theme.light.surfaceElevated,
+      backgroundColor: choreography ? colors.ground : theme.light.surfaceElevated,
       borderBottomWidth: 1,
-      borderBottomColor: theme.light.borderLight,
-      ...theme.shadows.sm,
+      borderBottomColor: choreography ? colors.border : theme.light.borderLight,
+      ...(choreography ? {} : theme.shadows.sm),
     },
     titleBlock: {
       flex: 1,
@@ -670,7 +713,7 @@ function createHomeStyles(colors: ThemePalette) {
       fontWeight: theme.typography.weights.semibold,
     },
     listContent: {
-      paddingHorizontal: 20,
+      paddingHorizontal: choreography ? 0 : 20,
       paddingTop: 4,
       paddingBottom: 32,
     },
@@ -735,3 +778,4 @@ function createHomeStyles(colors: ThemePalette) {
     },
   });
 }
+
