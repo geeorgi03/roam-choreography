@@ -13,10 +13,11 @@ import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useTranslation } from '../../lib/i18n';
 import { MonoCaps } from './ChoreographyPrimitives';
 
-export type ChoreographyViewId = 'work' | 'map' | 'library' | 'explore';
+export type ChoreographyViewId = 'work' | 'practice' | 'map' | 'library' | 'explore';
 
 const NAV: { id: ChoreographyViewId; labelKey: string }[] = [
   { id: 'work', labelKey: 'choreo.nav.work' },
+  { id: 'practice', labelKey: 'choreo.nav.practiceBeta' },
   { id: 'map', labelKey: 'choreo.nav.map' },
   { id: 'library', labelKey: 'choreo.nav.library' },
   { id: 'explore', labelKey: 'choreo.nav.explore' },

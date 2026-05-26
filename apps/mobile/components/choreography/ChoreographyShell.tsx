@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ChoreographyThemeProvider } from '../../lib/contexts/ChoreographyThemeContext';
 import { useChoreographyTheme } from '../../lib/contexts/ChoreographyThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
@@ -11,10 +12,12 @@ import { ChoreographyWorkbenchView } from './ChoreographyWorkbenchView';
 import { ChoreographyMapView } from './ChoreographyMapView';
 import { ChoreographyLibraryView } from './ChoreographyLibraryView';
 import { ChoreographyExploreView } from './ChoreographyExploreView';
+import { ChoreographyPracticeView } from './ChoreographyPracticeView';
 
 function ShellBody() {
+  const router = useRouter();
   const colors = useChoreographyTheme();
-  const { setActiveSection, openSheet } = useSessionContext();
+  const { setActiveSection } = useSessionContext();
   const [view, setView] = useState<ChoreographyViewId>('work');
 
   const onJumpToWork = useCallback(
@@ -30,9 +33,10 @@ function ShellBody() {
       <ChoreographyTopChrome
         view={view}
         onChangeView={setView}
-        onSettings={() => openSheet('share')}
+        onSettings={() => router.push('/profile')}
       />
       {view === 'work' ? <ChoreographyWorkbenchView /> : null}
+      {view === 'practice' ? <ChoreographyPracticeView /> : null}
       {view === 'map' ? <ChoreographyMapView onJumpToWork={onJumpToWork} /> : null}
       {view === 'library' ? <ChoreographyLibraryView /> : null}
       {view === 'explore' ? <ChoreographyExploreView /> : null}
