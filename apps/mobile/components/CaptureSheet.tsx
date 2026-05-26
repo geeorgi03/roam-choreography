@@ -11,6 +11,7 @@ import { theme } from '../lib/theme';
 export interface CaptureSheetProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
   onRecord: () => void;
+  onImportVideo?: () => void;
   onInbox?: () => void;
   inboxCount?: number;
   sectionName?: string | null;
@@ -19,6 +20,7 @@ export interface CaptureSheetProps {
 export function CaptureSheet({
   bottomSheetRef,
   onRecord,
+  onImportVideo,
   onInbox,
   inboxCount = 0,
   sectionName,
@@ -27,7 +29,7 @@ export function CaptureSheet({
     <BottomSheet
       ref={bottomSheetRef as React.RefObject<BottomSheet>}
       index={-1}
-      snapPoints={['35%']}
+      snapPoints={onImportVideo ? ['42%'] : ['35%']}
       enablePanDownToClose
       backgroundStyle={styles.sheet}
       handleIndicatorStyle={styles.handle}
@@ -56,6 +58,11 @@ export function CaptureSheet({
             <Text style={styles.cardSub}>{inboxCount} clips waiting</Text>
           </TouchableOpacity>
         </View>
+        {onImportVideo ? (
+          <TouchableOpacity style={styles.importRow} onPress={onImportVideo} activeOpacity={0.85}>
+            <Text style={styles.importText}>Import MP4 from library</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </BottomSheet>
   );
@@ -105,5 +112,19 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     color: theme.textSecondary,
+  },
+  importRow: {
+    marginTop: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.textSecondary,
+    borderRadius: theme.borderRadius,
+    borderStyle: 'dashed',
+  },
+  importText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.textPrimary,
   },
 });

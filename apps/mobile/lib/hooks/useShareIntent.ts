@@ -28,7 +28,18 @@ export function useShareIntent() {
 
   const fetchOEmbedMetadata = async (url: string): Promise<OEmbedMetadata> => {
     if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
-      return { title: url, thumbnail_url: null };
+      try {
+        const host = new URL(url).hostname.replace(/^www\./, '');
+        if (/bilibili\.com|b23\.tv/i.test(host)) {
+          return { title: 'Bilibili reference', thumbnail_url: null };
+        }
+        if (/xiaohongshu\.com|xhslink\.com/i.test(host)) {
+          return { title: 'Xiaohongshu reference', thumbnail_url: null };
+        }
+        return { title: host, thumbnail_url: null };
+      } catch {
+        return { title: url, thumbnail_url: null };
+      }
     }
 
     try {

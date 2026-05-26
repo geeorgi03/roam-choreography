@@ -61,11 +61,14 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
   }
 }
 
-async function tryFetchLyrics(artist: string, title: string): Promise<{
+type LyricsHit = {
   artist: string;
   title: string;
   lyrics: string;
-} | null> {
+  format: 'lrc' | 'plain';
+};
+
+async function tryFetchLyrics(artist: string, title: string): Promise<LyricsHit | null> {
   const res = await fetchWithTimeout(
     `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`,
     4_000
@@ -74,23 +77,21 @@ async function tryFetchLyrics(artist: string, title: string): Promise<{
   const data = (await res.json()) as { lyrics?: string };
   const lyrics = (data.lyrics ?? '').trim();
   if (!lyrics) return null;
-  return { artist, title, lyrics };
+  return { artist, title, lyrics, format: 'plain' };
 }
 
-async function tryFetchLyricsLrclib(artist: string, title: string): Promise<{
-  artist: string;
-  title: string;
-  lyrics: string;
-} | null> {
+async function tryFetchLyricsLrclib(artist: string, title: string): Promise<LyricsHit | null> {
   const res = await fetchWithTimeout(
     `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,
     4_000
   );
   if (!res.ok) return null;
-  const data = (await res.json()) as { plainLyrics?: string };
+  const data = (await res.json()) as { plainLyrics?: string; syncedLyrics?: string };
+  const synced = (data.syncedLyrics ?? '').trim();
+  if (synced) return { artist, title, lyrics: synced, format: 'lrc' };
   const lyrics = (data.plainLyrics ?? '').trim();
   if (!lyrics) return null;
-  return { artist, title, lyrics };
+  return { artist, title, lyrics, format: 'plain' };
 }
 
 /** GET /sessions/:id/music/lyrics?query=artist%20-%20title */
@@ -113,6 +114,14 @@ app.get('/:id/music/lyrics', async (c) => {
 
     const direct = splitArtistAndTitle(query);
     if (direct.artist && direct.title) {
+      try {
+        lrclibProviderAttempted = true;
+        const exactLrclib = await tryFetchLyricsLrclib(direct.artist, direct.title);
+        if (exactLrclib) return c.json({ ...exactLrclib, provider: 'lrclib' }, 200);
+      } catch {
+        lrclibProviderErrored = true;
+      }
+
       let exact: Awaited<ReturnType<typeof tryFetchLyrics>> = null;
       try {
         lyricsProviderAttempted = true;
@@ -121,14 +130,6 @@ app.get('/:id/music/lyrics', async (c) => {
         lyricsProviderErrored = true;
       }
       if (exact) return c.json({ ...exact, provider: 'lyrics.ovh' }, 200);
-
-      try {
-        lrclibProviderAttempted = true;
-        const exactLrclib = await tryFetchLyricsLrclib(direct.artist, direct.title);
-        if (exactLrclib) return c.json({ ...exactLrclib, provider: 'lrclib' }, 200);
-      } catch {
-        lrclibProviderErrored = true;
-      }
     }
 
     let suggestRes: Response | null = null;

@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
 import { apiRequest, ApiRequestError } from '../api';
+import { parseLrc, looksLikeLrc, type LyricLine } from '../parseLrc';
 import { useSession } from './useSession';
 import { useSessionContext } from '../contexts/SessionContext';
 
-export type LyricLine = { timeMs: number; text: string };
+export type { LyricLine };
 
-function parseLyrics(text: string): LyricLine[] {
+function parsePlainLyrics(text: string): LyricLine[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length === 0) return [];
   const span = 4000;
@@ -15,6 +16,11 @@ function parseLyrics(text: string): LyricLine[] {
   }));
 }
 
+function parseLyricsPayload(text: string, format?: string): LyricLine[] {
+  if (format === 'lrc' || looksLikeLrc(text)) return parseLrc(text);
+  return parsePlainLyrics(text);
+}
+
 export function useLyricsLookup() {
   const { session } = useSession();
   const { sessionId } = useSessionContext();
@@ -22,6 +28,7 @@ export function useLyricsLookup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lines, setLines] = useState<LyricLine[]>([]);
+  const [synced, setSynced] = useState(false);
 
   const fetch = useCallback(async () => {
     if (!sessionId || !session?.access_token) return;
@@ -41,20 +48,28 @@ export function useLyricsLookup() {
           retries: 1,
         }
       );
-      const data = (await res.json()) as { lyrics?: string; error?: string };
+      const data = (await res.json()) as {
+        lyrics?: string;
+        format?: 'lrc' | 'plain';
+        error?: string;
+      };
       if (!res.ok || !data.lyrics) {
         setLines([]);
+        setSynced(false);
         setError(data.error ?? 'Lyrics not found');
         return;
       }
-      setLines(parseLyrics(data.lyrics));
+      const isLrc = data.format === 'lrc' || looksLikeLrc(data.lyrics);
+      setSynced(isLrc);
+      setLines(parseLyricsPayload(data.lyrics, data.format));
     } catch (e) {
       setLines([]);
+      setSynced(false);
       setError(e instanceof ApiRequestError && e.reason === 'timeout' ? 'Timeout' : 'Lookup failed');
     } finally {
       setLoading(false);
     }
   }, [query, sessionId, session?.access_token]);
 
-  return { query, setQuery, loading, error, lines, fetch };
+  return { query, setQuery, loading, error, lines, synced, fetch };
 }

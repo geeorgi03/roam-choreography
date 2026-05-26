@@ -69,6 +69,8 @@ import { MMKV } from 'react-native-mmkv';
 import { API_BASE } from '../../../lib/api';
 import { enqueue, isNetworkError } from '../../../lib/writeQueue';
 import { PaywallSheet } from '../../../components/PaywallSheet';
+import { ExternalRefWebPlayer } from '../../../components/media/ExternalRefWebPlayer';
+import { isBilibiliUrl, isXiaohongshuUrl } from '../../../lib/clipPlayback';
 
 // Loupe persistence — key: loupe:${videoId} -> { x, y, zoom }
 const loupeStorage = new MMKV({ id: 'loupe-state' });
@@ -268,8 +270,13 @@ export default function YoutubePlayerScreen() {
     })(frameInfo.timestamp);
   }, true);
 
-  const videoId = musicTrack ? extractVideoId(musicTrack.source_url) : null;
-  const loupePersistKey = musicTrack?.source_url ? `loupe:${musicTrack.source_url}` : null;
+  const sourceUrl = musicTrack?.source_url ?? null;
+  const videoId = sourceUrl ? extractVideoId(sourceUrl) : null;
+  const externalMusicWeb =
+    !!sourceUrl &&
+    !videoId &&
+    (isBilibiliUrl(sourceUrl) || isXiaohongshuUrl(sourceUrl));
+  const loupePersistKey = sourceUrl ? `loupe:${sourceUrl}` : null;
 
   // Restore saved loupe state on video load
   useEffect(() => {
@@ -555,10 +562,10 @@ export default function YoutubePlayerScreen() {
     );
   }
 
-  if (!videoId) {
+  if (!videoId && !externalMusicWeb) {
     return (
       <View style={styles.container}>
-        <Text style={styles.error}>Invalid YouTube track.</Text>
+        <Text style={styles.error}>Invalid or unsupported music URL.</Text>
       </View>
     );
   }
@@ -574,15 +581,19 @@ export default function YoutubePlayerScreen() {
           }}
         >
           <View style={[StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorActive ? -1 : 1 }] }]}>
-            <YoutubeIframe
-              ref={playerRef}
-              height={220}
-              videoId={videoId}
-              playbackRate={speed}
-              onChangeState={(state) => {
-                setPlayerState(state);
-              }}
-            />
+            {externalMusicWeb && sourceUrl ? (
+              <ExternalRefWebPlayer url={sourceUrl} style={styles.externalWeb} />
+            ) : videoId ? (
+              <YoutubeIframe
+                ref={playerRef}
+                height={220}
+                videoId={videoId}
+                playbackRate={speed}
+                onChangeState={(state) => {
+                  setPlayerState(state);
+                }}
+              />
+            ) : null}
           </View>
           {loupeActive && (
             <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
@@ -881,6 +892,11 @@ const styles = StyleSheet.create({
   },
   videoContainer: {
     position: 'relative',
+  },
+  externalWeb: {
+    flex: 1,
+    minHeight: 220,
+    width: '100%',
   },
   loupeContainer: {
     position: 'absolute',

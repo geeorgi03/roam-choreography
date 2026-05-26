@@ -18,6 +18,7 @@ import { FeedbackSheet, type FeedbackSheetHandle } from '../FeedbackSheet';
 import { TagSheet } from '../TagSheet';
 import { TagHistorySheet } from '../../components/TagHistorySheet';
 import type { ClipRow } from '../../lib/database';
+import { getClipVideoUri } from '../../lib/clipPlayback';
 
 const nightColors = theme.night;
 const staticLight = theme.light;
@@ -314,9 +315,9 @@ export const ClipViewerSheet = React.forwardRef<BottomSheet, ClipViewerSheetProp
   const leftPanResponder = createPanResponder(true);
   const rightPanResponder = createPanResponder(false);
 
-  const videoSource = selectedClipForSheet.mux_playback_id
-    ? { uri: `https://stream.mux.com/${selectedClipForSheet.mux_playback_id}.m3u8` }
-    : null;
+  const playbackUri =
+    selectedClipForSheet != null ? getClipVideoUri(selectedClipForSheet) : null;
+  const videoSource = playbackUri ? { uri: playbackUri } : null;
 
   const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) {

@@ -20,6 +20,7 @@ import {
   ChoreographyHubBanner,
 } from '../../components/choreography/hub/ChoreographyHubChrome';
 import { ChoreographyHubListRow } from '../../components/choreography/hub/ChoreographyHubListRow';
+import { ProjectGalleryScreen } from '../../components/landing/ProjectGalleryScreen';
 import { DisplayTitle, MonoCaps } from '../../components/choreography/ChoreographyPrimitives';
 import type { Session } from '@roam/types';
 import { useSession } from '../../lib/hooks/useSession';
@@ -440,6 +441,60 @@ export default function HomeScreen() {
         {inboxHeader}
       </View>
     ) : null;
+
+  const openSession = useCallback(
+    (sessionId: string) => {
+      setLastOpenedSessionId(sessionId);
+      router.push(`/session/${sessionId}`);
+    },
+    []
+  );
+
+  if (isChoreography) {
+    return (
+      <View style={styles.container}>
+        {showOfflineBanner ? (
+          <HubOfflineStrip kind="offline" message={t('home.bannerOffline')} />
+        ) : showCacheBanner ? (
+          <HubOfflineStrip kind="cached" message={t('home.bannerCache')} />
+        ) : null}
+        <ProjectGalleryScreen
+          sessions={orderedSessions}
+          loading={loading}
+          loadError={loadError}
+          onRetry={fetchSessions}
+          onOpenSession={openSession}
+          onNewProject={openNewProjectMenu}
+          onSettings={() => router.push('/profile')}
+          inboxCount={inboxCount}
+          onInboxPress={() => router.push('/inbox')}
+          sessionMetaLine={sessionMetaLine}
+        />
+        {sheetsReady && (
+          <>
+            <NewSessionEntrySheet
+              bottomSheetRef={newEntrySheetRef}
+              onBlankSession={() => createSheetRef.current?.snapToIndex(0)}
+              onSessionWithReference={() => firstSessionSheetRef.current?.snapToIndex(0)}
+              onRecordOnly={() => router.push('/session/camera')}
+              onBlankSessionOpenCamera={handleBlankSessionOpenCamera}
+            />
+            <FirstSessionSheet
+              bottomSheetRef={firstSessionSheetRef}
+              onCreated={handleCreated}
+              onPaywallRequired={() => paywallSheetRef.current?.snapToIndex(0)}
+            />
+            <CreateSessionSheet
+              bottomSheetRef={createSheetRef}
+              onCreated={handleCreated}
+              onPaywallRequired={() => paywallSheetRef.current?.snapToIndex(0)}
+            />
+            <PaywallSheet bottomSheetRef={paywallSheetRef} />
+          </>
+        )}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

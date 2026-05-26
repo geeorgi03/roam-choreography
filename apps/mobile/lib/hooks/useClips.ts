@@ -33,6 +33,13 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
     (prev: ClipRow[], row: Record<string, unknown>) => {
       if (!sessionId) return prev;
 
+      const apiSourceUrl =
+        (row?.source_url as string | null | undefined) ??
+        (row?.url as string | null | undefined) ??
+        null;
+      const muxId = (row?.mux_playback_id as string | null | undefined) ?? null;
+      const uploadStatus = (row?.upload_status as string | undefined) ?? 'ready';
+
       const persistedLocalId = upsertClipFromServer({
         local_id: (row?.local_id as string | null | undefined) ?? null,
         server_id: (row?.id as string | null | undefined) ?? null,
@@ -41,9 +48,9 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
         triggered_by_note_id: (row?.triggered_by_note_id as string | null | undefined) ?? null,
         label: (row?.label as string | null | undefined) ?? null,
         recorded_at: (row?.recorded_at as string | null | undefined) ?? null,
-        upload_status: (row?.upload_status as string | null | undefined) ?? null,
-        mux_playback_id: (row?.mux_playback_id as string | null | undefined) ?? null,
-        source_url: (row?.source_url as string | null | undefined) ?? null,
+        upload_status: uploadStatus,
+        mux_playback_id: muxId,
+        source_url: apiSourceUrl,
         move_name: (row?.move_name as string | null | undefined) ?? null,
         style: (row?.style as string | null | undefined) ?? null,
         energy: (row?.energy as string | null | undefined) ?? null,
@@ -79,8 +86,8 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
             : (row?.upload_status as string | undefined) === 'ready'
               ? 100
               : 0,
-        mux_playback_id: (row?.mux_playback_id as string | null | undefined) ?? null,
-        source_url: (row?.source_url as string | null | undefined) ?? null,
+        mux_playback_id: muxId,
+        source_url: apiSourceUrl,
         move_name: (row?.move_name as string | null | undefined) ?? null,
         style: (row?.style as string | null | undefined) ?? null,
         energy: (row?.energy as string | null | undefined) ?? null,
@@ -114,6 +121,11 @@ export function useClips(sessionId: string | null, onPlanLimitReached?: () => vo
               ? (row.upload_progress as number)
               : prev[idx].upload_progress,
         mux_playback_id: nextClip.mux_playback_id ?? prev[idx].mux_playback_id,
+        source_url: nextClip.source_url ?? prev[idx].source_url,
+        file_uri:
+          nextClip.mux_playback_id && nextClip.upload_status === 'ready'
+            ? null
+            : prev[idx].file_uri ?? null,
         move_name: nextClip.move_name ?? prev[idx].move_name,
         style: nextClip.style ?? prev[idx].style,
         energy: nextClip.energy ?? prev[idx].energy,

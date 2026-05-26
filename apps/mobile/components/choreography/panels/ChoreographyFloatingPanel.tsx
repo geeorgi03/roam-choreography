@@ -111,6 +111,16 @@ export function ChoreographyFloatingPanel({ onClose }: Props) {
               )}
             </Pressable>
             {lyrics.error ? <Text style={styles.error}>{lyrics.error}</Text> : null}
+            {lyrics.lines.length > 0 && !lyrics.synced ? (
+              <Text style={styles.lyricsNote}>
+                Plain lyrics — lines spaced ~4s for scroll-along. No vocal-to-text.
+              </Text>
+            ) : null}
+            {lyrics.synced ? (
+              <Text style={[styles.lyricsNote, { color: colors.primary }]}>
+                LRC synced — highlights follow playhead when available.
+              </Text>
+            ) : null}
             <ScrollView style={styles.lyricsScroll}>
               {lyrics.lines.map((line) => (
                 <Text
@@ -209,6 +219,13 @@ function createStyles(colors: ThemePalette, bodyFont: string) {
     },
     error: { color: colors.error, fontSize: 12, marginBottom: 8 },
     lyricsScroll: { maxHeight: 320 },
+    lyricsNote: {
+      fontSize: 11,
+      fontFamily: bodyFont,
+      color: colors.muted,
+      marginBottom: 8,
+      lineHeight: 15,
+    },
     lyricLine: {
       fontSize: 13,
       fontFamily: bodyFont,

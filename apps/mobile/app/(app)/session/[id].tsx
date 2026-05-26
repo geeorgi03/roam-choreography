@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { View, StyleSheet, BackHandler } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { View, StyleSheet, BackHandler, Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import Toast from 'react-native-toast-message';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { SessionProvider, useSessionContext } from '../../../lib/contexts/SessionContext';
@@ -27,6 +29,8 @@ import { USE_CHOREOGRAPHY_UI } from '../../../lib/choreographyUiFlag';
 import { setActiveSessionId } from '../../../lib/storage';
 import { setLastOpenedSessionId } from '../../../lib/homeHubState';
 import { addUploadQueueListener } from '../../../services/uploadQueue';
+import { useSession } from '../../../lib/hooks/useSession';
+import { saveClip } from '../../../lib/saveClip';
 
 function SessionShellContent() {
   const { colors } = useTheme();
@@ -48,6 +52,7 @@ function SessionShellContent() {
     openSheet,
     activeSection,
   } = useSessionContext();
+  const { session: authSession } = useSession();
 
   // ── Bottom-sheet refs ────────────────────────────────────────────────────
   const shareSheetRef = useRef<BottomSheet | null>(null);
@@ -56,6 +61,45 @@ function SessionShellContent() {
   const notePinSheetRef = useRef<BottomSheet | null>(null);
   const clipViewerSheetRef = useRef<BottomSheet | null>(null);
   const paywallSheetRef = useRef<BottomSheet | null>(null);
+
+  const handleImportVideo = useCallback(async () => {
+    captureSheetRef.current?.close();
+    if (!id || !authSession?.access_token) {
+      Alert.alert('', 'Sign in to import video.');
+      return;
+    }
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Allow access to your video library.');
+      return;
+    }
+    const pick = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      quality: 1,
+    });
+    if (pick.canceled || !pick.assets[0]?.uri) return;
+    const result = await saveClip(
+      id,
+      pick.assets[0].uri,
+      'Import',
+      authSession.access_token,
+      activeSection ?? undefined,
+      undefined,
+      'MINE'
+    );
+    if (result.ok) {
+      Toast.show({ type: 'success', text1: 'Video imported', text2: 'Uploading…' });
+      return;
+    }
+    if (result.reason === 'plan_limit_reached') {
+      openSheet('paywall');
+      return;
+    }
+    Alert.alert(
+      'Import failed',
+      result.reason === 'error' ? result.message : 'Could not import video'
+    );
+  }, [id, authSession?.access_token, activeSection, openSheet]);
 
   // ── Sheet coordinator effects ───────────────────────────────────────────
   useEffect(() => {
@@ -212,6 +256,7 @@ function SessionShellContent() {
               params: { id: id!, sectionName: activeSection },
             })
           }
+          onImportVideo={handleImportVideo}
           onInbox={() =>
             router.push({
               pathname: '/inbox',
@@ -268,6 +313,7 @@ function SessionShellContent() {
               params: { id: id!, sectionName: activeSection },
             })
           }
+          onImportVideo={handleImportVideo}
           onInbox={() =>
             router.push({
               pathname: '/inbox',
@@ -327,6 +373,7 @@ function SessionShellContent() {
         onRecord={() =>
           router.push({ pathname: './camera', params: { id: id!, sectionName: 'Section' } })
         }
+        onImportVideo={handleImportVideo}
         onInbox={() =>
           router.push({
             pathname: '/inbox',

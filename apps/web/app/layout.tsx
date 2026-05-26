@@ -10,13 +10,15 @@ export const metadata: Metadata = {
     default: 'Roam',
     template: '%s | Roam',
   },
-  description: 'Creative sessions, organized and shareable.',
+  description:
+    'Roam is a choreography studio: capture movement, loop sections, and remember your work — a calm tool, not a coach.',
   alternates: {
     canonical: '/',
   },
   openGraph: {
     title: 'Roam',
-    description: 'Creative sessions, organized and shareable.',
+    description:
+    'Roam is a choreography studio: capture movement, loop sections, and remember your work — a calm tool, not a coach.',
     url: '/',
     siteName: 'Roam',
     type: 'website',
@@ -32,7 +34,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Roam',
-    description: 'Creative sessions, organized and shareable.',
+    description:
+    'Roam is a choreography studio: capture movement, loop sections, and remember your work — a calm tool, not a coach.',
     images: ['/opengraph-image.svg'],
   },
   icons: {
