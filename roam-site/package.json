@@ -1,0 +1,17 @@
+{
+  "name": "roam-site",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Static Roam mobile screen site",
+  "scripts": {
+    "dev": "npx --yes http-server . -p 4173 -c-1",
+    "preview": "npx --yes http-server . -p 4173 -c-1",
+    "check": "node ./scripts/check-static-site.mjs",
+    "test:ci": "npm run check && npm run test:e2e",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
+  }
+}

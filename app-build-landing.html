@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Roam App Build Screens</title>
+    <meta name="description" content="Roam App Build design screens - A3 landscape format optimized for web viewing." />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0c;
+        --fg: #f3f3f4;
+        --muted: rgba(243, 243, 244, 0.72);
+        --card: rgba(255, 255, 255, 0.06);
+        --border: rgba(255, 255, 255, 0.12);
+        --accent: #ff7850;
+        --accent-light: rgba(255, 120, 80, 0.12);
+        --max: 1400px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        background: radial-gradient(1200px 800px at 20% 0%, var(--accent-light), transparent 55%),
+          radial-gradient(900px 600px at 90% 10%, rgba(120, 160, 255, 0.12), transparent 55%), var(--bg);
+        color: var(--fg);
+        line-height: 1.6;
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(10px);
+        background: rgba(11, 11, 12, 0.8);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .wrap {
+        max-width: var(--max);
+        margin: 0 auto;
+        padding: 20px 16px;
+      }
+
+      .title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      h1 {
+        font-size: 24px;
+        letter-spacing: 0.02em;
+        margin: 0;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--fg) 0%, var(--accent) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .sub {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+        max-width: 78ch;
+      }
+
+      .pill {
+        font-size: 12px;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        padding: 6px 12px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+
+      main {
+        padding: 20px 0 60px;
+      }
+
+      .sequence {
+        max-width: var(--max);
+        margin: 0 auto;
+        padding: 0 16px;
+        display: grid;
+        gap: 32px;
+      }
+
+      figure {
+        margin: 0;
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      }
+
+      .screen-container {
+        position: relative;
+        width: 100%;
+        max-height: 70vh;
+        overflow: hidden;
+        background: #000;
+      }
+
+      figcaption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 20px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 14px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .idx {
+        font-variant-numeric: tabular-nums;
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 18px;
+        background: rgba(255, 120, 80, 0.1);
+        padding: 4px 12px;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 120, 80, 0.3);
+      }
+
+      .screen-title {
+        font-weight: 600;
+        color: var(--fg);
+        font-size: 16px;
+      }
+
+      img {
+        width: 100%;
+        height: auto;
+        display: block;
+        background: #000;
+        object-fit: contain;
+        object-position: center;
+        cursor: zoom-in;
+        transition: transform 0.3s ease;
+      }
+
+      .screen-container.zoomed img {
+        cursor: zoom-out;
+        transform: scale(2);
+      }
+
+      .controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        display: flex;
+        gap: 8px;
+        z-index: 10;
+      }
+
+      .control-btn {
+        background: rgba(0, 0, 0, 0.7);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        backdrop-filter: blur(10px);
+      }
+
+      .control-btn:hover {
+        background: var(--accent);
+        color: var(--bg);
+        transform: translateY(-1px);
+      }
+
+      .zoom-indicator {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        color: var(--accent);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+
+      .screen-container.zoomed .zoom-indicator {
+        opacity: 1;
+      }
+
+      .nav-hint {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: var(--fg);
+        padding: 12px 20px;
+        border-radius: 24px;
+        font-size: 13px;
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border);
+        z-index: 100;
+        opacity: 0;
+        animation: fadeInUp 0.5s ease forwards;
+        animation-delay: 1s;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      footer .wrap {
+        padding-top: 16px;
+        padding-bottom: 20px;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 0.9em;
+        color: rgba(243, 243, 244, 0.92);
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+
+      @media (max-width: 768px) {
+        .sequence {
+          gap: 24px;
+          padding: 0 12px;
+        }
+        
+        .screen-container {
+          max-height: 60vh;
+        }
+        
+        figcaption {
+          padding: 12px 16px;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+        }
+        
+        .idx {
+          font-size: 14px;
+          padding: 2px 8px;
+        }
+        
+        .screen-title {
+          font-size: 14px;
+        }
+        
+        h1 {
+          font-size: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="title">
+          <h1>Roam App Build Screens</h1>
+          <div class="pill">9 Screens</div>
+        </div>
+        <p class="sub">
+          Complete Roam app design flow. A3 landscape format optimized for web viewing. Scroll through each screen to see the full user experience.
+        </p>
+      </div>
+    </header>
+
+    <main>
+      <div class="sequence">
+        <figure>
+          <div class="screen-container" data-screen="1">
+            <div class="controls">
+              <button class="control-btn zoom-btn">Zoom</button>
+              <button class="control-btn fullscreen-btn">Fullscreen</button>
+            </div>
+            <div class="zoom-indicator">2x Zoom</div>
+            <img
+              src="App%20Build/ROAM_Design_Screens%20Complete_page-0001.jpg"
+              alt="Roam design screen 1 of 9"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            <span class="idx">01</span>
+            <span class="screen-title">Onboarding & Home Screen</span>
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="screen-container" data-screen="2">
+            <div class="controls">
+              <button class="control-btn zoom-btn">Zoom</button>
+              <button class="control-btn fullscreen-btn">Fullscreen</button>
+            </div>
+            <div class="zoom-indicator">2x Zoom</div>
+            <img
+              src="App%20Build/ROAM_Design_Screens%20Complete_page-0002.jpg"
+              alt="Roam design screen 2 of 9"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            <span class="idx">02</span>
+            <span class="screen-title">Session Creation & Music Setup</span>
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="screen-container" data-screen="3">
+            <div class="controls">
+              <button class="control-btn zoom-btn">Zoom</button>
+              <button class="control-btn fullscreen-btn">Fullscreen</button>
+            </div>
+            <div class="zoom-indicator">2x Zoom</div>
+            <img
+              src="App%20Build/ROAM_Design_Screens%20Complete_page-0003.jpg"
+              alt="Roam design screen 3 of 9"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            <span class="idx">03</span>
+            <span class="screen-title">Session Workbench Timeline</span>
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="screen-container" data-screen="4">
+            <div class="controls">
+              <button class="control-btn zoom-btn">Zoom</button>
+              <button class="control-btn fullscreen-btn">Fullscreen</button>
+            </div>
+            <div class="zoom-indicator">2x Zoom</div>
+            <img
+              src="App%20Build/ROAM_Design_Screens%20Complete_page-0004.jpg"
+              alt="Roam design screen 4 of 9"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            <span class="idx">04</span>
+            <span class="screen-title">Capture & Recording</span>
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="screen-container" data-screen="5">
+            <div class="controls">
+              <button class="control-btn zoom-btn">Zoom</button>
+              <button class="control-btn fullscreen-btn">Fullscreen</button>
+            </div>
+            <div class="zoom-indicator">2x Zoom</div>
+            <img
+              src="App%20Build/ROAM_Design_Screens%20Complete_page-0005.jpg"
+              alt="Roam design screen 5 of 9"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            <span class="idx">05</span>
+            <span class="screen-title">Clip Organization & Tagging</span>
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="screen-container" data-screen="6">
+            <div class="controls">
+              <button class="control-btn zoom-btn">Zoom</button>
+              <button class="control-btn fullscreen-btn">Fullscreen</button>
+            </div>
+            <div class="zoom-indicator">2x Zoom</div>
+            <img
+              src="App%20Build/ROAM_Design_Screens%20Complete_page-0006.jpg"
+              alt="Roam design screen 6 of 9"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            <span class="idx">06</span>
+            <span class="screen-title">Song Mapping & Sections</span>
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="screen-container" data-screen="7">
+            <div class="controls">
+              <button class="control-btn zoom-btn">Zoom</button>
+              <button class="control-btn fullscreen-btn">Fullscreen</button>
+            </div>
+            <div class="zoom-indicator">2x Zoom</div>
+            <img
+              src="App%20Build/ROAM_Design_Screens%20Complete_page-0007.jpg"
+              alt="Roam design screen 7 of 9"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            <span class="idx">07</span>
+            <span class="screen-title">Feedback & Sharing</span>
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="screen-container" data-screen="8">
+            <div class="controls">
+              <button class="control-btn zoom-btn">Zoom</button>
+              <button class="control-btn fullscreen-btn">Fullscreen</button>
+            </div>
+            <div class="zoom-indicator">2x Zoom</div>
+            <img
+              src="App%20Build/ROAM_Design_Screens%20Complete_page-0008.jpg"
+              alt="Roam design screen 8 of 9"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            <span class="idx">08</span>
+            <span class="screen-title">Library & Search</span>
+          </figcaption>
+        </figure>
+
+        <figure>
+          <div class="screen-container" data-screen="9">
+            <div class="controls">
+              <button class="control-btn zoom-btn">Zoom</button>
+              <button class="control-btn fullscreen-btn">Fullscreen</button>
+            </div>
+            <div class="zoom-indicator">2x Zoom</div>
+            <img
+              src="App%20Build/ROAM_Design_Screens%20Complete_page-0009.jpg"
+              alt="Roam design screen 9 of 9"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <figcaption>
+            <span class="idx">09</span>
+            <span class="screen-title">Advanced Features</span>
+          </figcaption>
+        </figure>
+      </div>
+    </main>
+
+    <div class="nav-hint">
+      Use arrow keys to navigate screens, click images to zoom, press ESC to reset
+    </div>
+
+    <footer>
+      <div class="wrap">
+        <p>Source folder: <code>C:\Users\Georges\Documents\Cursor 2 V3\App Build</code></p>
+      </div>
+    </footer>
+
+    <script>
+      // Interactive functionality for App Build screens
+      document.addEventListener('DOMContentLoaded', function() {
+        const containers = document.querySelectorAll('.screen-container');
+        const totalScreens = containers.length;
+        
+        // Zoom functionality
+        containers.forEach(container => {
+          const img = container.querySelector('img');
+          const zoomBtn = container.querySelector('.zoom-btn');
+          const fullscreenBtn = container.querySelector('.fullscreen-btn');
+          const zoomIndicator = container.querySelector('.zoom-indicator');
+          let isZoomed = false;
+          let isDragging = false;
+          let startX, startY, scrollLeft, scrollTop;
+
+          // Zoom toggle
+          function toggleZoom() {
+            isZoomed = !isZoomed;
+            container.classList.toggle('zoomed');
+            zoomBtn.textContent = isZoomed ? 'Reset' : 'Zoom';
+            
+            if (isZoomed) {
+              // Enable pan when zoomed
+              container.style.cursor = 'grab';
+              setupPan();
+            } else {
+              // Reset pan
+              container.style.cursor = 'zoom-in';
+              container.scrollLeft = 0;
+              container.scrollTop = 0;
+              removePan();
+            }
+          }
+
+          // Click to zoom
+          img.addEventListener('click', toggleZoom);
+          zoomBtn.addEventListener('click', toggleZoom);
+
+          // Pan functionality
+          function setupPan() {
+            container.addEventListener('mousedown', startDrag);
+            container.addEventListener('mousemove', drag);
+            container.addEventListener('mouseup', endDrag);
+            container.addEventListener('mouseleave', endDrag);
+          }
+
+          function removePan() {
+            container.removeEventListener('mousedown', startDrag);
+            container.removeEventListener('mousemove', drag);
+            container.removeEventListener('mouseup', endDrag);
+            container.removeEventListener('mouseleave', endDrag);
+          }
+
+          function startDrag(e) {
+            if (!isZoomed) return;
+            isDragging = true;
+            container.style.cursor = 'grabbing';
+            startX = e.pageX - container.offsetLeft;
+            startY = e.pageY - container.offsetTop;
+            scrollLeft = container.scrollLeft;
+            scrollTop = container.scrollTop;
+          }
+
+          function drag(e) {
+            if (!isDragging || !isZoomed) return;
+            e.preventDefault();
+            const x = e.pageX - container.offsetLeft;
+            const y = e.pageY - container.offsetTop;
+            const walkX = (x - startX) * 2;
+            const walkY = (y - startY) * 2;
+            container.scrollLeft = scrollLeft - walkX;
+            container.scrollTop = scrollTop - walkY;
+          }
+
+          function endDrag() {
+            isDragging = false;
+            if (isZoomed) {
+              container.style.cursor = 'grab';
+            }
+          }
+
+          // Fullscreen functionality
+          fullscreenBtn.addEventListener('click', function() {
+            if (document.fullscreenElement) {
+              document.exitFullscreen();
+            } else {
+              container.requestFullscreen().catch(err => {
+                console.log(`Error attempting to enable fullscreen: ${err.message}`);
+              });
+            }
+          });
+
+          // Handle fullscreen change
+          document.addEventListener('fullscreenchange', function() {
+            fullscreenBtn.textContent = document.fullscreenElement ? 'Exit' : 'Fullscreen';
+          });
+        });
+
+        // Keyboard navigation
+        let currentScreen = 1;
+        
+        function navigateToScreen(screenNum) {
+          if (screenNum < 1 || screenNum > totalScreens) return;
+          
+          const targetContainer = document.querySelector(`[data-screen="${screenNum}"]`);
+          if (targetContainer) {
+            targetContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            currentScreen = screenNum;
+            updateActiveScreen();
+          }
+        }
+
+        function updateActiveScreen() {
+          containers.forEach((container, index) => {
+            const screenNum = index + 1;
+            if (screenNum === currentScreen) {
+              container.style.borderColor = 'var(--accent)';
+              container.style.boxShadow = '0 8px 32px rgba(255, 120, 80, 0.3)';
+            } else {
+              container.style.borderColor = 'var(--border)';
+              container.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.3)';
+            }
+          });
+        }
+
+        // Keyboard event listeners
+        document.addEventListener('keydown', function(e) {
+          switch(e.key) {
+            case 'ArrowRight':
+            case 'ArrowDown':
+              e.preventDefault();
+              navigateToScreen(currentScreen + 1);
+              break;
+            case 'ArrowLeft':
+            case 'ArrowUp':
+              e.preventDefault();
+              navigateToScreen(currentScreen - 1);
+              break;
+            case 'Escape':
+              // Reset all zooms
+              containers.forEach(container => {
+                if (container.classList.contains('zoomed')) {
+                  container.querySelector('.zoom-btn').click();
+                }
+              });
+              break;
+            case ' ':
+              e.preventDefault();
+              // Toggle zoom on current screen
+              const currentContainer = document.querySelector(`[data-screen="${currentScreen}"]`);
+              if (currentContainer) {
+                currentContainer.querySelector('.zoom-btn').click();
+              }
+              break;
+          }
+        });
+
+        // Intersection Observer for active screen tracking
+        const observerOptions = {
+          root: null,
+          rootMargin: '-40% 0px -40% 0px',
+          threshold: 0
+        };
+
+        const observer = new IntersectionObserver(function(entries) {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              const screenNum = parseInt(entry.target.dataset.screen);
+              currentScreen = screenNum;
+              updateActiveScreen();
+            }
+          });
+        }, observerOptions);
+
+        containers.forEach(container => {
+          observer.observe(container);
+        });
+
+        // Initialize first screen as active
+        updateActiveScreen();
+
+        // Hide navigation hint after first interaction
+        let hintHidden = false;
+        function hideHint() {
+          if (!hintHidden) {
+            const hint = document.querySelector('.nav-hint');
+            if (hint) {
+              hint.style.opacity = '0';
+              hint.style.transform = 'translateX(-50%) translateY(20px)';
+              setTimeout(() => hint.remove(), 500);
+              hintHidden = true;
+            }
+          }
+        }
+
+        // Hide hint on any interaction
+        document.addEventListener('click', hideHint);
+        document.addEventListener('keydown', hideHint);
+        document.addEventListener('wheel', hideHint);
+
+        // Touch support for mobile
+        containers.forEach(container => {
+          let touchStartX = 0;
+          let touchStartY = 0;
+
+          container.addEventListener('touchstart', function(e) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+          });
+
+          container.addEventListener('touchend', function(e) {
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+            const deltaX = touchEndX - touchStartX;
+            const deltaY = touchEndY - touchStartY;
+
+            // Swipe detection
+            if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY)) {
+              if (deltaX > 0) {
+                navigateToScreen(currentScreen - 1); // Swipe right - previous
+              } else {
+                navigateToScreen(currentScreen + 1); // Swipe left - next
+              }
+            }
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+/** Global strip when the device has no usable connection (root layout). */
 export default function OfflineBanner() {
   const [isOffline, setIsOffline] = useState(false);
-  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
-      setIsOffline(!(state.isConnected && state.isInternetReachable !== false));
+      const connected = state.isConnected === true;
+      const reachable = state.isInternetReachable !== false;
+      setIsOffline(!(connected && reachable));
     });
     return unsubscribe;
   }, []);
@@ -17,21 +18,18 @@ export default function OfflineBanner() {
   if (!isOffline) return null;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }]}>
-      <Text style={styles.text}>No connection — changes will sync when back online</Text>
+    <View style={styles.container}>
+      <Text style={styles.text}>Offline mode: changes will sync when connection returns.</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 9999,
     backgroundColor: '#D97706',
-    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.2)',
+    paddingVertical: 8,
     paddingHorizontal: 12,
   },
   text: {

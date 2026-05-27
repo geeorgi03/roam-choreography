@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,14 +16,16 @@ import { QuickSaveSheet } from '../../../components/QuickSaveSheet';
 import { useSession } from '../../../lib/hooks/useSession';
 import { saveClip } from '../../../lib/saveClip';
 import { supabase } from '../../../lib/supabase';
+import { useTranslation } from '../../../lib/i18n';
 
-const colors = theme.light;
+const colors = theme.night;
 const spacing = theme.spacing;
 
 export default function CameraScreen() {
   const { id: sessionId, sectionName } = useLocalSearchParams<{ id?: string; sectionName?: string }>();
   const router = useRouter();
   const { session } = useSession();
+  const { t } = useTranslation();
   const cameraRef = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -36,6 +38,7 @@ export default function CameraScreen() {
   const [showFallbackNotice, setShowFallbackNotice] = useState(false);
   const [showRecordErrorNotice, setShowRecordErrorNotice] = useState(false);
   const [voiceMemoNotice, setVoiceMemoNotice] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
   const [facing, setFacing] = useState<'back' | 'front'>('back');
   const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
   const [sessionName, setSessionName] = useState<string | null>(null);
@@ -165,6 +168,18 @@ export default function CameraScreen() {
   }, [dualEnabled, isRecording, stopFpsMonitor, triggerFallback]);
 
   useEffect(() => {
+    if (!isRecording) {
+      setRecSeconds(0);
+      return;
+    }
+    const started = Date.now();
+    const id = setInterval(() => {
+      setRecSeconds((Date.now() - started) / 1000);
+    }, 67);
+    return () => clearInterval(id);
+  }, [isRecording]);
+
+  useEffect(() => {
     if (recordedUri && autoOpenQuickSaveRef.current) {
       requestAnimationFrame(() => {
         quickSaveRef.current?.snapToIndex(0);
@@ -276,7 +291,7 @@ export default function CameraScreen() {
           if (dualHealthy) {
             const nextDualPairId = crypto.randomUUID();
             setDualPairId(nextDualPairId);
-            setFrontRecordedUri(frontResult.uri);
+            setFrontRecordedUri(frontResult?.uri ?? null);
           } else {
             setDualPairId(undefined);
             setFrontRecordedUri(null);
@@ -386,7 +401,7 @@ export default function CameraScreen() {
             await saveClip(
               sessionId,
               uri,
-              'Voice Memo',
+              t('camera.voiceMemoLabel'),
               session.access_token,
               sectionName ?? undefined,
               undefined,
@@ -408,9 +423,9 @@ export default function CameraScreen() {
   if (!cameraPermission?.granted) {
     return (
       <View style={styles.container}>
-        <Text style={styles.placeholderText}>Camera permission required</Text>
+        <Text style={styles.placeholderText}>{t('camera.permissionRequired')}</Text>
         <TouchableOpacity style={styles.button} onPress={requestCameraPermission}>
-          <Text style={styles.outlineButtonText}>Grant permission</Text>
+          <Text style={styles.outlineButtonText}>{t('camera.grantPermission')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -429,10 +444,10 @@ export default function CameraScreen() {
         />
         <View style={styles.previewControls}>
           <TouchableOpacity style={styles.outlineButton} onPress={handleRetake}>
-            <Text style={styles.outlineButtonText}>Retake</Text>
+            <Text style={styles.outlineButtonText}>{t('camera.retake')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
-            <Text style={styles.primaryButtonText}>Save</Text>
+            <Text style={styles.primaryButtonText}>{t('camera.save')}</Text>
           </TouchableOpacity>
         </View>
         <QuickSaveSheet
@@ -458,10 +473,12 @@ export default function CameraScreen() {
     <View style={styles.container}>
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Back</Text>
+          <Text style={styles.backButtonText}>{t('camera.back')}</Text>
         </TouchableOpacity>
         <View style={styles.sessionLabelWrap}>
-          <Text style={styles.sessionLabel}>{sessionName ?? (sessionId ? '…' : 'Session')}</Text>
+          <Text style={styles.sessionLabel}>
+            {sessionName ?? (sessionId ? '…' : t('camera.sessionFallback'))}
+          </Text>
           {sectionName ? <Text style={styles.sectionLabel}>{sectionName}</Text> : null}
         </View>
         <TouchableOpacity
@@ -477,9 +494,9 @@ export default function CameraScreen() {
           activeOpacity={0.85}
         >
           <Text style={[styles.dualChipText, dualEnabled && styles.dualChipTextActive]}>
-            dual-screen
+            {t('camera.dualScreen')}
           </Text>
-          <Text style={styles.betaBadge}>beta</Text>
+          <Text style={styles.betaBadge}>{t('camera.beta')}</Text>
         </TouchableOpacity>
       </View>
       <CameraView
@@ -494,19 +511,45 @@ export default function CameraScreen() {
           <CameraView ref={frontCameraRef} style={StyleSheet.absoluteFill} mode="video" facing="front" />
         </View>
       ) : null}
+      {isRecording ? (
+        <>
+          <View style={styles.gridOverlay} pointerEvents="none">
+            {[33, 66].map((pct) => (
+              <View key={`h-${pct}`} style={[styles.gridLineH, { top: `${pct}%` }]} />
+            ))}
+            {[33, 66].map((pct) => (
+              <View key={`v-${pct}`} style={[styles.gridLineV, { left: `${pct}%` }]} />
+            ))}
+          </View>
+          <View style={styles.recHud} pointerEvents="none">
+            <View style={styles.recHudCard}>
+              <View style={styles.recHudRow}>
+                <View style={styles.recHudDot} />
+                <Text style={styles.recHudLabel}>{t('camera.capturing')}</Text>
+              </View>
+              <Text style={styles.recHudTime}>{formatRecTime(recSeconds)}</Text>
+              {sectionName ? (
+                <Text style={styles.recHudMeta}>
+                  {sectionName}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        </>
+      ) : null}
       {showRecordErrorNotice ? (
         <View style={styles.fallbackNotice}>
-          <Text style={styles.fallbackNoticeText}>could not save this take - please retry</Text>
+          <Text style={styles.fallbackNoticeText}>{t('camera.recordErrorNotice')}</Text>
         </View>
       ) : null}
       {showFallbackNotice ? (
         <View style={styles.fallbackNotice}>
-          <Text style={styles.fallbackNoticeText}>⚠ performance low - using single capture</Text>
+          <Text style={styles.fallbackNoticeText}>{t('camera.performanceFallback')}</Text>
         </View>
       ) : null}
       {voiceMemoNotice ? (
         <View style={styles.fallbackNotice}>
-          <Text style={styles.fallbackNoticeText}>🎤 Voice memo saved</Text>
+          <Text style={styles.fallbackNoticeText}>{t('camera.voiceMemoSaved')}</Text>
         </View>
       ) : null}
       <View style={styles.controlsRow}>
@@ -526,7 +569,7 @@ export default function CameraScreen() {
         {isVoiceMemoRecording && (
           <Animated.View style={[styles.voiceMemoIndicator, { opacity: pulseAnim }]}>
             <View style={styles.voiceMemoDot} />
-            <Text style={styles.voiceMemoLabel}>🎤 Recording...</Text>
+            <Text style={styles.voiceMemoLabel}>{t('camera.voiceMemoRecording')}</Text>
           </Animated.View>
         )}
         <LongPressGestureHandler onHandlerStateChange={handleLongPressStateChange} minDurationMs={500}>
@@ -543,7 +586,15 @@ export default function CameraScreen() {
   );
 }
 
-const t = theme.light;
+function formatRecTime(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  const cs = String(Math.floor((sec % 1) * 100)).padStart(2, '0');
+  return `${m}:${ss}.${cs}`;
+}
+
+const t = theme.night;
 const overlayDark = 'rgba(58,52,45,0.82)' as const;
 const overlayDarkSoft = 'rgba(58,52,45,0.75)' as const;
 const RECORD_RING = 'rgba(255,255,255,0.5)' as const;
@@ -782,5 +833,71 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.xs,
     color: colors.chrome,
     fontWeight: '600',
+  },
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    margin: 20,
+  },
+  gridLineH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(244,235,214,0.12)',
+  },
+  gridLineV: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(244,235,214,0.12)',
+  },
+  recHud: {
+    position: 'absolute',
+    top: 72,
+    left: 16,
+    right: 16,
+  },
+  recHudCard: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(14,12,10,0.72)',
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(244,235,214,0.15)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  recHudRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 4,
+  },
+  recHudDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: colors.capture,
+  },
+  recHudLabel: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    color: colors.capture,
+  },
+  recHudTime: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 22,
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  recHudMeta: {
+    fontFamily: theme.typography.monoFamily,
+    fontSize: 10,
+    color: 'rgba(244,235,214,0.45)',
+    marginTop: 2,
+    textTransform: 'lowercase',
   },
 });

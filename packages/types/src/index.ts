@@ -106,6 +106,8 @@ export interface ClipComment {
   session_id: UUID;
   timecode_ms: number;
   text: string;
+  feedback_category?: string | null;
+  feedback_text?: string | null;
   commenter_name: string | null;
   created_at: ISODateTime;
 }
@@ -161,7 +163,7 @@ export interface SectionClip {
   created_at: ISODateTime;
 }
 
-export interface FormationData extends Record<string, unknown> {}
+export type FormationData = Record<string, unknown>;
 
 export interface QualityData {
   initiation?: string;
@@ -180,6 +182,7 @@ export interface Moment {
   quality: QualityData | null;
   position: number;
   created_at: ISODateTime;
+  last_modified_at?: ISODateTime;
 }
 
 export interface Loop {
@@ -192,4 +195,17 @@ export interface Loop {
   name: string;
   created_by: UUID;
   created_at: ISODateTime;
+}
+
+export interface DrillSequenceItem {
+  id: string;
+  label: string;
+  start_ms: number;
+  end_ms: number;
+}
+
+export interface DrillSequence {
+  session_id: UUID;
+  items: DrillSequenceItem[];
+  updated_at: ISODateTime;
 }

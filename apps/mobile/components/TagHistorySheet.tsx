@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   card: {
-    backgroundColor: '#222',
+    backgroundColor: theme.night.chrome,
     borderRadius: theme.borderRadius,
     padding: 16,
     marginBottom: 12,
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   },
   diffOld: {
     fontSize: 13,
-    color: '#ef4444',
+    color: theme.light.capture,
     textDecorationLine: 'line-through',
   },
   diffMuted: {
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   },
   diffNew: {
     fontSize: 13,
-    color: '#22c55e',
+    color: theme.light.mine,
     fontWeight: '500',
   },
   unchangedSummary: {

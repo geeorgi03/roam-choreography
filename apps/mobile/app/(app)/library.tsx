@@ -9,19 +9,28 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { theme } from '../../lib/theme';
+import type { ThemePalette } from '../../lib/contexts/ThemeContext';
+import { useAppChromeTheme } from '../../lib/hooks/useAppChromeTheme';
+import {
+  ChoreographyHubFilterChip,
+  ChoreographyHubSearch,
+} from '../../components/choreography/hub/ChoreographyHubChrome';
+import { DisplayTitle, MonoCaps } from '../../components/choreography/ChoreographyPrimitives';
 import type { Clip } from '@roam/types';
 import { ClipCard } from '../../components/ClipCard';
 import type { ClipRow } from '../../lib/database';
 import { useSession } from '../../lib/hooks/useSession';
 import { useNotePins } from '../../lib/hooks/useNotePins';
 import { ClipViewerSheetStandalone } from '../../components/session/ClipViewerSheetStandalone';
+import { MarkingSearchPanel } from '../../components/library/MarkingSearchPanel';
 import { useTranslation } from '../../lib/i18n';
 
 import { API_BASE } from '../../lib/api';
-const colors = theme.light;
 const spacing = theme.spacing;
 
 export default function LibraryScreen() {
+  const { colors, isChoreography } = useAppChromeTheme();
+  const styles = useMemo(() => createLibraryStyles(colors, isChoreography), [colors, isChoreography]);
   const { t } = useTranslation();
   const { session } = useSession();
   const token = session?.access_token ?? null;
@@ -36,6 +45,7 @@ export default function LibraryScreen() {
   const [q, setQ] = useState<string>('');
   const [debouncedQ, setDebouncedQ] = useState<string>('');
   const [filterSegment, setFilterSegment] = useState<'All' | 'REF' | 'MINE' | 'Shared'>('All');
+  const [markingSearchOpen, setMarkingSearchOpen] = useState(false);
 
   const clipSheetRef = useRef<any>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,6 +139,7 @@ export default function LibraryScreen() {
       upload_status: 'ready',
       upload_progress: 0,
       mux_playback_id: (clip as unknown as { mux_playback_id?: string | null }).mux_playback_id ?? null,
+      source_url: (clip as unknown as { source_url?: string | null }).source_url ?? null,
       parent_clip_id: (clip as unknown as { parent_clip_id?: string | null }).parent_clip_id ?? null,
       triggered_by_note_id: (clip as unknown as { triggered_by_note_id?: string | null }).triggered_by_note_id ?? null,
       move_name: (clip as unknown as { move_name?: string | null }).move_name ?? null,
@@ -199,48 +210,105 @@ export default function LibraryScreen() {
         contentContainerStyle={filteredClips.length === 0 ? styles.emptyList : styles.listContent}
         ListHeaderComponent={
           <View style={styles.header}>
-            <View style={styles.searchRow}>
-              <Text style={styles.searchIcon}>🔍</Text>
-              <TextInput
-                style={styles.searchInput}
-                placeholder={t('library.searchPlaceholder')}
-                placeholderTextColor={colors.muted}
+            {isChoreography ? (
+              <DisplayTitle style={styles.hubTitle}>{t('tabs.library')}</DisplayTitle>
+            ) : null}
+            {isChoreography ? (
+              <ChoreographyHubSearch
                 value={q}
                 onChangeText={setQ}
-                autoCapitalize="none"
-                autoCorrect={false}
+                placeholder={t('library.searchPlaceholder')}
+                style={styles.searchChoreo}
               />
-            </View>
+            ) : (
+              <View style={styles.searchRow}>
+                <Text style={styles.searchIcon}>🔍</Text>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder={t('library.searchPlaceholder')}
+                  placeholderTextColor={colors.muted}
+                  value={q}
+                  onChangeText={setQ}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            )}
 
-            <View style={styles.segmented}>
-              {(['All', 'REF', 'MINE', 'Shared'] as const).map((seg) => {
-                const active = filterSegment === seg;
-                return (
-                  <TouchableOpacity
-                    key={seg}
-                    style={[styles.segment, active && styles.segmentActive]}
-                    onPress={() => setFilterSegment(seg)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                      {
-                        t(
-                          `library.filter${
-                            seg === 'All'
-                              ? 'All'
-                              : seg === 'REF'
-                                ? 'Ref'
-                                : seg === 'MINE'
-                                  ? 'Mine'
-                                  : 'Shared'
-                          }`
-                        )
-                      }
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <TouchableOpacity
+              style={styles.markingSearchBtn}
+              onPress={() => setMarkingSearchOpen(true)}
+              activeOpacity={0.85}
+              disabled={!token}
+            >
+              {isChoreography ? (
+                <>
+                  <MonoCaps style={styles.markingSearchBtnText}>{t('markingSearch.open')}</MonoCaps>
+                  <MonoCaps style={styles.markingSearchBtnSub}>{t('markingSearch.subtitle')}</MonoCaps>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.markingSearchBtnText}>{t('markingSearch.open')}</Text>
+                  <Text style={styles.markingSearchBtnSub}>{t('markingSearch.subtitle')}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {isChoreography ? (
+              <View style={styles.filterRow}>
+                {(['All', 'REF', 'MINE', 'Shared'] as const).map((seg) => {
+                  const label = t(
+                    `library.filter${
+                      seg === 'All'
+                        ? 'All'
+                        : seg === 'REF'
+                          ? 'Ref'
+                          : seg === 'MINE'
+                            ? 'Mine'
+                            : 'Shared'
+                    }`
+                  );
+                  return (
+                    <ChoreographyHubFilterChip
+                      key={seg}
+                      label={label.toUpperCase()}
+                      active={filterSegment === seg}
+                      onPress={() => setFilterSegment(seg)}
+                    />
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.segmented}>
+                {(['All', 'REF', 'MINE', 'Shared'] as const).map((seg) => {
+                  const active = filterSegment === seg;
+                  return (
+                    <TouchableOpacity
+                      key={seg}
+                      style={[styles.segment, active && styles.segmentActive]}
+                      onPress={() => setFilterSegment(seg)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                        {
+                          t(
+                            `library.filter${
+                              seg === 'All'
+                                ? 'All'
+                                : seg === 'REF'
+                                  ? 'Ref'
+                                  : seg === 'MINE'
+                                    ? 'Mine'
+                                    : 'Shared'
+                            }`
+                          )
+                        }
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         }
         ListEmptyComponent={
@@ -299,21 +367,44 @@ export default function LibraryScreen() {
         allNotes={selectedSessionNotes}
         onOpenClip={setSelectedClip}
       />
+
+      <MarkingSearchPanel
+        visible={markingSearchOpen}
+        onClose={() => setMarkingSearchOpen(false)}
+        token={token}
+        clips={clips}
+        onOpenMatch={(clip) => {
+          setMarkingSearchOpen(false);
+          openClipSheet(clip);
+        }}
+      />
     </View>
   );
 }
 
-const themeColors = theme.light;
-
-const styles = StyleSheet.create({
+function createLibraryStyles(colors: ThemePalette, choreography = false) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: themeColors.ground,
+    backgroundColor: colors.ground,
   },
   header: {
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 8,
+  },
+  hubTitle: {
+    marginBottom: 12,
+    fontSize: 22,
+  },
+  searchChoreo: {
+    marginBottom: 10,
+  },
+  filterRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   searchRow: {
     flexDirection: 'row',
@@ -334,6 +425,26 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.active,
     fontSize: 16,
+  },
+  markingSearchBtn: {
+    marginTop: 10,
+    backgroundColor: choreography ? colors.surfaceGlass : colors.amberBg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: choreography ? 14 : spacing.radiusMd,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  markingSearchBtnText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.active,
+  },
+  markingSearchBtnSub: {
+    marginTop: 4,
+    fontSize: 12,
+    color: colors.muted,
+    lineHeight: 17,
   },
   segmented: {
     marginTop: 10,
@@ -425,4 +536,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+}
 

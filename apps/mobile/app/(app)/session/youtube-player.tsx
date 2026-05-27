@@ -10,8 +10,9 @@ import {
 import Slider from '@react-native-community/slider';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import BottomSheet from '@gorhom/bottom-sheet';
 import YoutubeIframe, { type YoutubeIframeRef } from 'react-native-youtube-iframe';
-import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS, useFrameCallback } from 'react-native-reanimated';
 // Lazy require: a native-module init failure must not prevent route discovery
 let GestureDetector: React.ComponentType<{ gesture: unknown; children: React.ReactNode }> =
   ({ children }) => <>{children}</>;
@@ -67,6 +68,9 @@ import { MMKV } from 'react-native-mmkv';
 
 import { API_BASE } from '../../../lib/api';
 import { enqueue, isNetworkError } from '../../../lib/writeQueue';
+import { PaywallSheet } from '../../../components/PaywallSheet';
+import { ExternalRefWebPlayer } from '../../../components/media/ExternalRefWebPlayer';
+import { isBilibiliUrl, isXiaohongshuUrl } from '../../../lib/clipPlayback';
 
 // Loupe persistence — key: loupe:${videoId} -> { x, y, zoom }
 const loupeStorage = new MMKV({ id: 'loupe-state' });
@@ -81,6 +85,16 @@ function formatMs(ms: number) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function normalizeSections(entries: SectionEntry[]): SectionEntry[] {
+  return [...entries]
+    .filter((entry) => Number.isFinite(entry.start_ms))
+    .map((entry) => ({
+      label: (entry.label ?? '').trim() || 'Section',
+      start_ms: Math.max(0, Math.round(entry.start_ms)),
+    }))
+    .sort((a, b) => a.start_ms - b.start_ms);
 }
 
 function extractVideoId(sourceUrl: string | null): string | null {
@@ -107,9 +121,12 @@ export default function YoutubePlayerScreen() {
   const [saving, setSaving] = useState(false);
   const [playerState, setPlayerState] = useState<string>('unstarted');
   const [mirrorActive, setMirrorActive] = useState(false);
+  const paywallSheetRef = useRef<BottomSheet | null>(null);
   const playerRef = useRef<YoutubeIframeRef | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
+  const uploadInProgressRef = useRef(false);
+  const lastUploadAtRef = useRef(0);
   
   // A/B Loop state
   const [loopStartSec, setLoopStartSec] = useState<number | null>(null);
@@ -124,6 +141,7 @@ export default function YoutubePlayerScreen() {
   const [loupeActive, setLoupeActive] = useState(false);
   const [loupeZoom, setLoupeZoom] = useState(2.5);
   const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
+  const [loupePausedForPerformance, setLoupePausedForPerformance] = useState(false);
   const loupeX = useSharedValue(0);
   const loupeY = useSharedValue(0);
   const loupeActiveShared = useSharedValue(0); // 0 = inactive, 1 = active
@@ -131,6 +149,8 @@ export default function YoutubePlayerScreen() {
   const loupeLastX = useRef(0);
   const loupeLastY = useRef(0);
   const loupeLastZoom = useRef(0);
+  const fpsWindowRef = useRef<number[]>([]);
+  const lowFpsStreakRef = useRef(0);
 
   // Capture frame when loupe becomes active - simplified approach
   const captureCurrentFrame = async () => {
@@ -217,11 +237,46 @@ export default function YoutubePlayerScreen() {
 
   useEffect(() => {
     if (!musicTrack) return;
-    setSections(musicTrack.sections ?? []);
+    setSections(normalizeSections(musicTrack.sections ?? []));
   }, [musicTrack]);
 
-  const videoId = musicTrack ? extractVideoId(musicTrack.source_url) : null;
-  const loupePersistKey = musicTrack?.source_url ? `loupe:${musicTrack.source_url}` : null;
+  useEffect(() => {
+    if (!loupePausedForPerformance) return;
+    const timeoutId = setTimeout(() => setLoupePausedForPerformance(false), 2000);
+    return () => clearTimeout(timeoutId);
+  }, [loupePausedForPerformance]);
+
+  useFrameCallback((frameInfo) => {
+    'worklet';
+    if (loupeActiveShared.value !== 1) return;
+    runOnJS((timestamp: number) => {
+      fpsWindowRef.current.push(timestamp);
+      if (fpsWindowRef.current.length > 10) fpsWindowRef.current.shift();
+      if (fpsWindowRef.current.length < 2) return;
+      const durationMs = fpsWindowRef.current[fpsWindowRef.current.length - 1] - fpsWindowRef.current[0];
+      if (durationMs <= 0) return;
+      const fps = ((fpsWindowRef.current.length - 1) / durationMs) * 1000;
+      if (fps < 30) {
+        lowFpsStreakRef.current += 1;
+        if (lowFpsStreakRef.current >= 3) {
+          lowFpsStreakRef.current = 0;
+          setLoupeActive(false);
+          loupeActiveShared.value = 0;
+          setLoupePausedForPerformance(true);
+        }
+      } else {
+        lowFpsStreakRef.current = 0;
+      }
+    })(frameInfo.timestamp);
+  }, true);
+
+  const sourceUrl = musicTrack?.source_url ?? null;
+  const videoId = sourceUrl ? extractVideoId(sourceUrl) : null;
+  const externalMusicWeb =
+    !!sourceUrl &&
+    !videoId &&
+    (isBilibiliUrl(sourceUrl) || isXiaohongshuUrl(sourceUrl));
+  const loupePersistKey = sourceUrl ? `loupe:${sourceUrl}` : null;
 
   // Restore saved loupe state on video load
   useEffect(() => {
@@ -375,7 +430,7 @@ export default function YoutubePlayerScreen() {
 
   const addSectionAtPlayhead = () => {
     const start_ms = playbackPositionSec * 1000;
-    setSections((prev) => [...prev, { label: 'Section', start_ms }]);
+    setSections((prev) => normalizeSections([...prev, { label: 'Section', start_ms }]));
   };
 
   const updateSectionLabel = (index: number, label: string) => {
@@ -386,12 +441,15 @@ export default function YoutubePlayerScreen() {
   };
 
   const removeSection = (index: number) => {
-    setSections((prev) => prev.filter((_, i) => i !== index));
+    setSections((prev) => normalizeSections(prev.filter((_, i) => i !== index)));
     setEditingSection(null);
   };
 
   const handleSaveSections = async () => {
     if (!sessionId || !session?.access_token) return;
+    if (uploadInProgressRef.current || Date.now() - lastUploadAtRef.current < 2000) return;
+    uploadInProgressRef.current = true;
+    lastUploadAtRef.current = Date.now();
     setSaving(true);
     try {
       const res = await fetch(`${API_BASE}/sessions/${sessionId}/music`, {
@@ -402,7 +460,17 @@ export default function YoutubePlayerScreen() {
         },
         body: JSON.stringify({ sections }),
       });
-      if (!res.ok) throw new Error('Save failed');
+      if (!res.ok) {
+        if (res.status === 403) {
+          const body = (await res.json().catch(() => null)) as { reason?: string } | null;
+          if (body?.reason === 'plan_limit_reached') {
+            paywallSheetRef.current?.snapToIndex(0);
+            setSaving(false);
+            return;
+          }
+        }
+        throw new Error('Save failed');
+      }
       router.back();
     } catch (e) {
       if (isNetworkError(e)) {
@@ -416,11 +484,14 @@ export default function YoutubePlayerScreen() {
       }
       if (__DEV__) console.warn(e);
       setSaving(false);
+    } finally {
+      uploadInProgressRef.current = false;
     }
   };
 
   const handleSpeedChange = (value: number) => {
-    playerRef.current?.setPlaybackRate(value);
+    // react-native-youtube-iframe exposes playback rate reads, but setting rate
+    // is handled through player params/state updates rather than imperative API.
     setSpeed(value);
   };
 
@@ -491,10 +562,10 @@ export default function YoutubePlayerScreen() {
     );
   }
 
-  if (!videoId) {
+  if (!videoId && !externalMusicWeb) {
     return (
       <View style={styles.container}>
-        <Text style={styles.error}>Invalid YouTube track.</Text>
+        <Text style={styles.error}>Invalid or unsupported music URL.</Text>
       </View>
     );
   }
@@ -510,14 +581,19 @@ export default function YoutubePlayerScreen() {
           }}
         >
           <View style={[StyleSheet.absoluteFill, { transform: [{ scaleX: mirrorActive ? -1 : 1 }] }]}>
-            <YoutubeIframe
-              ref={playerRef}
-              height={220}
-              videoId={videoId}
-              onChangeState={(state) => {
-                setPlayerState(state);
-              }}
-            />
+            {externalMusicWeb && sourceUrl ? (
+              <ExternalRefWebPlayer url={sourceUrl} style={styles.externalWeb} />
+            ) : videoId ? (
+              <YoutubeIframe
+                ref={playerRef}
+                height={220}
+                videoId={videoId}
+                playbackRate={speed}
+                onChangeState={(state) => {
+                  setPlayerState(state);
+                }}
+              />
+            ) : null}
           </View>
           {loupeActive && (
             <Animated.View style={[styles.loupeContainer, loupeAnimatedStyle]} pointerEvents="none">
@@ -549,6 +625,11 @@ export default function YoutubePlayerScreen() {
             }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.loupeDismissBtnText}>✕</Text>
             </TouchableOpacity>
+          )}
+          {loupePausedForPerformance && (
+            <View style={styles.loupePerfNotice}>
+              <Text style={styles.loupePerfNoticeText}>Loupe paused for performance.</Text>
+            </View>
           )}
           {!loupeActive && loupeLastZoom.current > 0 && (
             <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { 
@@ -616,7 +697,7 @@ export default function YoutubePlayerScreen() {
           maximumValue={durationSec || 1}
           value={playbackPositionSec}
           onSlidingComplete={(value) => {
-            playerRef.current?.seekTo(value);
+            playerRef.current?.seekTo(value, true);
             setPlaybackPositionSec(value);
           }}
           minimumTrackTintColor={theme.textPrimary}
@@ -731,6 +812,7 @@ export default function YoutubePlayerScreen() {
           {saving ? 'Saving…' : 'Save sections'}
         </Text>
       </TouchableOpacity>
+      <PaywallSheet bottomSheetRef={paywallSheetRef} />
     </View>
   );
 }
@@ -811,6 +893,11 @@ const styles = StyleSheet.create({
   videoContainer: {
     position: 'relative',
   },
+  externalWeb: {
+    flex: 1,
+    minHeight: 220,
+    width: '100%',
+  },
   loupeContainer: {
     position: 'absolute',
     width: 140,
@@ -880,6 +967,22 @@ const styles = StyleSheet.create({
   loupeRestoreBtnText: {
     color: '#fff',
     fontSize: 20,
+  },
+  loupePerfNotice: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    zIndex: 30,
+  },
+  loupePerfNoticeText: {
+    color: '#fff',
+    fontSize: 12,
+    textAlign: 'center',
   },
   videoControlsRow: {
     flexDirection: 'row',

@@ -6,13 +6,17 @@ Authoritative soft-launch operations guide for Roam Choreography. Production-rea
 
 ## DEP-1: API Deployment Baseline
 
-### Render deployment
+### Render deployment (Node — no Docker on your PC)
 
 1. Push repo to GitHub.
-2. [Render](https://render.com) → New → Web Service → Connect repo.
-3. Use `render.yaml` blueprint (or configure manually):
-   - **Build**: Dockerfile `apps/api/Dockerfile`, context = repo root
-   - **Runtime**: Port 3001
+2. [Render](https://render.com) → **Blueprints** → **New Blueprint Instance** → connect repo (uses `render.yaml`), **or** New → Web Service with:
+   - **Runtime**: **Node** (not Docker)
+   - **Build command**: `chmod +x scripts/render-build-api.sh && ./scripts/render-build-api.sh`  
+     (or locally: `pnpm render:build:api`)
+   - **Start command**: `node apps/api/dist/index.js`
+   - **Health check**: `/health`
+3. Render sets `PORT` automatically; do not hardcode a conflicting port.
+4. Optional: verify URLs before shipping a mobile build: `pnpm verify:deploy` (reads `apps/mobile/eas.json` preview env).
 
 ### Required environment variables (set in Render dashboard)
 
@@ -50,6 +54,16 @@ This ensures the clip upload pipeline can process Mux status updates end-to-end.
 ### API URL
 
 After deploy, the API URL is `https://roam-api.onrender.com` (or your service name). This is baked into `eas.json` for preview and production builds.
+
+### Empty Supabase database (reactivated / new project)
+
+If SQL Editor shows **no** `sessions` / `clips` / `users` tables:
+
+1. Open `supabase/APPLY_ALL_MIGRATIONS.sql` in this repo (regenerate: `pnpm supabase:bundle`).
+2. Supabase Dashboard → **SQL** → paste the **entire** file → **Run**.
+3. Confirm with `supabase/VERIFY_SCHEMA.sql`.
+4. **Authentication** → redirect URL: `roam://**`
+5. Align Render `SUPABASE_*` and `apps/mobile/eas.json` `EXPO_PUBLIC_SUPABASE_*` with the same project → new EAS APK.
 
 ---
 
@@ -112,6 +126,8 @@ All rows must be manually exercised and checked before declaring soft-launch rea
 | 15 | **API health** | `GET https://roam-api.onrender.com/` | Returns `{ "name": "Roam API", "version": "0.0.1" }` | `[ ]` |
 
 All items must be checked by a human operator as part of the soft-launch sign-off.
+
+**Mobile extended checklist** (collab, iPad layout, spatial pen, loop/takes): [docs/MOBILE_DEP3_SMOKE.md](docs/MOBILE_DEP3_SMOKE.md)
 
 ---
 

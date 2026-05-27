@@ -1,0 +1,80 @@
+/* ROAM — premium tool tokens
+   Philosophy: warm black studio, precise hairlines, restrained serif accents,
+   monospace for data, one coral accent reserved for REC/active.
+*/
+:root {
+  /* DARK — primary surface (default: studios have harsh lights, warm blacks are fatigue-safe) */
+  --bg:          #14120F;
+  --bg-2:        #1A1815;
+  --surface:     #1E1C18;
+  --surface-2:   #24211C;
+  --surface-3:   #2C2924;
+  --hair:        rgba(245, 235, 215, 0.07);
+  --hair-2:      rgba(245, 235, 215, 0.12);
+  --hair-strong: rgba(245, 235, 215, 0.2);
+
+  --text:    #F4EBD6;
+  --text-2:  rgba(244, 235, 214, 0.72);
+  --text-3:  rgba(244, 235, 214, 0.5);
+  --text-4:  rgba(244, 235, 214, 0.3);
+
+  /* Light variant — paper for "moments" (session opener, share view) */
+  --l-bg:       #F2ECDC;
+  --l-surface:  #FBF6EA;
+  --l-card:     #EDE4CE;
+  --l-hair:     rgba(26, 22, 18, 0.1);
+  --l-text:     #1A1612;
+  --l-text-2:   rgba(26, 22, 18, 0.65);
+  --l-text-3:   rgba(26, 22, 18, 0.42);
+
+  /* One accent — coral REC */
+  --accent:       #E06E3F;
+  --accent-soft:  rgba(224, 110, 63, 0.15);
+  --accent-dim:   rgba(224, 110, 63, 0.4);
+
+  /* Supporting hues — section tags only (never decoration) */
+  --sage:  #8FA88E;
+  --gold:  #C9A46B;
+  --plum:  #9A6F84;
+
+  /* Type scale — tight, premium */
+  --f-serif: 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+  --f-sans:  'Inter Tight', 'Work Sans', ui-sans-serif, system-ui, sans-serif;
+  --f-mono:  'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Spacing (8pt grid, tightened for density) */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px;  --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-7: 32px;  --s-8: 44px;
+
+  --r-s: 8px; --r-m: 12px; --r-l: 16px; --r-xl: 22px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #0E0D0A; }
+body {
+  font-family: var(--f-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color: var(--text);
+}
+
+/* hide scrollbars inside device */
+.roam-scroll::-webkit-scrollbar { width: 0; height: 0; }
+.roam-scroll { scrollbar-width: none; }
+
+/* data type class */
+.mono {
+  font-family: var(--f-mono);
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+  letter-spacing: 0.02em;
+}
+.mono-xs { font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.mono-sm { font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.05em; }
+
+/* pulse */
+@keyframes recPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes spinTape { to { transform: rotate(360deg); } }
+@keyframes waveBar  { 0%,100% { height: 30%; } 50% { height: 100%; } }
+
+/* focus */
+button { font-family: inherit; }

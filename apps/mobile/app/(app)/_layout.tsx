@@ -1,37 +1,53 @@
 import { router, Tabs } from 'expo-router';
-import { TouchableOpacity, Text } from 'react-native';
+import { View } from 'react-native';
 import { getActiveSessionId } from '../../lib/storage';
-import { theme } from '../../lib/theme';
 import { useInboxCount } from '../../lib/contexts/InboxCountContext';
+import { useTheme } from '../../lib/contexts/ThemeContext';
+import { ChoreographyThemeProvider } from '../../lib/contexts/ChoreographyThemeContext';
+import { choreographyPalette } from '../../lib/choreographyTheme';
+import { USE_CHOREOGRAPHY_UI } from '../../lib/choreographyUiFlag';
+import { ChoreographyTabBar } from '../../components/choreography/ChoreographyTabBar';
+import { useTranslation } from '../../lib/i18n';
+import { IconInbox } from '../../components/icons/SessionChromeIcons';
+import { AppTabHeaderRight } from '../../components/AppTabHeaderRight';
+import { HeaderBackButton } from '../../components/HeaderBackButton';
 
 export default function AppStackLayout() {
   const { count } = useInboxCount();
+  const { colors: themeColors } = useTheme();
+  const colors = USE_CHOREOGRAPHY_UI ? choreographyPalette : themeColors;
+  const { t } = useTranslation();
 
-  return (
+  const tabs = (
     <Tabs
-      screenOptions={{
-        headerStyle: { backgroundColor: theme.light.ground },
-        headerTintColor: theme.light.active,
-        headerTitleStyle: { fontWeight: '700' },
-        tabBarStyle: { backgroundColor: theme.light.ground },
-        tabBarActiveTintColor: theme.light.active,
-        tabBarInactiveTintColor: theme.light.muted,
-      }}
+      tabBar={USE_CHOREOGRAPHY_UI ? (props) => <ChoreographyTabBar {...props} /> : undefined}
+      screenOptions={({ route }) => ({
+        headerStyle: { backgroundColor: colors.ground },
+        headerTintColor: colors.active,
+        headerTitleStyle: { fontWeight: '700', color: colors.active },
+        tabBarStyle: USE_CHOREOGRAPHY_UI
+          ? { display: 'none' }
+          : { backgroundColor: colors.ground },
+        tabBarActiveTintColor: colors.active,
+        tabBarInactiveTintColor: colors.muted,
+        headerRight: () => <AppTabHeaderRight showProfileLink={route.name !== 'profile'} />,
+        headerLeft: route.name === 'profile' ? () => <HeaderBackButton /> : undefined,
+      })}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Session',
-          headerRight: () => (
-            <TouchableOpacity onPress={() => router.push('/profile')} style={{ padding: 8 }}>
-              <Text style={{ color: theme.light.active, fontSize: 20 }}>⚙</Text>
-            </TouchableOpacity>
-          ),
+          title: t('tabs.home'),
+          headerShown: !USE_CHOREOGRAPHY_UI,
         }}
       />
       <Tabs.Screen
         name="map"
-        options={{ title: 'Map' }}
+        options={{
+          title: t('tabs.song'),
+          tabBarLabel: t('tabs.song'),
+          headerShown: !USE_CHOREOGRAPHY_UI,
+        }}
         listeners={{
           tabPress: (e) => {
             const activeSessionId = getActiveSessionId();
@@ -42,21 +58,22 @@ export default function AppStackLayout() {
           },
         }}
       />
-      <Tabs.Screen name="library" options={{ title: 'Library' }} />
+      <Tabs.Screen
+        name="library"
+        options={{
+          title: t('tabs.library'),
+          headerShown: !USE_CHOREOGRAPHY_UI,
+        }}
+      />
       <Tabs.Screen
         name="inbox"
         options={{
-          title: 'Inbox',
-          headerShown: true,
+          title: t('tabs.inbox'),
+          headerShown: !USE_CHOREOGRAPHY_UI,
           tabBarIcon: ({ focused }) => (
-            <Text
-              style={{
-                color: focused ? theme.light.active : theme.light.muted,
-                fontSize: 18,
-              }}
-            >
-              🔔
-            </Text>
+            <View style={{ opacity: focused ? 1 : 0.55 }}>
+              <IconInbox size={22} color={focused ? colors.active : colors.muted} />
+            </View>
           ),
           tabBarBadge: count > 0 ? count : undefined,
         }}
@@ -65,7 +82,8 @@ export default function AppStackLayout() {
         name="profile"
         options={{
           href: null,
-          headerShown: false,
+          headerShown: true,
+          title: t('tabs.profile'),
         }}
       />
       <Tabs.Screen
@@ -106,7 +124,6 @@ export default function AppStackLayout() {
       <Tabs.Screen
         name="session/music-setup"
         options={{
-          title: '',
           href: null,
           headerShown: false,
         }}
@@ -123,10 +140,14 @@ export default function AppStackLayout() {
         name="session/clip-player"
         options={{
           href: null,
-          presentation: 'modal',
           headerShown: false,
         }}
       />
     </Tabs>
   );
+
+  if (USE_CHOREOGRAPHY_UI) {
+    return <ChoreographyThemeProvider>{tabs}</ChoreographyThemeProvider>;
+  }
+  return tabs;
 }

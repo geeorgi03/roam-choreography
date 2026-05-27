@@ -7,10 +7,12 @@ import {
 } from 'react-native';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { theme } from '../lib/theme';
+import { useTranslation } from '../lib/i18n';
 
 export interface CaptureSheetProps {
   bottomSheetRef: React.RefObject<BottomSheet | null>;
   onRecord: () => void;
+  onImportVideo?: () => void;
   onInbox?: () => void;
   inboxCount?: number;
   sectionName?: string | null;
@@ -19,22 +21,26 @@ export interface CaptureSheetProps {
 export function CaptureSheet({
   bottomSheetRef,
   onRecord,
+  onImportVideo,
   onInbox,
   inboxCount = 0,
   sectionName,
 }: CaptureSheetProps) {
+  const { t } = useTranslation();
   return (
     <BottomSheet
       ref={bottomSheetRef as React.RefObject<BottomSheet>}
       index={-1}
-      snapPoints={['35%']}
+      snapPoints={onImportVideo ? ['42%'] : ['35%']}
       enablePanDownToClose
       backgroundStyle={styles.sheet}
       handleIndicatorStyle={styles.handle}
     >
       <View style={styles.content}>
         <Text style={styles.title}>
-          {sectionName ? `Add to ${sectionName}` : 'Add clip'}
+          {sectionName
+            ? t('capture.addToSection').replace('{section}', sectionName)
+            : t('capture.addClip')}
         </Text>
         <View style={styles.cardsRow}>
           <TouchableOpacity
@@ -43,7 +49,7 @@ export function CaptureSheet({
             activeOpacity={0.8}
           >
             <Text style={styles.cardIcon}>📷</Text>
-            <Text style={styles.cardTitle}>Record now</Text>
+            <Text style={styles.cardTitle}>{t('capture.recordNow')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.card}
@@ -52,10 +58,17 @@ export function CaptureSheet({
             disabled={!onInbox}
           >
             <Text style={styles.cardIcon}>📥</Text>
-            <Text style={styles.cardTitle}>Pick from Inbox</Text>
-            <Text style={styles.cardSub}>{inboxCount} clips waiting</Text>
+            <Text style={styles.cardTitle}>{t('capture.pickFromInbox')}</Text>
+            <Text style={styles.cardSub}>
+              {t('capture.clipsWaiting').replace('{count}', String(inboxCount))}
+            </Text>
           </TouchableOpacity>
         </View>
+        {onImportVideo ? (
+          <TouchableOpacity style={styles.importRow} onPress={onImportVideo} activeOpacity={0.85}>
+            <Text style={styles.importText}>{t('capture.importMp4')}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </BottomSheet>
   );
@@ -105,5 +118,19 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     color: theme.textSecondary,
+  },
+  importRow: {
+    marginTop: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.textSecondary,
+    borderRadius: theme.borderRadius,
+    borderStyle: 'dashed',
+  },
+  importText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.textPrimary,
   },
 });

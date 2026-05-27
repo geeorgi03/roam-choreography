@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Roam · Premium Workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="tokens.css"/>
+<style>
+  html, body { height: 100%; background: #0E0D0A; overflow: hidden; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px; min-height: 100vh;
+    font-family: var(--f-sans);
+    background:
+      radial-gradient(ellipse 60% 50% at 30% 20%, rgba(224,110,63,0.04), transparent),
+      radial-gradient(ellipse 50% 40% at 80% 80%, rgba(143,168,142,0.03), transparent),
+      #0E0D0A;
+  }
+  .stage {
+    display: grid; grid-template-columns: auto 280px; gap: 24px;
+    align-items: center;
+  }
+  @media (max-width: 900px) { .stage { grid-template-columns: auto; } .tweaks-wrap { display: none; } }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div id="device"></div>
+    <div class="tweaks-wrap" id="tweaks"></div>
+  </div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="roam-ui.jsx"></script>
+<script type="text/babel" src="workbench.jsx"></script>
+<script type="text/babel" src="overlays.jsx"></script>
+<script type="text/babel" src="library.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+/* global React, ReactDOM, IOSDevice, Workbench, SessionLibrary */
+const { useReducer, useState, useEffect } = React;
+
+// ──────────────────────────────────────────────
+// Tweaks (persisted)
+// ──────────────────────────────────────────────
+const TWEAKS = /*EDITMODE-BEGIN*/{
+  "accent": "#E06E3F",
+  "serif": "Fraunces",
+  "density": "regular",
+  "theme": "dark"
+}/*EDITMODE-END*/;
+
+const SEED_CLIPS = [
+  { id: 1, take: 7, section: 'verse', timestamp: '4:08p', dur: '0:24', loops: 2,
+    tags: ['heavy', 'floorwork'], note: 'lift on the 3', keeper: true },
+  { id: 2, take: 6, section: 'bridge', timestamp: '3:51p', dur: '0:12', loops: 1,
+    tags: ['release'], note: '' },
+  { id: 3, take: 5, section: 'verse', timestamp: '3:44p', dur: '0:28', loops: 2,
+    tags: ['rough', 'floorwork'], note: 'too rushed' },
+  { id: 4, take: 4, section: 'chorus', timestamp: '3:30p', dur: '0:18', loops: 1,
+    tags: ['duet'], note: 'shoulder line is there', keeper: true },
+  { id: 5, take: 3, section: 'intro', timestamp: '3:22p', dur: '0:09', loops: 1,
+    tags: ['heavy'], note: '' },
+];
+
+const INITIAL = {
+  playing: true,
+  playhead: 58,      // seconds
+  duration: 222,
+  loopStart: 52, loopEnd: 74,
+  loopCount: 4, loopIdx: 1,
+  activeSection: 1,  // verse
+  takeNum: 8,
+  song: {
+    title: 'Light Feet',
+    artist: 'Arca',
+    bpm: 96, key: 'F min',
+    sections: [
+      { label: 'intro',  start: 0,   end: 22,  tone: 'ghost' },
+      { label: 'verse',  start: 22,  end: 78,  tone: 'accent' },
+      { label: 'chorus', start: 78,  end: 124, tone: 'sage' },
+      { label: 'verse',  start: 124, end: 158, tone: 'accent' },
+      { label: 'bridge', start: 158, end: 188, tone: 'plum' },
+      { label: 'outro',  start: 188, end: 222, tone: 'gold' },
+    ],
+  },
+  clips: SEED_CLIPS,
+  recording: false,
+  saving: false,
+  pendingClip: null,
+  showClipDetail: null,
+  showLibrary: false,
+  recT: 0,
+};
+
+function reducer(s, a) {
+  switch (a.type) {
+    case 'tick': {
+      // stay in loop
+      let ph = s.playhead + 0.06;
+      if (ph >= s.loopEnd) {
+        if (s.loopIdx + 1 >= s.loopCount) ph = s.loopStart;
+        else { ph = s.loopStart; return { ...s, playhead: ph, loopIdx: s.loopIdx + 1 }; }
+      }
+      return { ...s, playhead: ph };
+    }
+    case 'togglePlay': return { ...s, playing: !s.playing };
+    case 'jumpSection': {
+      const sec = s.song.sections[a.i];
+      return { ...s, activeSection: a.i, playhead: sec.start,
+        loopStart: sec.start, loopEnd: sec.end, loopIdx: 0 };
+    }
+    case 'jumpLoop': return { ...s, playhead: s.loopStart, loopIdx: 0 };
+    case 'loopCount': return { ...s, loopCount: Math.max(1, Math.min(12, a.v)) };
+    case 'startRec': return { ...s, recording: true, recT: 0, playing: true };
+    case 'recTick': return { ...s, recT: a.t };
+    case 'stopRec': return {
+      ...s, recording: false, playing: false,
+      saving: true,
+      pendingClip: {
+        take: s.takeNum,
+        dur: '0:' + String(Math.floor(s.recT)).padStart(2,'0'),
+        loops: s.loopCount,
+      },
+    };
+    case 'cancelRec': return { ...s, recording: false, recT: 0 };
+    case 'discardPending': return { ...s, saving: false, pendingClip: null };
+    case 'saveClip': {
+      const c = {
+        id: Date.now(), take: s.pendingClip.take,
+        section: a.section, timestamp: new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}).toLowerCase(),
+        dur: s.pendingClip.dur, loops: s.pendingClip.loops,
+        tags: a.tags, note: a.note, keeper: a.keeper,
+      };
+      return { ...s, saving: false, pendingClip: null,
+        clips: [c, ...s.clips], takeNum: s.takeNum + 1 };
+    }
+    case 'sendInbox': return { ...s, saving: false, pendingClip: null };
+    case 'openClip': return { ...s, showClipDetail: a.i };
+    case 'closeClip': return { ...s, showClipDetail: null };
+    case 'openLib': return { ...s, showLibrary: true };
+    case 'closeLib': return { ...s, showLibrary: false };
+    default: return s;
+  }
+}
+
+// ──────────────────────────────────────────────
+// App
+// ──────────────────────────────────────────────
+function App({ tweaks }) {
+  const [state, dispatch] = useReducer(reducer, INITIAL);
+
+  // apply tweaks → CSS
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent', tweaks.accent);
+    document.documentElement.style.setProperty('--accent-soft',
+      tweaks.accent + '26');
+    document.documentElement.style.setProperty('--f-serif',
+      `'${tweaks.serif}', Georgia, serif`);
+  }, [tweaks]);
+
+  return (
+    <IOSDevice dark={true} statusBarDark={true} hideStatus={false}>
+      <div style={{ position: 'absolute', inset: 0, background: 'var(--bg)' }}>
+        <Workbench state={state} dispatch={dispatch}/>
+        {state.showLibrary && <SessionLibrary onClose={() => dispatch({type:'closeLib'})}/>}
+      </div>
+    </IOSDevice>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Tweaks panel — activated via toolbar
+// ──────────────────────────────────────────────
+function TweaksPanel({ tweaks, setTweaks }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onMsg = e => {
+      if (e.data?.type === '__activate_edit_mode') setOpen(true);
+      if (e.data?.type === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const set = (k, v) => {
+    const next = { ...tweaks, [k]: v };
+    setTweaks(next);
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [k]: v } }, '*');
+  };
+
+  if (!open) return null;
+
+  const accents = [
+    { v: '#E06E3F', label: 'Coral' },
+    { v: '#C9504B', label: 'Ember' },
+    { v: '#8FA88E', label: 'Sage' },
+    { v: '#C9A46B', label: 'Gold' },
+    { v: '#9A6F84', label: 'Plum' },
+    { v: '#6B8CC9', label: 'Ink' },
+  ];
+  const serifs = ['Fraunces', 'Cormorant Garamond', 'Playfair Display', 'DM Serif Display'];
+
+  return (
+    <div style={{
+      width: 280, padding: 18, borderRadius: 16,
+      background: 'rgba(30,28,24,0.92)',
+      border: '0.5px solid rgba(244,235,214,0.15)',
+      backdropFilter: 'blur(14px)',
+      color: '#F4EBD6',
+      fontFamily: 'var(--f-sans)',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+    }}>
+      <div style={{
+        fontFamily: 'var(--f-mono)', fontSize: 10, letterSpacing: 0.14,
+        textTransform: 'uppercase', color: 'rgba(244,235,214,0.45)',
+        marginBottom: 2,
+      }}>Tweaks</div>
+      <div style={{ fontFamily: 'var(--f-serif)', fontSize: 22,
+        letterSpacing: -0.3, marginBottom: 16 }}>Tune the feel.</div>
+
+      <Block label="Accent">
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {accents.map(a => (
+            <button key={a.v} onClick={() => set('accent', a.v)} style={{
+              width: 32, height: 32, borderRadius: 999,
+              background: a.v,
+              border: tweaks.accent === a.v ? '2px solid #F4EBD6' : '0.5px solid rgba(244,235,214,0.2)',
+              cursor: 'pointer', padding: 0,
+            }}/>
+          ))}
+        </div>
+      </Block>
+
+      <Block label="Serif">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {serifs.map(s => (
+            <button key={s} onClick={() => set('serif', s)} style={{
+              textAlign: 'left', padding: '8px 10px', borderRadius: 6,
+              background: tweaks.serif === s ? 'rgba(244,235,214,0.08)' : 'transparent',
+              border: '0.5px solid ' + (tweaks.serif === s ? 'rgba(244,235,214,0.18)' : 'transparent'),
+              color: '#F4EBD6', cursor: 'pointer',
+              fontFamily: `'${s}', Georgia, serif`, fontStyle: 'italic',
+              fontSize: 17, letterSpacing: -0.2,
+            }}>{s}</button>
+          ))}
+        </div>
+      </Block>
+
+      <Block label="Theme">
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['dark', 'light'].map(t => (
+            <button key={t} onClick={() => set('theme', t)} style={{
+              flex: 1, padding: '8px 12px', borderRadius: 6,
+              background: tweaks.theme === t ? '#F4EBD6' : 'transparent',
+              color: tweaks.theme === t ? '#14120F' : '#F4EBD6',
+              border: '0.5px solid rgba(244,235,214,0.2)', cursor: 'pointer',
+              fontFamily: 'var(--f-mono)', fontSize: 10, letterSpacing: 0.1,
+              textTransform: 'uppercase', fontWeight: 600,
+            }}>{t}</button>
+          ))}
+        </div>
+      </Block>
+
+      <div style={{
+        marginTop: 16, paddingTop: 14, borderTop: '0.5px solid rgba(244,235,214,0.1)',
+        fontSize: 11.5, color: 'rgba(244,235,214,0.45)', lineHeight: 1.5,
+      }}>
+        Tap the album art to open the song library. Tap the coral REC to capture.
+        Tap any take to review it.
+      </div>
+    </div>
+  );
+}
+
+function Block({ label, children }) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{
+        fontFamily: 'var(--f-mono)', fontSize: 9.5, letterSpacing: 0.14,
+        textTransform: 'uppercase', color: 'rgba(244,235,214,0.4)',
+        marginBottom: 6,
+      }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// Root
+// ──────────────────────────────────────────────
+function Root() {
+  const [tweaks, setTweaks] = useState(TWEAKS);
+  return (
+    <>
+      {ReactDOM.createPortal(<App tweaks={tweaks}/>, document.getElementById('device'))}
+      {ReactDOM.createPortal(<TweaksPanel tweaks={tweaks} setTweaks={setTweaks}/>, document.getElementById('tweaks'))}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.createElement('div')).render(<Root/>);
+</script>
+</body>
+</html>

@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
 import { theme } from '../../lib/theme';
+import { PremiumTabHeader } from '../premium-workbench/PremiumTabHeader';
 import type { Moment } from '@roam/types';
 
-const colors = theme.light;
-
 export function SongMapTab() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { 
     sessionName,
     activeMoment, 
@@ -83,8 +85,8 @@ export function SongMapTab() {
   const renderGridLines = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
     
-    const horizontalLines = [];
-    const verticalLines = [];
+    const horizontalLines: React.ReactElement[] = [];
+    const verticalLines: React.ReactElement[] = [];
     
     // Horizontal lines every 22dp
     for (let y = 22; y < canvasSize.height; y += 22) {
@@ -119,23 +121,23 @@ export function SongMapTab() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
-        <Text style={styles.topBarSessionName}>{sessionName}</Text>
-        <View style={styles.topBarRight}>
-          <Text style={styles.topBarSectionLabel}>{activeSection}</Text>
-        </View>
-      </View>
+      <PremiumTabHeader title="Song map" subtitle={sessionName} />
 
-      {momentsConnectionStatus.hasError && (
+      {!momentsConnectionStatus.isConnected && (
         <View style={styles.connectionErrorBanner}>
-          <Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</Text>
+          <Text style={styles.connectionErrorText}>
+            {momentsConnectionStatus.errorMessage ??
+              (momentsConnectionStatus.hasError
+                ? 'Connection lost. Check network and reopen this session.'
+                : 'Reconnecting...')}
+          </Text>
         </View>
       )}
 
       <View style={styles.middleRow}>
         {/* Canvas zone */}
         <View style={styles.canvasZone}>
-          {/* Moment strip */}
+          <View style={styles.momentStripShell}>
           <ScrollView 
             horizontal 
             style={styles.momentStrip}
@@ -176,6 +178,7 @@ export function SongMapTab() {
               <Text style={styles.addMomentText}>+</Text>
             </TouchableOpacity>
           </ScrollView>
+          </View>
 
           {/* Floor canvas */}
           <View 
@@ -264,36 +267,12 @@ export function SongMapTab() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'column',
     backgroundColor: colors.ground,
-  },
-  topBar: {
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    backgroundColor: colors.chrome,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-  },
-  topBarSessionName: {
-    fontFamily: 'Fraunces',
-    fontSize: 18,
-    color: colors.active,
-  },
-  topBarRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  topBarSectionLabel: {
-    fontFamily: 'JetBrainsMono',
-    fontSize: 10,
-    color: colors.muted,
   },
   middleRow: {
     flex: 1,
@@ -303,18 +282,28 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'column',
   },
-  momentStrip: {
-    height: 36,
+  momentStripShell: {
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 6,
+    borderRadius: 12,
     backgroundColor: colors.chrome,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  momentStrip: {
+    height: 32,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 4,
     flexDirection: 'row',
     alignItems: 'center',
   },
   momentChip: {
-    height: 24,
-    paddingHorizontal: 8,
+    minHeight: 30,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     marginRight: 6,
     borderRadius: 12,
     borderWidth: 1,
@@ -328,19 +317,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.mineBg,
   },
   momentChipText: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
   },
   momentChipTextActive: {
     color: colors.active,
   },
   renameInput: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.caption,
     color: colors.active,
-    fontWeight: '500',
+    fontWeight: '600',
     textAlign: 'center',
     minWidth: 60,
+    fontFamily: theme.typography.bodyFamily,
   },
   addMomentButton: {
     width: 24,
@@ -381,9 +372,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     textAlign: 'center',
-    fontSize: 7,
-    color: colors.inactive,
-    fontFamily: 'JetBrainsMono',
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   audienceLabel: {
     position: 'absolute',
@@ -391,9 +385,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     textAlign: 'center',
-    fontSize: 7,
-    color: colors.inactive,
-    fontFamily: 'JetBrainsMono',
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   sectionPanel: {
     width: 180,
@@ -403,11 +400,13 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   sectionHeader: {
-    fontSize: 8,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '700',
     marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: 1,
   },
   toggleRow: {
     flexDirection: 'row',
@@ -415,17 +414,19 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   partitionHint: {
-    fontFamily: theme.typography.monoFamily,
-    fontSize: 9,
+    fontFamily: theme.typography.bodyFamily,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
     paddingHorizontal: 12,
     marginBottom: 8,
+    fontWeight: '500',
   },
   toggleButton: {
     flex: 1,
-    height: 28,
-    borderRadius: 6,
-    borderWidth: 0.5,
+    minHeight: 40,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.ground,
     alignItems: 'center',
@@ -436,41 +437,44 @@ const styles = StyleSheet.create({
     borderColor: colors.active,
   },
   toggleButtonText: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.label,
     color: colors.muted,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
   },
   toggleButtonTextActive: {
     color: '#ffffff',
   },
   sectionRow: {
-    height: 32,
-    borderRadius: 6,
-    borderWidth: 0.5,
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.ground,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    marginBottom: 6,
+    paddingHorizontal: 12,
+    marginBottom: 8,
   },
   sectionRowActive: {
-    borderColor: '#7db9a8',
-    backgroundColor: 'rgba(125,185,168,0.12)',
+    borderColor: colors.capture,
+    backgroundColor: colors.mineBg,
   },
   sectionRowText: {
-    fontSize: 11,
+    fontSize: theme.typography.tool.label,
     color: colors.active,
     fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
   },
   sectionRowTextActive: {
     color: colors.active,
   },
   sectionCount: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
   },
   sectionCountActive: {
     color: colors.active,
@@ -486,6 +490,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#dc2626',
     textAlign: 'center',
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.monoFamily,
   },
 });
+}

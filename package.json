@@ -7,7 +7,10 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "clean": "turbo clean && rm -rf node_modules"
+    "clean": "turbo clean && rm -rf node_modules",
+    "render:build:api": "pnpm install --frozen-lockfile && pnpm --filter=@roam/types build && pnpm --filter=@roam/marking-fingerprint build && pnpm --filter=@roam/db build && pnpm --filter=@roam/api build",
+    "verify:deploy": "node scripts/verify-deploy-health.mjs",
+    "supabase:bundle": "node scripts/bundle-supabase-migrations.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.57.0",

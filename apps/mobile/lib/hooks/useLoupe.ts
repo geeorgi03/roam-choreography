@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSharedValue, runOnJS } from 'react-native-reanimated';
+import { useSharedValue, runOnJS, useFrameCallback } from 'react-native-reanimated';
 import { MMKV } from 'react-native-mmkv';
 
 // Loupe persistence — key: loupe:${mux_playback_id ?? clip_id ?? source_url} -> { x, y, zoom }
@@ -25,6 +25,7 @@ export interface UseLoupeReturn {
   loupeActive: boolean;
   loupeZoom: number;
   capturedFrame: string | null;
+  loupePausedForPerformance: boolean;
   
   // Shared values for animations
   loupeX: any;
@@ -49,6 +50,7 @@ export interface UseLoupeReturn {
   resetLoupe: () => void;
   captureCurrentFrame: () => Promise<void>;
   setCapturedFrame: (frame: string | null) => void;
+  setLoupePausedForPerformance: (paused: boolean) => void;
 }
 
 export function useLoupe(options: UseLoupeOptions): UseLoupeReturn {
@@ -58,6 +60,7 @@ export function useLoupe(options: UseLoupeOptions): UseLoupeReturn {
   const [loupeActive, setLoupeActive] = useState(false);
   const [loupeZoom, setLoupeZoom] = useState(2.5);
   const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
+  const [loupePausedForPerformance, setLoupePausedForPerformance] = useState(false);
   
   // Shared values for animations
   const loupeX = useSharedValue(0);
@@ -69,6 +72,8 @@ export function useLoupe(options: UseLoupeOptions): UseLoupeReturn {
   const loupeLastX = useRef(0);
   const loupeLastY = useRef(0);
   const loupeLastZoom = useRef(0);
+  const fpsWindowRef = useRef<number[]>([]);
+  const consecutiveLowFpsRef = useRef(0);
   
   // Animated styles
   const loupeAnimatedStyle = useSharedValue(() => ({
@@ -178,6 +183,33 @@ export function useLoupe(options: UseLoupeOptions): UseLoupeReturn {
     loupeLastY.current = 0;
     setCapturedFrame(null);
   });
+
+  useFrameCallback((frameInfo) => {
+    'worklet';
+    if (loupeActiveShared.value !== 1) return;
+    runOnJS((timestamp: number) => {
+      fpsWindowRef.current.push(timestamp);
+      if (fpsWindowRef.current.length > 10) {
+        fpsWindowRef.current.shift();
+      }
+      if (fpsWindowRef.current.length < 2) return;
+      const first = fpsWindowRef.current[0];
+      const last = fpsWindowRef.current[fpsWindowRef.current.length - 1];
+      const durationMs = last - first;
+      if (durationMs <= 0) return;
+      const fps = ((fpsWindowRef.current.length - 1) / durationMs) * 1000;
+      if (fps < 30) {
+        consecutiveLowFpsRef.current += 1;
+        if (consecutiveLowFpsRef.current >= 3) {
+          consecutiveLowFpsRef.current = 0;
+          setLoupePausedForPerformance(true);
+          resetLoupe();
+        }
+      } else {
+        consecutiveLowFpsRef.current = 0;
+      }
+    })(frameInfo.timestamp);
+  }, true);
   
   const captureCurrentFrame = async () => {
     if (onFrameCapture) {
@@ -196,6 +228,7 @@ export function useLoupe(options: UseLoupeOptions): UseLoupeReturn {
     loupeActive,
     loupeZoom,
     capturedFrame,
+    loupePausedForPerformance,
     
     // Shared values
     loupeX,
@@ -220,5 +253,6 @@ export function useLoupe(options: UseLoupeOptions): UseLoupeReturn {
     resetLoupe,
     captureCurrentFrame,
     setCapturedFrame,
+    setLoupePausedForPerformance,
   };
 }

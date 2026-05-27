@@ -11,15 +11,27 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import Svg, { Circle as SvgCircle, Line as SvgLine } from 'react-native-svg';
+import Svg, { Circle as SvgCircle, Line as SvgLine, Polyline as SvgPolyline } from 'react-native-svg';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
+import { useTheme, type ThemePalette } from '../../lib/contexts/ThemeContext';
+import { useTranslation } from '../../lib/i18n';
+import { useTabletLandscape } from '../../lib/hooks/useTabletLandscape';
 import { theme } from '../../lib/theme';
+import { PremiumTabHeader } from '../premium-workbench/PremiumTabHeader';
+import { SpatialCoachOverlay } from './SpatialCoachOverlay';
+import { isSpatialCoachDismissed } from '../../lib/spatialCoachState';
 import type { Moment, QualityData } from '@roam/types';
 
-const colors = theme.light;
-const DOT_SIZE = 14;
-const DOT_RADIUS = DOT_SIZE / 2;
-const SELECTED_DOT_SIZE = 20;
+type CanvasMode = 'move' | 'pen' | 'path' | 'erase';
+
+interface FreehandStroke {
+  id: string;
+  points: { xPct: number; yPct: number }[];
+  color: string;
+}
+
+const DOT_SIZE_PHONE = 16;
+const DOT_RADIUS = DOT_SIZE_PHONE / 2;
 const PATH_TOUCH_RADIUS = 18;
 
 interface Dancer {
@@ -29,11 +41,6 @@ interface Dancer {
   leftPct: number;
   orientationDeg: number;
 }
-
-const DEFAULT_DANCERS: Dancer[] = [
-  { id: 'A', color: colors.mine, topPct: 40, leftPct: 30, orientationDeg: 0 },
-  { id: 'B', color: colors.active, topPct: 60, leftPct: 70, orientationDeg: 180 },
-];
 
 interface ToolState {
   position: 'active' | 'locked';
@@ -60,7 +67,27 @@ interface PathModel {
   targetDancerId?: string;
 }
 
+/** Initial dancer layout before theme hook runs; hydrated from moment or `defaultDancers` in effects. */
+const INITIAL_DANCERS: Dancer[] = [
+  { id: 'A', color: theme.light.mine, topPct: 40, leftPct: 30, orientationDeg: 0 },
+  { id: 'B', color: theme.light.active, topPct: 60, leftPct: 70, orientationDeg: 180 },
+];
+
 export function SpatialTab() {
+  const { t } = useTranslation();
+  const { colors, mode } = useTheme();
+  const { isTabletLandscape } = useTabletLandscape();
+  const isNight = mode === 'night';
+  const DOT_SIZE = isTabletLandscape ? 22 : DOT_SIZE_PHONE;
+  const styles = useMemo(() => createSpatialStyles(colors, isNight), [colors, isNight]);
+  const defaultDancers = useMemo(
+    (): Dancer[] => [
+      { id: 'A', color: colors.mine, topPct: 40, leftPct: 30, orientationDeg: 0 },
+      { id: 'B', color: colors.active, topPct: 60, leftPct: 70, orientationDeg: 180 },
+    ],
+    [colors]
+  );
+  const isDraggingDancerRef = useRef(false);
   const {
     activeMoment,
     setActiveMoment,
@@ -71,7 +98,6 @@ export function SpatialTab() {
     updateFormation,
     updateQuality,
     playheadMs,
-    loopRegion,
     loopOpenAt,
     durationMs,
     handleLoopToggle,
@@ -97,14 +123,28 @@ export function SpatialTab() {
   // Prevent rehydration/reset from firing on same-moment optimistic updates.
   // We only want to fully reset transient interaction state when the active moment identity changes.
   const prevActiveMomentIdRef = useRef<string | null>(null);
+  const lastSyncedAtRef = useRef<string | null>(null);
   
   // Canvas state
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
-  const [dancers, setDancers] = useState<Dancer[]>(DEFAULT_DANCERS);
-  const latestDancersRef = useRef<Dancer[]>(DEFAULT_DANCERS);
+  const [dancers, setDancers] = useState<Dancer[]>(INITIAL_DANCERS);
+  const latestDancersRef = useRef<Dancer[]>(INITIAL_DANCERS);
   const [selectedDancerId, setSelectedDancerId] = useState<string | null>(null);
   const [selectedTool, setSelectedTool] = useState<SelectedTool>('position');
   const [pathsByDancer, setPathsByDancer] = useState<Record<string, PathModel>>({});
+  const [freehandStrokes, setFreehandStrokes] = useState<FreehandStroke[]>([]);
+  const [canvasMode, setCanvasMode] = useState<CanvasMode>('move');
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [showSpatialCoach, setShowSpatialCoach] = useState(() => !isSpatialCoachDismissed());
+  const [liveStroke, setLiveStroke] = useState<FreehandStroke | null>(null);
+  const liveStrokeRef = useRef<FreehandStroke | null>(null);
+  const undoStackRef = useRef<
+    Array<{
+      dancers: Dancer[];
+      pathsByDancer: Record<string, PathModel>;
+      freehandStrokes: FreehandStroke[];
+    }>
+  >([]);
   const [waveformWidth, setWaveformWidth] = useState(0);
   
   // Tool progression state
@@ -118,6 +158,7 @@ export function SpatialTab() {
   const [initiation, setInitiation] = useState('');
   const [relationshipQuality, setRelationshipQuality] = useState('');
   const [note, setNote] = useState('');
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'pending' | 'conflict'>('synced');
 
   // Persist the quality edits without dropping deferred/forward-compatible fields.
   // Server `PUT /quality` replaces the entire JSONB payload, so we merge the existing
@@ -133,12 +174,13 @@ export function SpatialTab() {
     void updateQuality(activeMoment, mergedQuality);
   };
 
-  const persistFormation = (
+  const persistFormation = async (
     momentId: string,
     overrides?: {
       dancers?: Dancer[];
       pathsByDancer?: Record<string, PathModel>;
       toolState?: ToolState;
+      freehandStrokes?: FreehandStroke[];
     }
   ) => {
     // Backend requires `formation` to be a plain object (or null). Keep payload shape stable.
@@ -146,8 +188,18 @@ export function SpatialTab() {
       dancers: overrides?.dancers ?? latestDancersRef.current,
       paths: overrides?.pathsByDancer ?? pathsByDancer,
       toolState: overrides?.toolState ?? toolState,
+      freehandStrokes: overrides?.freehandStrokes ?? freehandStrokes,
     };
-    void updateFormation(momentId, payload);
+    setSyncStatus('pending');
+    try {
+      const result = await updateFormation(momentId, payload);
+      if (result?.last_modified_at) {
+        lastSyncedAtRef.current = result.last_modified_at;
+      }
+      setSyncStatus(momentsConnectionStatus.hasError ? 'conflict' : 'synced');
+    } catch {
+      setSyncStatus('conflict');
+    }
   };
 
   useEffect(() => {
@@ -163,8 +215,9 @@ export function SpatialTab() {
 
     if (!activeMomentRecord) {
       if (identityChanged) {
-        setDancers(DEFAULT_DANCERS);
+        setDancers([...defaultDancers]);
         setPathsByDancer({});
+        setFreehandStrokes([]);
         setSelectedDancerId(null);
         setToolState(DEFAULT_TOOL_STATE);
         setHasDot(false);
@@ -181,18 +234,39 @@ export function SpatialTab() {
       dancers?: Dancer[];
       paths?: Record<string, PathModel>;
       toolState?: ToolState;
+      freehandStrokes?: FreehandStroke[];
     };
 
     const formation = activeMomentRecord.formation as PersistedFormation | null;
-    const hydratedDancers = Array.isArray(formation?.dancers) ? formation.dancers : DEFAULT_DANCERS;
+    const incomingLastModifiedAt = activeMomentRecord.last_modified_at ?? null;
+    const shouldApplySpatialHydration =
+      !incomingLastModifiedAt ||
+      !lastSyncedAtRef.current ||
+      new Date(incomingLastModifiedAt).getTime() >= new Date(lastSyncedAtRef.current).getTime();
+    const hydratedDancers =
+      Array.isArray(formation?.dancers) && formation.dancers.length > 0
+        ? formation.dancers
+        : defaultDancers;
     const hydratedPathsByDancer =
       formation?.paths && typeof formation.paths === 'object' && !Array.isArray(formation.paths)
         ? (formation.paths as Record<string, PathModel>)
         : {};
+    const hydratedFreehand = Array.isArray(formation?.freehandStrokes)
+      ? formation.freehandStrokes
+      : [];
 
-    // Keep persisted spatial + quality data synchronized, even during same-moment optimistic updates.
-    setDancers(hydratedDancers);
-    setPathsByDancer(hydratedPathsByDancer);
+    // Avoid overwriting an in-progress drag when the same moment is refetched from the server.
+    if (identityChanged) {
+      isDraggingDancerRef.current = false;
+    }
+    if ((identityChanged || !isDraggingDancerRef.current) && shouldApplySpatialHydration) {
+      setDancers(hydratedDancers);
+      setPathsByDancer(hydratedPathsByDancer);
+      setFreehandStrokes(hydratedFreehand);
+    }
+    if (shouldApplySpatialHydration && incomingLastModifiedAt) {
+      lastSyncedAtRef.current = incomingLastModifiedAt;
+    }
 
     const quality = activeMomentRecord.quality;
     setInitiation(quality?.initiation ?? '');
@@ -226,7 +300,7 @@ export function SpatialTab() {
       setHasPath(hydratedToolState.relationship === 'active');
       setSelectedTool('position');
     }
-  }, [activeMomentRecord]);
+  }, [activeMomentRecord, defaultDancers]);
 
   const handleMomentPress = (momentId: string) => {
     setActiveMoment(momentId);
@@ -240,9 +314,9 @@ export function SpatialTab() {
       moment.name,
       undefined,
       [
-        { text: 'Rename', onPress: () => setRenamingMomentId(momentId) },
-        { text: 'Delete', style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('spatial.alertRename'), onPress: () => setRenamingMomentId(momentId) },
+        { text: t('spatial.alertDelete'), style: 'destructive', onPress: () => handleDeleteMoment(momentId) },
+        { text: t('spatial.alertCancel'), style: 'cancel' },
       ]
     );
   };
@@ -263,7 +337,10 @@ export function SpatialTab() {
   };
 
   const handleAddMoment = async () => {
-    const newMoment = await createMoment(`moment ${moments.length + 1}`, Math.round(playheadMs));
+    const newMoment = await createMoment(
+      t('spatial.newMomentName').replace('{n}', String(moments.length + 1)),
+      Math.round(playheadMs)
+    );
     if (newMoment) setActiveMoment(newMoment.id);
   };
 
@@ -271,6 +348,43 @@ export function SpatialTab() {
   const maxTopPx = Math.max(0, canvasSize.height - DOT_SIZE);
 
   const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+  const pushUndoSnapshot = () => {
+    undoStackRef.current.push({
+      dancers: [...latestDancersRef.current],
+      pathsByDancer: { ...pathsByDancer },
+      freehandStrokes: [...freehandStrokes],
+    });
+    if (undoStackRef.current.length > 20) undoStackRef.current.shift();
+  };
+
+  const snapPct = (pct: number) => {
+    if (!snapToGrid || canvasSize.width <= 0) return pct;
+    const step = (22 / canvasSize.width) * 100;
+    return Math.round(pct / step) * step;
+  };
+
+  const touchToPct = (x: number, y: number) => ({
+    xPct: snapPct(clamp((x / Math.max(canvasSize.width, 1)) * 100, 0, 100)),
+    yPct: snapPct(clamp((y / Math.max(canvasSize.height, 1)) * 100, 0, 100)),
+  });
+
+  const handleUndo = () => {
+    const prev = undoStackRef.current.pop();
+    if (!prev) return;
+    setDancers(prev.dancers);
+    latestDancersRef.current = prev.dancers;
+    setPathsByDancer(prev.pathsByDancer);
+    setFreehandStrokes(prev.freehandStrokes);
+    const targetMomentId = activeMomentRef.current;
+    if (targetMomentId) {
+      void persistFormation(targetMomentId, {
+        dancers: prev.dancers,
+        pathsByDancer: prev.pathsByDancer,
+        freehandStrokes: prev.freehandStrokes,
+      });
+    }
+  };
 
   const leftPctToPx = (leftPct: number) => (maxLeftPx === 0 ? 0 : (leftPct / 100) * maxLeftPx);
   const topPctToPx = (topPct: number) => (maxTopPx === 0 ? 0 : (topPct / 100) * maxTopPx);
@@ -326,7 +440,9 @@ export function SpatialTab() {
 
     setPathsByDancer(nextPathsByDancer);
     unlockRelationshipOnFirstPathCreation();
-    if (targetMomentId) persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
+    if (targetMomentId) {
+      void persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
+    }
   };
 
   const createPathForSelectedDancer = (event: GestureResponderEvent) => {
@@ -370,12 +486,79 @@ export function SpatialTab() {
 
     setPathsByDancer(nextPathsByDancer);
     unlockRelationshipOnFirstPathCreation();
-    if (targetMomentId) persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
+    if (targetMomentId) {
+      void persistFormation(targetMomentId, { pathsByDancer: nextPathsByDancer, toolState: nextToolState });
+    }
   };
 
   const handleCanvasTap = (event: GestureResponderEvent) => {
-    createPathForSelectedDancer(event);
+    if (canvasMode === 'erase') {
+      const { locationX, locationY } = event.nativeEvent;
+      const hit = touchToPct(locationX, locationY);
+      const threshold = 4;
+      const next = freehandStrokes.filter((stroke) =>
+        !stroke.points.some(
+          (p) =>
+            Math.abs(p.xPct - hit.xPct) < threshold && Math.abs(p.yPct - hit.yPct) < threshold
+        )
+      );
+      if (next.length !== freehandStrokes.length) {
+        pushUndoSnapshot();
+        setFreehandStrokes(next);
+        const targetMomentId = activeMomentRef.current;
+        if (targetMomentId) void persistFormation(targetMomentId, { freehandStrokes: next });
+      }
+      return;
+    }
+    if (canvasMode === 'path') {
+      createPathForSelectedDancer(event);
+    }
   };
+
+  const canvasDrawPan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => canvasMode === 'pen',
+        onMoveShouldSetPanResponder: () => canvasMode === 'pen',
+        onPanResponderGrant: (event) => {
+          if (canvasMode !== 'pen') return;
+          pushUndoSnapshot();
+          const { locationX, locationY } = event.nativeEvent;
+          const pt = touchToPct(locationX, locationY);
+          const stroke: FreehandStroke = {
+            id: `fh-${Date.now()}`,
+            points: [pt],
+            color: colors.capture,
+          };
+          liveStrokeRef.current = stroke;
+          setLiveStroke(stroke);
+        },
+        onPanResponderMove: (event) => {
+          if (canvasMode !== 'pen' || !liveStrokeRef.current) return;
+          const { locationX, locationY } = event.nativeEvent;
+          const pt = touchToPct(locationX, locationY);
+          const nextStroke = {
+            ...liveStrokeRef.current,
+            points: [...liveStrokeRef.current.points, pt],
+          };
+          liveStrokeRef.current = nextStroke;
+          setLiveStroke(nextStroke);
+        },
+        onPanResponderRelease: () => {
+          const finished = liveStrokeRef.current;
+          liveStrokeRef.current = null;
+          setLiveStroke(null);
+          if (!finished || finished.points.length < 2) return;
+          setFreehandStrokes((prev) => {
+            const next = [...prev, finished];
+            const targetMomentId = activeMomentRef.current;
+            if (targetMomentId) void persistFormation(targetMomentId, { freehandStrokes: next });
+            return next;
+          });
+        },
+      }),
+    [canvasMode, canvasSize, colors.capture, freehandStrokes, snapToGrid]
+  );
 
   const startDancerDrag = (dancer: Dancer) => {
     dragStartRef.current[dancer.id] = {
@@ -395,6 +578,9 @@ export function SpatialTab() {
     const nextTopPx = clamp(dragStart.topPx + gestureState.dy, 0, maxTopPx);
     const hasMoved = Math.abs(gestureState.dx) > 1 || Math.abs(gestureState.dy) > 1;
     dragStart.moved = dragStart.moved || hasMoved;
+    if (hasMoved) {
+      isDraggingDancerRef.current = true;
+    }
 
     setDancers((prev) => {
       const next = prev.map((dancer) =>
@@ -422,8 +608,11 @@ export function SpatialTab() {
       const nextToolState: ToolState = !hasDot ? { ...toolState, path: 'active' } : toolState;
 
       unlockPathOnFirstDotInteraction();
-      if (targetMomentId) persistFormation(targetMomentId, { dancers: latestDancersRef.current, toolState: nextToolState });
+      if (targetMomentId) {
+        void persistFormation(targetMomentId, { dancers: latestDancersRef.current, toolState: nextToolState });
+      }
     }
+    isDraggingDancerRef.current = false;
     delete dragStartRef.current[dancerId];
   };
 
@@ -432,6 +621,7 @@ export function SpatialTab() {
     dancers.forEach((dancer) => {
       responders[dancer.id] = PanResponder.create({
         onStartShouldSetPanResponder: () => {
+          if (canvasMode === 'pen' || canvasMode === 'erase') return false;
           const isPathTargetTap =
             selectedTool === 'path' &&
             toolState.path === 'active' &&
@@ -462,13 +652,13 @@ export function SpatialTab() {
       });
     });
     return responders;
-  }, [dancers, selectedDancerId, selectedTool, toolState.path]);
+  }, [canvasMode, dancers, selectedDancerId, selectedTool, toolState.path]);
 
   const renderGridLines = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
     
-    const horizontalLines = [];
-    const verticalLines = [];
+    const horizontalLines: React.ReactElement[] = [];
+    const verticalLines: React.ReactElement[] = [];
     
     // Horizontal lines every 22dp
     for (let y = 22; y < canvasSize.height; y += 22) {
@@ -517,6 +707,37 @@ export function SpatialTab() {
   const isToolLocked = (tool: keyof ToolState) => toolState[tool] === 'locked';
   const isToolSelected = (tool: keyof ToolState) => selectedTool === tool;
 
+  const renderFreehandStrokes = () => {
+    if (!canvasSize.width || !canvasSize.height) return null;
+    const strokes = liveStroke ? [...freehandStrokes, liveStroke] : freehandStrokes;
+    return (
+      <Svg
+        pointerEvents="none"
+        width={canvasSize.width}
+        height={canvasSize.height}
+        style={StyleSheet.absoluteFill}
+      >
+        {strokes.map((stroke) => {
+          if (stroke.points.length < 2) return null;
+          const points = stroke.points
+            .map((p) => `${leftPctToPx(p.xPct)},${topPctToPx(p.yPct)}`)
+            .join(' ');
+          return (
+            <SvgPolyline
+              key={stroke.id}
+              points={points}
+              fill="none"
+              stroke={stroke.color}
+              strokeWidth={isTabletLandscape ? 3 : 2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          );
+        })}
+      </Svg>
+    );
+  };
+
   const renderAuthoredPaths = () => {
     if (!canvasSize.width || !canvasSize.height) return null;
 
@@ -556,7 +777,7 @@ export function SpatialTab() {
                 cx={midpoint.x}
                 cy={midpoint.y}
                 r={5}
-                fill="#faf8f5"
+                fill={colors.chrome}
                 stroke={path.color}
                 strokeWidth={1}
               />
@@ -567,11 +788,24 @@ export function SpatialTab() {
     );
   };
 
+  const retrySync = () => {
+    const targetMomentId = activeMomentRef.current;
+    if (!targetMomentId) return;
+    void persistFormation(targetMomentId, {
+      dancers: latestDancersRef.current,
+      pathsByDancer,
+      toolState,
+    });
+  };
+
+  const selectedDotSize = DOT_SIZE + 6;
+
   return (
     <View style={styles.container}>
+      <PremiumTabHeader title={t('spatial.tabTitle')} subtitle={t('spatial.tabSubtitle')} />
       {/* Canvas zone */}
       <View style={styles.canvasZone}>
-        {/* Moment strip */}
+        <View style={styles.momentStripShell}>
         <ScrollView 
           horizontal 
           style={styles.momentStrip}
@@ -612,30 +846,47 @@ export function SpatialTab() {
             <Text style={styles.addMomentText}>+</Text>
           </TouchableOpacity>
         </ScrollView>
+        </View>
+
+        <View style={styles.formationHint}>
+          <Text style={styles.formationHintText}>{t('spatial.formationAutoSave')}</Text>
+          <Text style={styles.syncStatusText}>
+            {momentsConnectionStatus.hasError || syncStatus === 'conflict'
+              ? 'Sync: conflict'
+              : syncStatus === 'pending'
+                ? 'Sync: pending'
+                : 'Sync: synced'}
+          </Text>
+        </View>
 
         {momentsConnectionStatus.hasError && (
           <View style={styles.connectionErrorBanner}>
-            <Text style={styles.connectionErrorText}>Connection lost. Pull to refresh.</Text>
+            <Text style={styles.connectionErrorText}>{t('spatial.connectionLost')}</Text>
+            <TouchableOpacity style={styles.connectionRetryButton} onPress={retrySync}>
+              <Text style={styles.connectionRetryText}>{t('home.retry')}</Text>
+            </TouchableOpacity>
           </View>
         )}
 
         {/* Floor canvas */}
-        <TouchableOpacity 
+        <View
           style={styles.floorCanvas}
-          onPress={handleCanvasTap}
-          activeOpacity={1}
-          onLayout={(e) => setCanvasSize({
-            width: e.nativeEvent.layout.width,
-            height: e.nativeEvent.layout.height
-          })}
+          onLayout={(e) =>
+            setCanvasSize({
+              width: e.nativeEvent.layout.width,
+              height: e.nativeEvent.layout.height,
+            })
+          }
+          {...(canvasMode === 'pen' ? canvasDrawPan.panHandlers : {})}
         >
           {renderGridLines()}
           {renderAuthoredPaths()}
-          
+          {renderFreehandStrokes()}
+
           {/* Dancer dots */}
           {dancers.map((dancer) => {
             const isSelected = selectedDancerId === dancer.id;
-            const dotSize = isSelected ? SELECTED_DOT_SIZE : DOT_SIZE;
+            const dotSize = isSelected ? selectedDotSize : DOT_SIZE;
             const positionOffset = (DOT_SIZE - dotSize) / 2;
 
             return (
@@ -669,58 +920,76 @@ export function SpatialTab() {
             );
           })}
           
-          <Text style={styles.backstageLabel}>backstage</Text>
-          <Text style={styles.audienceLabel}>audience</Text>
-        </TouchableOpacity>
+          <Text style={styles.backstageLabel}>{t('spatial.backstage')}</Text>
+          <Text style={styles.audienceLabel}>{t('spatial.audience')}</Text>
+          {(canvasMode === 'path' || canvasMode === 'erase') && (
+            <View
+              style={StyleSheet.absoluteFill}
+              onStartShouldSetResponder={() => true}
+              onResponderRelease={handleCanvasTap}
+            />
+          )}
+        </View>
 
         {/* Tool bar */}
         <View style={styles.toolBar}>
           <TouchableOpacity
-            style={[
-              styles.toolButton,
-              isToolSelected('position') && styles.toolButtonActive
-            ]}
-            onPress={() => setSelectedTool('position')}
+            style={[styles.toolButton, canvasMode === 'move' && styles.toolButtonActive]}
+            onPress={() => {
+              setCanvasMode('move');
+              setSelectedTool('position');
+            }}
+            activeOpacity={0.78}
           >
-            <Text style={[
-              styles.toolButtonText,
-              isToolSelected('position') && styles.toolButtonTextActive
-            ]}>
-              Position
+            <Text style={[styles.toolButtonText, canvasMode === 'move' && styles.toolButtonTextActive]}>
+              {t('spatial.toolMove')}
             </Text>
           </TouchableOpacity>
-          
+          <TouchableOpacity
+            style={[styles.toolButton, canvasMode === 'pen' && styles.toolButtonActive]}
+            onPress={() => setCanvasMode('pen')}
+            activeOpacity={0.78}
+          >
+            <Text style={[styles.toolButtonText, canvasMode === 'pen' && styles.toolButtonTextActive]}>
+              {t('spatial.toolPen')}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.toolButton,
-              isToolSelected('path') && styles.toolButtonActive,
+              canvasMode === 'path' && styles.toolButtonActive,
               isToolLocked('path') && { opacity: 0.3 },
             ]}
-            onPress={() => setSelectedTool('path')}
+            onPress={() => {
+              setCanvasMode('path');
+              setSelectedTool('path');
+            }}
             disabled={isToolLocked('path')}
+            activeOpacity={0.78}
           >
-            <Text style={[
-              styles.toolButtonText,
-              isToolSelected('path') && styles.toolButtonTextActive
-            ]}>
-              Path
+            <Text style={[styles.toolButtonText, canvasMode === 'path' && styles.toolButtonTextActive]}>
+              {t('spatial.toolPath')}
             </Text>
           </TouchableOpacity>
-          
           <TouchableOpacity
-            style={[
-              styles.toolButton,
-              isToolSelected('relationship') && styles.toolButtonActive,
-              isToolLocked('relationship') && { opacity: 0.3 },
-            ]}
-            onPress={() => setSelectedTool('relationship')}
-            disabled={isToolLocked('relationship')}
+            style={[styles.toolButton, canvasMode === 'erase' && styles.toolButtonActive]}
+            onPress={() => setCanvasMode('erase')}
+            activeOpacity={0.78}
           >
-            <Text style={[
-              styles.toolButtonText,
-              isToolSelected('relationship') && styles.toolButtonTextActive
-            ]}>
-              Relationship
+            <Text style={[styles.toolButtonText, canvasMode === 'erase' && styles.toolButtonTextActive]}>
+              {t('spatial.toolErase')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.toolButton} onPress={handleUndo} activeOpacity={0.78}>
+            <Text style={styles.toolButtonText}>{t('spatial.toolUndo')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toolButton, snapToGrid && styles.toolButtonActive]}
+            onPress={() => setSnapToGrid((v) => !v)}
+            activeOpacity={0.78}
+          >
+            <Text style={[styles.toolButtonText, snapToGrid && styles.toolButtonTextActive]}>
+              {t('spatial.toolSnap')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -729,8 +998,8 @@ export function SpatialTab() {
       {/* Right panel */}
       <View style={styles.rightPanel}>
         <View style={styles.rightPanelHeader}>
-          <TouchableOpacity style={styles.groupChip} onPress={() => setActiveTab('group')}>
-            <Text style={styles.groupChipText}>Group →</Text>
+          <TouchableOpacity style={styles.groupChip} onPress={() => setActiveTab('group')} activeOpacity={0.8}>
+            <Text style={styles.groupChipText}>{t('spatial.groupJump')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -751,14 +1020,14 @@ export function SpatialTab() {
           {renderWaveformBars()}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.loopButtonRow} onPress={() => handleLoopToggle()}>
+        <TouchableOpacity style={styles.loopButtonRow} onPress={() => handleLoopToggle()} activeOpacity={0.8}>
           <Text
             style={[
               styles.loopButtonRowText,
               { color: loopOpenAt !== null ? colors.amber : colors.muted },
             ]}
           >
-            {loopOpenAt !== null ? 'tap to close' : 'set loop'}
+            {loopOpenAt !== null ? t('spatial.loopClose') : t('spatial.loopSet')}
           </Text>
         </TouchableOpacity>
 
@@ -766,7 +1035,7 @@ export function SpatialTab() {
         <View style={styles.qualityLayer}>
           {/* Header */}
           <View style={styles.qualityHeader}>
-            <Text style={styles.qualityHeaderText}>quality layer</Text>
+            <Text style={styles.qualityHeaderText}>{t('spatial.qualityLayer')}</Text>
             <TouchableOpacity
               style={styles.expandButton}
               onPress={() => setIsExpanded(!isExpanded)}
@@ -780,10 +1049,10 @@ export function SpatialTab() {
             <View style={styles.qualityBody}>
               {/* INITIATION */}
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>INITIATION</Text>
+                <Text style={styles.fieldLabel}>{t('spatial.fieldInitiation')}</Text>
                 <TextInput
                   style={styles.fieldInput}
-                  placeholder="spine, heart, sternum…"
+                  placeholder={t('spatial.placeholderInitiation')}
                   placeholderTextColor={colors.muted}
                   value={initiation}
                   onChangeText={setInitiation}
@@ -798,10 +1067,10 @@ export function SpatialTab() {
 
               {/* RELATIONSHIP QUALITY */}
               <View style={styles.field}>
-                <Text style={styles.fieldLabel}>RELATIONSHIP QUALITY</Text>
+                <Text style={styles.fieldLabel}>{t('spatial.fieldRelationship')}</Text>
                 <TextInput
                   style={styles.fieldInput}
-                  placeholder="leads · follows · resists · echoes"
+                  placeholder={t('spatial.placeholderRelationship')}
                   placeholderTextColor={colors.muted}
                   value={relationshipQuality}
                   onChangeText={setRelationshipQuality}
@@ -818,12 +1087,12 @@ export function SpatialTab() {
               <View style={[
                 styles.field,
                 styles.noteField,
-                note && styles.noteFieldFilled
+                note ? styles.noteFieldFilled : null
               ]}>
-                <Text style={styles.fieldLabel}>NOTE</Text>
+                <Text style={styles.fieldLabel}>{t('spatial.fieldNote')}</Text>
                 <TextInput
                   style={styles.noteInput}
-                  placeholder="add a voice or text note…"
+                  placeholder={t('spatial.placeholderNote')}
                   placeholderTextColor={colors.muted}
                   value={note}
                   onChangeText={setNote}
@@ -839,33 +1108,58 @@ export function SpatialTab() {
 
               {/* QUALITY REFERENCE */}
               <View style={styles.referenceField}>
-                <Text style={styles.referenceText}>add reference</Text>
+                <Text style={styles.referenceText}>{t('spatial.addReference')}</Text>
               </View>
             </View>
           )}
         </View>
       </View>
+      {showSpatialCoach ? (
+        <SpatialCoachOverlay
+          onDone={() => {
+            setShowSpatialCoach(false);
+            setCanvasMode('pen');
+            setSelectedTool('position');
+          }}
+        />
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+function createSpatialStyles(colors: ThemePalette, isNight: boolean) {
+  const toolActiveLabelColor = isNight ? colors.ground : '#ffffff';
+  const connectionBannerBg = isNight ? 'rgba(127, 29, 29, 0.35)' : '#fee2e2';
+  const connectionBannerBorder = isNight ? 'rgba(248, 113, 113, 0.4)' : '#fca5a5';
+  const connectionText = isNight ? '#fca5a5' : '#dc2626';
+
+  return StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: colors.ground,
+    position: 'relative',
   },
   canvasZone: {
     flex: 0.65,
     flexDirection: 'column',
     position: 'relative',
   },
-  momentStrip: {
-    height: 36,
+  momentStripShell: {
+    marginHorizontal: 10,
+    marginTop: 8,
+    marginBottom: 6,
+    borderRadius: 12,
     backgroundColor: colors.chrome,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  momentStrip: {
+    height: 32,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 4,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -885,9 +1179,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.mineBg,
   },
   momentChipText: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
   },
   momentChipTextActive: {
     color: colors.active,
@@ -917,12 +1212,13 @@ const styles = StyleSheet.create({
   },
   floorCanvas: {
     flex: 1,
-    backgroundColor: '#faf8f5',
+    backgroundColor: colors.ground,
     position: 'relative',
   },
   gridLine: {
     position: 'absolute',
-    backgroundColor: '#ede8e0',
+    backgroundColor: colors.border,
+    opacity: 0.45,
   },
   horizontalGridLine: {
     height: 0.5,
@@ -938,9 +1234,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     textAlign: 'center',
-    fontSize: 7,
-    color: colors.inactive,
-    fontFamily: 'JetBrainsMono',
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   audienceLabel: {
     position: 'absolute',
@@ -948,14 +1247,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     textAlign: 'center',
-    fontSize: 7,
-    color: colors.inactive,
-    fontFamily: 'JetBrainsMono',
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
   },
   dancerDot: {
     position: 'absolute',
-    width: DOT_SIZE,
-    height: DOT_SIZE,
     borderRadius: DOT_RADIUS,
     borderWidth: 1.5,
     borderColor: '#fff',
@@ -989,42 +1289,52 @@ const styles = StyleSheet.create({
   },
   dancerInitial: {
     color: '#fff',
-    fontSize: 7,
-    fontWeight: 'bold',
+    fontSize: 12,
+    fontWeight: '700',
+    fontFamily: theme.typography.bodyFamily,
   },
   dancerInitialSelected: {
-    fontSize: 8,
+    fontSize: 13,
   },
   toolBar: {
     position: 'absolute',
-    bottom: 12,
-    left: 0,
-    right: 0,
+    bottom: 14,
+    left: 12,
+    right: 12,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
   },
   toolButton: {
-    height: 32,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    borderWidth: 0.5,
+    minHeight: theme.typography.tool.controlMinHeight,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.ground,
+    backgroundColor: colors.chrome,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   toolButtonActive: {
     backgroundColor: colors.active,
     borderColor: colors.active,
+    shadowOpacity: 0.12,
+    elevation: 2,
   },
   toolButtonText: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.label,
     color: colors.muted,
-    fontWeight: '500',
+    fontWeight: '600',
+    fontFamily: theme.typography.bodyFamily,
   },
   toolButtonTextActive: {
-    color: '#ffffff',
+    color: toolActiveLabelColor,
   },
   rightPanel: {
     flex: 0.35,
@@ -1039,18 +1349,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   groupChip: {
-    height: 22,
-    paddingHorizontal: 8,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.mine,
+    backgroundColor: colors.mineBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   groupChipText: {
-    fontSize: 9,
+    fontSize: theme.typography.tool.caption,
     color: colors.mine,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
   },
   miniWaveform: {
     height: 48,
@@ -1065,14 +1378,16 @@ const styles = StyleSheet.create({
   },
   loopButtonRow: {
     width: '100%',
-    height: 32,
+    minHeight: 40,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
+    paddingVertical: 6,
   },
   loopButtonRowText: {
-    fontSize: 9,
-    fontFamily: 'JetBrainsMono',
+    fontSize: theme.typography.tool.label,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
     textAlign: 'center',
   },
   waveformBar: {
@@ -1089,22 +1404,30 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   qualityHeaderText: {
-    fontSize: 9,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
   },
   expandButton: {
-    width: 20,
-    height: 20,
+    width: 32,
+    height: 32,
     borderRadius: 10,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.ground,
+    backgroundColor: colors.chrome,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
   expandButtonText: {
-    fontSize: 12,
+    fontSize: 16,
     color: colors.muted,
     fontWeight: '600',
   },
@@ -1115,18 +1438,21 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   fieldLabel: {
-    fontSize: 8,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
   },
   fieldInput: {
-    fontSize: 10,
-    color: colors.muted,
-    padding: 6,
-    borderWidth: 0.5,
+    fontSize: theme.typography.tool.body,
+    color: colors.active,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 4,
-    backgroundColor: colors.ground,
+    borderRadius: 10,
+    backgroundColor: colors.chrome,
+    fontFamily: theme.typography.bodyFamily,
   },
   noteField: {
     borderLeftWidth: 0,
@@ -1136,16 +1462,16 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.mine,
   },
   noteInput: {
-    fontSize: 10,
-    color: colors.muted,
-    padding: 6,
-    borderWidth: 0.5,
+    fontSize: theme.typography.tool.body,
+    color: colors.active,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 4,
-    backgroundColor: colors.ground,
-    fontFamily: 'Fraunces',
-    fontStyle: 'italic',
-    minHeight: 40,
+    borderRadius: 10,
+    backgroundColor: colors.chrome,
+    fontFamily: theme.typography.bodyFamily,
+    minHeight: 48,
   },
   referenceField: {
     padding: 8,
@@ -1156,20 +1482,58 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   referenceText: {
-    fontSize: 10,
+    fontSize: theme.typography.tool.caption,
     color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+  },
+  formationHint: {
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+  },
+  formationHintText: {
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
+  },
+  syncStatusText: {
+    marginTop: 2,
+    fontSize: theme.typography.tool.caption,
+    color: colors.muted,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '500',
   },
   connectionErrorBanner: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: connectionBannerBg,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#fca5a5',
+    borderBottomColor: connectionBannerBorder,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   connectionErrorText: {
-    fontSize: 12,
-    color: '#dc2626',
+    fontSize: theme.typography.tool.body,
+    color: connectionText,
     textAlign: 'center',
-    fontFamily: 'JetBrainsMono',
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
+  },
+  connectionRetryButton: {
+    marginTop: 8,
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: connectionText,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    minHeight: 40,
+    backgroundColor: colors.chrome,
+  },
+  connectionRetryText: {
+    fontSize: theme.typography.tool.caption,
+    color: connectionText,
+    fontFamily: theme.typography.bodyFamily,
+    fontWeight: '600',
   },
 });
+}

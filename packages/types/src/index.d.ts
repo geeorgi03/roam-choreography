@@ -98,6 +98,17 @@ export interface FeedbackRequest {
     status: 'open' | 'closed';
     created_at: ISODateTime;
 }
+export interface StructuredFeedback {
+    id: UUID;
+    session_id: UUID;
+    clip_id: UUID;
+    user_id: UUID;
+    statement: string | null;
+    questions: string | null;
+    observations: string | null;
+    opinions: string | null;
+    created_at: ISODateTime;
+}
 export type TextPayload = {
     x: number;
     y: number;
@@ -167,5 +178,16 @@ export interface Loop {
     name: string;
     created_by: UUID;
     created_at: ISODateTime;
+}
+export interface DrillSequenceItem {
+    id: string;
+    label: string;
+    start_ms: number;
+    end_ms: number;
+}
+export interface DrillSequence {
+    session_id: UUID;
+    items: DrillSequenceItem[];
+    updated_at: ISODateTime;
 }
 //# sourceMappingURL=index.d.ts.map

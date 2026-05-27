@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Video, AVPlaybackStatus, ResizeMode } from 'expo-av';
 import Slider from '@react-native-community/slider';
 import Toast from 'react-native-toast-message';
-import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS, useFrameCallback } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
 // Lazy require: a native-module init failure must not prevent route discovery
 let GestureDetector: React.ComponentType<{ gesture: unknown; children: React.ReactNode }> =
@@ -72,7 +72,8 @@ import type { ClipComment, ClipAnnotation, AnnotationType } from '@roam/types';
 import { AnnotationOverlay } from '../../../components/AnnotationOverlay';
 import type { VideoContentRect } from '../../../components/AnnotationOverlay';
 
-import { API_BASE } from '../../../lib/api';
+import { apiRequest } from '../../../lib/api';
+import { useTranslation } from '../../../lib/i18n';
 import { MMKV } from 'react-native-mmkv';
 
 // Loupe persistence — key: YouTube clips use loupe:${source_url}, others use loupe:${mux_playback_id ?? clip_id ?? source_url} -> { x, y, zoom }
@@ -80,6 +81,12 @@ const loupeStorage = new MMKV({ id: 'loupe-state' });
 
 // Loupe constants
 const LOUPE_DIAMETER = 140;
+const LOUPE_MIN_ZOOM = 1.6;
+const LOUPE_MAX_ZOOM = 3.8;
+const LOUPE_ACTIVATE_SCALE_THRESHOLD = 1.35;
+const YOUTUBE_CAPTURE_ACTIVE_MS = 130;
+const YOUTUBE_CAPTURE_IDLE_MS = 220;
+const YOUTUBE_CAPTURE_HIGH_ZOOM_MS = 90;
 const AB_LOOP_HANDLE_TOUCH_SIZE = 44;
 const AB_LOOP_HANDLE_HALF = 22;
 const AB_LOOP_CLEAR_THRESHOLD_MS = 1;
@@ -157,6 +164,8 @@ const CAPTURE_WEBVIEW_HTML = `
         canvas.width = videoElement.videoWidth || 640;
         canvas.height = videoElement.videoHeight || 360;
         
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
         
         // Crop to loupe region (140px diameter at current focal point)
@@ -166,7 +175,7 @@ const CAPTURE_WEBVIEW_HTML = `
         const scaleY = canvas.height / videoRect.height;
         
         // For now, return full frame - loupe cropping will be done in React Native
-        return canvas.toDataURL('image/jpeg', 0.8);
+        return canvas.toDataURL('image/jpeg', 0.95);
       } catch (e) {
         console.error('Frame capture error:', e);
         return null;
@@ -219,6 +228,7 @@ export default function ClipPlayerScreen() {
   } =
     useLocalSearchParams<PlayerParams>();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const hasSessionContext = !!sessionId && !!clipIndex;
 
@@ -278,10 +288,19 @@ export default function ClipPlayerScreen() {
   const [youtubeCurrentTime, setYoutubeCurrentTime] = useState(0);
   const [capturedFrameDataUrl, setCapturedFrameDataUrl] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const youtubeCaptureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const youtubeCaptureInFlightRef = useRef(false);
+  const lastCapturedFrameRef = useRef<string | null>(null);
+  const loupePerfRef = useRef({
+    captureCount: 0,
+    totalIntervalMs: 0,
+    lastCaptureAt: 0,
+  });
   
   // Loupe state
   const [loupeActive, setLoupeActive] = useState(false);
   const [loupeZoom, setLoupeZoom] = useState(2.5);
+  const [loupePausedForPerformance, setLoupePausedForPerformance] = useState(false);
   const loupeX = useSharedValue(0);
   const loupeY = useSharedValue(0);
   const loupeActiveShared = useSharedValue(0); // 0 = inactive, 1 = active
@@ -289,6 +308,8 @@ export default function ClipPlayerScreen() {
   const loupeLastX = useRef(0);
   const loupeLastY = useRef(0);
   const loupeLastZoom = useRef(0);
+  const fpsWindowRef = useRef<number[]>([]);
+  const lowFpsStreakRef = useRef(0);
   const loupeVideoRef = useRef<Video>(null);
   
   // Animated style for loupe positioning
@@ -339,10 +360,10 @@ export default function ClipPlayerScreen() {
     (async () => {
       try {
         const [commentsRes, feedbackRes] = await Promise.all([
-          fetch(`${API_BASE}/clips/${clipServerId}/comments`, {
+          apiRequest(`/clips/${clipServerId}/comments`, {
             headers: { Authorization: `Bearer ${session.access_token}` },
           }),
-          fetch(`${API_BASE}/clips/${clipServerId}/feedback-requests`, {
+          apiRequest(`/clips/${clipServerId}/feedback-requests`, {
             headers: { Authorization: `Bearer ${session.access_token}` },
           }),
         ]);
@@ -407,7 +428,7 @@ export default function ClipPlayerScreen() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/clips/${clipServerId}/annotations`, {
+        const res = await apiRequest(`/clips/${clipServerId}/annotations`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         if (mounted && res.ok) {
@@ -426,7 +447,7 @@ export default function ClipPlayerScreen() {
   const handleRequestFeedback = useCallback(async () => {
     if (!clipServerId || !session?.access_token) return;
     try {
-      const res = await fetch(`${API_BASE}/clips/${clipServerId}/feedback-requests`, {
+      const res = await apiRequest(`/clips/${clipServerId}/feedback-requests`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -439,7 +460,7 @@ export default function ClipPlayerScreen() {
   const handleCloseFeedback = useCallback(async () => {
     if (!clipServerId || !session?.access_token) return;
     try {
-      const res = await fetch(`${API_BASE}/clips/${clipServerId}/feedback-requests`, {
+      const res = await apiRequest(`/clips/${clipServerId}/feedback-requests`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -456,6 +477,12 @@ export default function ClipPlayerScreen() {
     loupeLastZoom.current = 0;
     loupeLastX.current = 0;
     loupeLastY.current = 0;
+    lastCapturedFrameRef.current = null;
+    youtubeCaptureInFlightRef.current = false;
+    if (youtubeCaptureTimerRef.current) {
+      clearTimeout(youtubeCaptureTimerRef.current);
+      youtubeCaptureTimerRef.current = null;
+    }
     setCapturedFrameDataUrl(null);
   }, [currentIndex]);
 
@@ -466,33 +493,114 @@ export default function ClipPlayerScreen() {
     };
   }, []);
 
-  // Continuous frame capture for YouTube when loupe is active
   useEffect(() => {
-    if (!loupeActive || !isYouTubeContent || !webViewRef.current) return;
-    
-    const captureFrame = () => {
-      if (webViewRef.current && loupeActive) {
+    if (!loupePausedForPerformance) return;
+    const timeoutId = setTimeout(() => setLoupePausedForPerformance(false), 2000);
+    return () => clearTimeout(timeoutId);
+  }, [loupePausedForPerformance]);
+
+  useFrameCallback((frameInfo) => {
+    'worklet';
+    if (loupeActiveShared.value !== 1) return;
+    runOnJS((timestamp: number) => {
+      fpsWindowRef.current.push(timestamp);
+      if (fpsWindowRef.current.length > 10) fpsWindowRef.current.shift();
+      if (fpsWindowRef.current.length < 2) return;
+      const durationMs = fpsWindowRef.current[fpsWindowRef.current.length - 1] - fpsWindowRef.current[0];
+      if (durationMs <= 0) return;
+      const fps = ((fpsWindowRef.current.length - 1) / durationMs) * 1000;
+      if (fps < 30) {
+        lowFpsStreakRef.current += 1;
+        if (lowFpsStreakRef.current >= 3) {
+          lowFpsStreakRef.current = 0;
+          setLoupeActive(false);
+          loupeActiveShared.value = 0;
+          setLoupePausedForPerformance(true);
+        }
+      } else {
+        lowFpsStreakRef.current = 0;
+      }
+    })(frameInfo.timestamp);
+  }, true);
+
+  const nextCaptureDelayMs = useCallback(() => {
+    if (!playing) return YOUTUBE_CAPTURE_IDLE_MS;
+    if (loupeZoom >= 3.2) return YOUTUBE_CAPTURE_HIGH_ZOOM_MS;
+    return YOUTUBE_CAPTURE_ACTIVE_MS;
+  }, [loupeZoom, playing]);
+
+  const recordCaptureTick = useCallback(() => {
+    const now = Date.now();
+    const last = loupePerfRef.current.lastCaptureAt;
+    if (last > 0) {
+      loupePerfRef.current.totalIntervalMs += now - last;
+    }
+    loupePerfRef.current.captureCount += 1;
+    loupePerfRef.current.lastCaptureAt = now;
+    if (loupePerfRef.current.captureCount % 30 === 0) {
+      const avg =
+        loupePerfRef.current.captureCount > 1
+          ? Math.round(
+              loupePerfRef.current.totalIntervalMs / (loupePerfRef.current.captureCount - 1)
+            )
+          : 0;
+      console.log('[loupe-perf]', { captures: loupePerfRef.current.captureCount, avgIntervalMs: avg });
+    }
+  }, []);
+
+  // Continuous frame capture for YouTube when loupe is active.
+  // Uses single-flight scheduling to avoid WebView command pileups.
+  const requestYouTubeFrameCapture = useCallback(
+    (delayMs: number = 0) => {
+      if (!loupeActive || !isYouTubeContent || !webViewRef.current) return;
+      if (youtubeCaptureTimerRef.current) {
+        clearTimeout(youtubeCaptureTimerRef.current);
+      }
+      youtubeCaptureTimerRef.current = setTimeout(() => {
+        if (!loupeActive || !isYouTubeContent || !webViewRef.current) return;
+        if (youtubeCaptureInFlightRef.current) {
+          requestYouTubeFrameCapture(nextCaptureDelayMs());
+          return;
+        }
+        youtubeCaptureInFlightRef.current = true;
         webViewRef.current.injectJavaScript(`
-          if (window.player && window.captureFrame) {
-            const frameDataUrl = window.captureFrame();
-            if (frameDataUrl) {
+          try {
+            if (window.player && window.captureFrame) {
+              const frameDataUrl = window.captureFrame();
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'frameCapture',
-                dataUrl: frameDataUrl
+                dataUrl: frameDataUrl || null
               }));
+            } else {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'frameCapture', dataUrl: null }));
             }
+          } catch (_e) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'frameCapture', dataUrl: null }));
           }
         `);
+      }, Math.max(0, delayMs));
+    },
+    [isYouTubeContent, loupeActive, nextCaptureDelayMs]
+  );
+
+  useEffect(() => {
+    if (!loupeActive || !isYouTubeContent) {
+      if (youtubeCaptureTimerRef.current) {
+        clearTimeout(youtubeCaptureTimerRef.current);
+        youtubeCaptureTimerRef.current = null;
       }
-    };
-    
-    // Start capture loop at 5fps (200ms)
-    const intervalId = setInterval(captureFrame, 200);
-    
+      youtubeCaptureInFlightRef.current = false;
+      return;
+    }
+    requestYouTubeFrameCapture(0);
     return () => {
-      clearInterval(intervalId);
+      if (youtubeCaptureTimerRef.current) {
+        clearTimeout(youtubeCaptureTimerRef.current);
+        youtubeCaptureTimerRef.current = null;
+      }
+      youtubeCaptureInFlightRef.current = false;
     };
-  }, [loupeActive, isYouTubeContent]);
+  }, [isYouTubeContent, loupeActive, requestYouTubeFrameCapture]);
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -669,8 +777,16 @@ export default function ClipPlayerScreen() {
           }
           break;
         case 'frameCapture':
-          if (message.dataUrl) {
-            setCapturedFrameDataUrl(message.dataUrl);
+          youtubeCaptureInFlightRef.current = false;
+          recordCaptureTick();
+          if (message.dataUrl && typeof message.dataUrl === 'string') {
+            if (lastCapturedFrameRef.current !== message.dataUrl) {
+              lastCapturedFrameRef.current = message.dataUrl;
+              setCapturedFrameDataUrl(message.dataUrl);
+            }
+          }
+          if (loupeActive && isYouTubeContent) {
+            requestYouTubeFrameCapture(nextCaptureDelayMs());
           }
           break;
         case 'durationUpdate':
@@ -716,8 +832,8 @@ export default function ClipPlayerScreen() {
           Number.isFinite(savedState.x) &&
           Number.isFinite(savedState.y) &&
           Number.isFinite(savedState.zoom) &&
-          savedState.zoom >= 2 &&
-          savedState.zoom <= 3
+          savedState.zoom >= LOUPE_MIN_ZOOM &&
+          savedState.zoom <= LOUPE_MAX_ZOOM
         ) {
           loupeLastX.current = savedState.x;
           loupeLastY.current = savedState.y;
@@ -746,26 +862,11 @@ export default function ClipPlayerScreen() {
     
     // Capture frame for YouTube content when loupe activates
     if (isYouTubeContent && webViewRef.current) {
-      // Clear previous frame and request new capture
+      // Clear previous frame and request fresh capture immediately
       setCapturedFrameDataUrl(null);
-      webViewRef.current.injectJavaScript(`
-        if (window.player && window.captureFrame) {
-          const frameDataUrl = window.captureFrame();
-          if (frameDataUrl) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'frameCapture',
-              dataUrl: frameDataUrl
-            }));
-          }
-        }
-      `);
-      
-      // Set fallback after timeout if capture fails
-      setTimeout(() => {
-        if (!capturedFrameDataUrl) {
-          setCapturedFrameDataUrl(null);
-        }
-      }, 500);
+      lastCapturedFrameRef.current = null;
+      youtubeCaptureInFlightRef.current = false;
+      requestYouTubeFrameCapture(0);
     }
   });
   const updateLoupeZoom = runOnJS((zoom: number) => {
@@ -800,10 +901,10 @@ export default function ClipPlayerScreen() {
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((e: GestureEvent) => {
-      const clamped = Math.min(3, Math.max(2, e.scale ?? 1));
+      const clamped = Math.min(LOUPE_MAX_ZOOM, Math.max(LOUPE_MIN_ZOOM, e.scale ?? 1));
       if (loupeActiveShared.value !== 1) {
         // When loupe is inactive and pinch scale reaches threshold, activate loupe
-        if (e.scale && e.scale >= 2) {
+        if (e.scale && e.scale >= LOUPE_ACTIVATE_SCALE_THRESHOLD) {
           loupeX.value = e.focalX ?? loupeX.value;
           loupeY.value = e.focalY ?? loupeY.value;
           activateLoupe(clamped, e.focalX ?? 0, e.focalY ?? 0);
@@ -951,7 +1052,7 @@ export default function ClipPlayerScreen() {
 
     for (const p of pendingAnnotations) {
       try {
-        const res = await fetch(`${API_BASE}/clips/${clipServerId}/annotations`, {
+        const res = await apiRequest(`/clips/${clipServerId}/annotations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -990,7 +1091,7 @@ export default function ClipPlayerScreen() {
 
     if (needsRefresh) {
       try {
-        const res = await fetch(`${API_BASE}/clips/${clipServerId}/annotations`, {
+        const res = await apiRequest(`/clips/${clipServerId}/annotations`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         if (res.ok) {
@@ -1027,10 +1128,53 @@ export default function ClipPlayerScreen() {
     []
   );
 
+  const handleTrimCurrentLoop = useCallback(async () => {
+    if (!hasSessionContext || !sessionId || !clipServerId || !session?.access_token) return;
+    if (loopStartMs === null || loopEndMs === null) return;
+    if (loopEndMs <= loopStartMs) {
+      Toast.show({ type: 'error', text1: 'Set a valid A/B range first' });
+      return;
+    }
+    try {
+      const res = await apiRequest(`/sessions/${sessionId}/clips/${clipServerId}/trim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          start_ms: Math.round(loopStartMs),
+          end_ms: Math.round(loopEndMs),
+          section_label: section_label ?? null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { error?: string }));
+        throw new Error(err.error ?? 'Trim failed');
+      }
+      Toast.show({ type: 'success', text1: 'Trim clip created' });
+      router.back();
+    } catch (e) {
+      Toast.show({
+        type: 'error',
+        text1: e instanceof Error ? e.message : 'Could not create trim clip',
+      });
+    }
+  }, [
+    hasSessionContext,
+    sessionId,
+    clipServerId,
+    session?.access_token,
+    loopStartMs,
+    loopEndMs,
+    section_label,
+    router,
+  ]);
+
   if (!hasSessionContext && !hasLibraryClip) {
     return (
       <View style={styles.container}>
-        <Text style={styles.placeholderText}>No clip</Text>
+        <Text style={styles.placeholderText}>{t('clipPlayer.noClip')}</Text>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Text style={styles.closeBtnText}>✕</Text>
         </TouchableOpacity>
@@ -1041,7 +1185,7 @@ export default function ClipPlayerScreen() {
   if (hasSessionContext && !clip) {
     return (
       <View style={styles.container}>
-        <Text style={styles.placeholderText}>No clip</Text>
+        <Text style={styles.placeholderText}>{t('clipPlayer.noClip')}</Text>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
           <Text style={styles.closeBtnText}>✕</Text>
         </TouchableOpacity>
@@ -1054,8 +1198,8 @@ export default function ClipPlayerScreen() {
       <GestureDetector gesture={composedGesture}>
         <View style={styles.container}>
           <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>Processing…</Text>
-            <Text style={styles.placeholderLabel}>{clip!.label ?? 'Clip'}</Text>
+            <Text style={styles.placeholderText}>{t('clipPlayer.processing')}</Text>
+            <Text style={styles.placeholderLabel}>{clip!.label ?? t('clipPlayer.clipFallback')}</Text>
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
             <Text style={styles.closeBtnText}>✕</Text>
@@ -1126,11 +1270,13 @@ export default function ClipPlayerScreen() {
                         <Animated.Image 
                           source={{ uri: capturedFrameDataUrl }} 
                           style={[styles.loupeVideo, loupeVideoAnimatedStyle]} 
-                          resizeMode="cover" 
+                          resizeMode="cover"
+                          fadeDuration={0}
+                          resizeMethod="resize"
                         />
                       ) : (
                         <Animated.View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
-                          <Text style={styles.loupeOverlayText}>Capturing frame...</Text>
+                          <Text style={styles.loupeOverlayText}>{t('clipPlayer.capturingFrame')}</Text>
                         </Animated.View>
                       )}
                     </>
@@ -1161,6 +1307,11 @@ export default function ClipPlayerScreen() {
               }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.loupeDismissBtnText}>✕</Text>
               </TouchableOpacity>
+            )}
+            {loupePausedForPerformance && (
+              <View style={styles.loupePerfNotice}>
+                <Text style={styles.loupePerfNoticeText}>{t('clipPlayer.loupePausedForPerformance')}</Text>
+              </View>
             )}
             {!loupeActive && loupeLastZoom.current > 0 && (
               <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { 
@@ -1251,14 +1402,14 @@ export default function ClipPlayerScreen() {
           </View>
           <View style={styles.controlsRow}>
             <TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
-              <Text style={styles.controlBtnText}>−5s</Text>
+              <Text style={styles.controlBtnText}>{t('clipPlayer.seekBack')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handlePlayPause}
               style={styles.controlBtn}
             >
               <Text style={styles.controlBtnText}>
-                {playing ? 'Pause' : 'Play'}
+                {playing ? t('clipPlayer.pause') : t('clipPlayer.play')}
               </Text>
             </TouchableOpacity>
             <View style={styles.speedRow}>
@@ -1287,27 +1438,38 @@ export default function ClipPlayerScreen() {
               onPress={() => setLoopStartMs(positionMillis)} 
               style={styles.controlBtn}
             >
-              <Text style={styles.controlBtnText}>Set A</Text>
+              <Text style={styles.controlBtnText}>{t('clipPlayer.setA')}</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               onPress={() => setLoopEndMs(positionMillis)} 
               style={styles.controlBtn}
             >
-              <Text style={styles.controlBtnText}>Set B</Text>
+              <Text style={styles.controlBtnText}>{t('clipPlayer.setB')}</Text>
             </TouchableOpacity>
           </View>
           
           {/* A/B Loop clear button */}
           {(loopStartMs !== null || loopEndMs !== null) && (
-            <TouchableOpacity 
-              onPress={() => {
-                setLoopStartMs(null);
-                setLoopEndMs(null);
-              }} 
-              style={styles.abLoopClearBtn}
-            >
-              <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
-            </TouchableOpacity>
+            <View style={styles.abLoopActionRow}>
+              {loopStartMs !== null &&
+              loopEndMs !== null &&
+              hasSessionContext &&
+              clipServerId &&
+              sessionId ? (
+                <TouchableOpacity onPress={handleTrimCurrentLoop} style={styles.abLoopTrimBtn}>
+                  <Text style={styles.abLoopTrimBtnText}>{t('clipPlayer.trimToAB')}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                onPress={() => {
+                  setLoopStartMs(null);
+                  setLoopEndMs(null);
+                }}
+                style={styles.abLoopClearBtn}
+              >
+                <Text style={styles.abLoopClearBtnText}>{t('clipPlayer.clearLoop')}</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -1341,7 +1503,7 @@ export default function ClipPlayerScreen() {
                 ) : null}
                 {libraryBpm ? (
                   <View style={styles.tagPill}>
-                    <Text style={styles.tagPillText}>{libraryBpm} BPM</Text>
+                    <Text style={styles.tagPillText}>{libraryBpm} {t('clipPlayer.bpmSuffix')}</Text>
                   </View>
                 ) : null}
                 {libraryNotes ? (
@@ -1422,11 +1584,13 @@ export default function ClipPlayerScreen() {
                       <Animated.Image 
                         source={{ uri: capturedFrameDataUrl }} 
                         style={[styles.loupeVideo, loupeVideoAnimatedStyle]} 
-                        resizeMode="cover" 
+                        resizeMode="cover"
+                        fadeDuration={0}
+                        resizeMethod="resize"
                       />
                     ) : (
                       <Animated.View style={[styles.loupeOverlay, loupeVideoAnimatedStyle]}>
-                        <Text style={styles.loupeOverlayText}>Capturing frame...</Text>
+                        <Text style={styles.loupeOverlayText}>{t('clipPlayer.capturingFrame')}</Text>
                       </Animated.View>
                     )}
                   </>
@@ -1457,6 +1621,11 @@ export default function ClipPlayerScreen() {
             }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.loupeDismissBtnText}>✕</Text>
             </TouchableOpacity>
+          )}
+          {loupePausedForPerformance && (
+            <View style={styles.loupePerfNotice}>
+              <Text style={styles.loupePerfNoticeText}>{t('clipPlayer.loupePausedForPerformance')}</Text>
+            </View>
           )}
           {!loupeActive && loupeLastZoom.current > 0 && (
             <TouchableOpacity style={styles.loupeRestoreBtn} onPress={() => { 
@@ -1515,19 +1684,25 @@ export default function ClipPlayerScreen() {
           <Text style={styles.closeBtnText}>✕</Text>
         </TouchableOpacity>
 
+        {hasSessionContext && clip ? (
+          <View style={styles.reviewHintBar} pointerEvents="none">
+            <Text style={styles.reviewHintText}>{t('review.sessionHint')}</Text>
+          </View>
+        ) : null}
+
         {feedbackOpen ? (
           <TouchableOpacity
             style={styles.feedbackBadge}
             onPress={handleCloseFeedback}
           >
-            <Text style={styles.feedbackBadgeText}>Feedback Open</Text>
+            <Text style={styles.feedbackBadgeText}>{t('clipPlayer.feedbackOpen')}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={styles.requestFeedbackBtn}
             onPress={handleRequestFeedback}
           >
-            <Text style={styles.requestFeedbackText}>Request Feedback</Text>
+            <Text style={styles.requestFeedbackText}>{t('clipPlayer.requestFeedback')}</Text>
           </TouchableOpacity>
         )}
 
@@ -1536,7 +1711,7 @@ export default function ClipPlayerScreen() {
             style={styles.annotateBtn}
             onPress={handleAnnotatePress}
           >
-            <Text style={styles.annotateBtnText}>Annotate</Text>
+            <Text style={styles.annotateBtnText}>{t('clipPlayer.annotate')}</Text>
           </TouchableOpacity>
         )}
 
@@ -1546,25 +1721,25 @@ export default function ClipPlayerScreen() {
               style={[styles.toolBtn, activeTool === 'text' && styles.toolBtnActive]}
               onPress={() => setActiveTool('text')}
             >
-              <Text style={styles.toolBtnText}>Text</Text>
+              <Text style={styles.toolBtnText}>{t('clipPlayer.toolText')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, activeTool === 'arrow' && styles.toolBtnActive]}
               onPress={() => setActiveTool('arrow')}
             >
-              <Text style={styles.toolBtnText}>Arrow</Text>
+              <Text style={styles.toolBtnText}>{t('clipPlayer.toolArrow')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toolBtn, activeTool === 'circle' && styles.toolBtnActive]}
               onPress={() => setActiveTool('circle')}
             >
-              <Text style={styles.toolBtnText}>Circle</Text>
+              <Text style={styles.toolBtnText}>{t('clipPlayer.toolCircle')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.doneBtn}
               onPress={handleAnnotationDone}
             >
-              <Text style={styles.doneBtnText}>Done</Text>
+              <Text style={styles.doneBtnText}>{t('clipPlayer.done')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1670,11 +1845,11 @@ export default function ClipPlayerScreen() {
           </View>
           <View style={styles.controlsRow}>
             <TouchableOpacity onPress={handleSeekBack} style={styles.controlBtn}>
-              <Text style={styles.controlBtnText}>−5s</Text>
+              <Text style={styles.controlBtnText}>{t('clipPlayer.seekBack')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handlePlayPause} style={styles.controlBtn}>
               <Text style={styles.controlBtnText}>
-                {playing ? 'Pause' : 'Play'}
+                {playing ? t('clipPlayer.pause') : t('clipPlayer.play')}
               </Text>
             </TouchableOpacity>
             <View style={styles.speedRow}>
@@ -1705,13 +1880,13 @@ export default function ClipPlayerScreen() {
                   onPress={() => setLoopStartMs(positionMillis)} 
                   style={styles.controlBtn}
                 >
-                  <Text style={styles.controlBtnText}>Set A</Text>
+                  <Text style={styles.controlBtnText}>{t('clipPlayer.setA')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   onPress={() => setLoopEndMs(positionMillis)} 
                   style={styles.controlBtn}
                 >
-                  <Text style={styles.controlBtnText}>Set B</Text>
+                  <Text style={styles.controlBtnText}>{t('clipPlayer.setB')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -1719,15 +1894,26 @@ export default function ClipPlayerScreen() {
           
           {/* A/B Loop clear button */}
           {(loopStartMs !== null || loopEndMs !== null) && (
-            <TouchableOpacity 
-              onPress={() => {
-                setLoopStartMs(null);
-                setLoopEndMs(null);
-              }} 
-              style={styles.abLoopClearBtn}
-            >
-              <Text style={styles.abLoopClearBtnText}>✕ Loop</Text>
-            </TouchableOpacity>
+            <View style={styles.abLoopActionRow}>
+              {loopStartMs !== null &&
+              loopEndMs !== null &&
+              hasSessionContext &&
+              clipServerId &&
+              sessionId ? (
+                <TouchableOpacity onPress={handleTrimCurrentLoop} style={styles.abLoopTrimBtn}>
+                  <Text style={styles.abLoopTrimBtnText}>{t('clipPlayer.trimToAB')}</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                onPress={() => {
+                  setLoopStartMs(null);
+                  setLoopEndMs(null);
+                }}
+                style={styles.abLoopClearBtn}
+              >
+                <Text style={styles.abLoopClearBtnText}>{t('clipPlayer.clearLoop')}</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -1761,7 +1947,7 @@ export default function ClipPlayerScreen() {
               ) : null}
               {displayClip!.bpm != null ? (
                 <View style={styles.tagPill}>
-                  <Text style={styles.tagPillText}>{displayClip!.bpm} BPM</Text>
+                  <Text style={styles.tagPillText}>{displayClip!.bpm} {t('clipPlayer.bpmSuffix')}</Text>
                 </View>
               ) : null}
               {displayClip!.notes ? (
@@ -1774,7 +1960,7 @@ export default function ClipPlayerScreen() {
             </>
           ) : (
             <TouchableOpacity onPress={() => tagSheetRef.current?.snapToIndex(0)}>
-              <Text style={styles.addTagsText}>Add tags →</Text>
+              <Text style={styles.addTagsText}>{t('clipPlayer.addTags')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1845,6 +2031,21 @@ const styles = StyleSheet.create({
   closeBtnText: {
     color: '#fff',
     fontSize: 20,
+  },
+  reviewHintBar: {
+    position: 'absolute',
+    top: 48,
+    left: 16,
+    right: 72,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+  },
+  reviewHintText: {
+    color: '#ffffff',
+    fontSize: 12,
+    lineHeight: 16,
   },
   controls: {
     position: 'absolute',
@@ -2120,6 +2321,22 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
   },
+  loupePerfNotice: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    zIndex: 30,
+  },
+  loupePerfNoticeText: {
+    color: '#fff',
+    fontSize: 12,
+    textAlign: 'center',
+  },
   speedRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2160,6 +2377,26 @@ const styles = StyleSheet.create({
   },
   abLoopHandleEnd: {
     // End handle specific styles if needed
+  },
+  abLoopActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  abLoopTrimBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.light.mine,
+    backgroundColor: theme.light.mineBg,
+  },
+  abLoopTrimBtnText: {
+    color: theme.light.mine,
+    fontSize: 12,
+    fontWeight: '600',
   },
   abLoopClearBtn: {
     paddingHorizontal: 8,

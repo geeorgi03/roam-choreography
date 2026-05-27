@@ -1,246 +1,240 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-} from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as DocumentPicker from 'expo-document-picker';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { theme } from '../../../lib/theme';
-import { useSession } from '../../../lib/hooks/useSession';
-import { useMusicTrackStatus } from '../../../lib/hooks/useMusicTrackStatus';
-import { PaywallSheet } from '../../../components/PaywallSheet';
-import { useState, useRef } from 'react';
-import { API_BASE } from '../../../lib/api';
 
-const YOUTUBE_URL_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i;
-const BILIBILI_URL_REGEX = /^(https?:\/\/)?(www\.)?(bilibili\.com\/video\/|b23\.tv\/)[\w/-]+/i;
+import { apiRequest, ApiRequestError } from '../../../lib/api';
+import { useSession } from '../../../lib/hooks/useSession';
+import { theme } from '../../../lib/theme';
+import { useTheme } from '../../../lib/contexts/ThemeContext';
+import { PaywallSheet } from '../../../components/PaywallSheet';
+import { useTranslation } from '../../../lib/i18n';
+import { getActiveSessionId } from '../../../lib/storage';
+import { getDeviceTier, uxTokens } from '../../../lib/designTokens';
 
 export default function MusicSetupScreen() {
-  const { id, sessionId: sessionIdParam } = useLocalSearchParams<{ id?: string; sessionId?: string }>();
-  const sessionId = id ?? sessionIdParam ?? null;
+  const { t } = useTranslation();
+  const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const tier = getDeviceTier(width);
   const router = useRouter();
+  const params = useLocalSearchParams<{ sessionId?: string; id?: string }>();
   const { session } = useSession();
-  const { refetch } = useMusicTrackStatus(sessionId ?? null);
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const paywallSheetRef = useRef<BottomSheet | null>(null);
 
-  const handleUpload = async () => {
-    if (!sessionId || !session?.access_token) return;
-    setError(null);
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['audio/mpeg', 'audio/wav', 'audio/aac'],
-      });
-      if (result.canceled) return;
-      const file = result.assets[0];
-      setUploading(true);
-      const formData = new FormData();
-      formData.append('file', {
-        uri: file.uri,
-        name: file.name,
-        type: file.mimeType ?? 'audio/mpeg',
-      } as unknown as Blob);
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/music`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
-        body: formData,
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 403 && (data as { error?: string }).error === 'plan_limit_reached') {
-          paywallSheetRef.current?.snapToIndex(0);
-          return;
-        }
-        throw new Error((data as { error?: string }).error ?? res.statusText);
-      }
-      // Return immediately to the session workspace; analysis status renders there.
-      router.replace({ pathname: './[id]', params: { id: sessionId } });
-      void refetch();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed');
-    } finally {
-      setUploading(false);
-    }
-  };
+  const sessionId = useMemo(() => {
+    const fromSessionId = Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId;
+    const fromId = Array.isArray(params.id) ? params.id[0] : params.id;
+    if (typeof fromSessionId === 'string' && fromSessionId.trim()) return fromSessionId;
+    if (typeof fromId === 'string' && fromId.trim()) return fromId;
+    const activeSessionId = getActiveSessionId();
+    if (activeSessionId) return activeSessionId;
+    return null;
+  }, [params.id, params.sessionId]);
 
-  const handleYoutubeValidate = async () => {
-    if (!sessionId || !session?.access_token) {
-      setError('Session not ready. Please go back and reopen music setup.');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    if (!session?.access_token) {
+      setError(t('musicSetup.needSignIn'));
       return;
     }
-    const url = youtubeUrl.trim();
-    const isYouTubeUrl = YOUTUBE_URL_REGEX.test(url);
-    const isBilibiliUrl = BILIBILI_URL_REGEX.test(url);
-    if (!isYouTubeUrl && !isBilibiliUrl) {
-      setError('Please enter a valid YouTube or Bilibili URL.');
+    if (!sessionId) {
+      setError(t('musicSetup.missingSessionId'));
       return;
     }
+    const trimmed = youtubeUrl.trim();
+    if (!trimmed) {
+      setError(t('musicSetup.pasteUrl'));
+      return;
+    }
+
     setError(null);
+    setLoading(true);
     try {
-      setUploading(true);
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/music`, {
+      const res = await apiRequest(`/sessions/${sessionId}/music`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ youtube_url: url }),
+        body: JSON.stringify({ youtube_url: trimmed }),
+        timeoutMs: 12_000,
+        retries: 2,
       });
+
+      const json = (await res.json().catch(() => null)) as
+        | { music_track_id?: string; reason?: string; error?: string }
+        | null;
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 403 && (data as { error?: string }).error === 'plan_limit_reached') {
+        if (res.status === 403 && json?.reason === 'plan_limit_reached') {
           paywallSheetRef.current?.snapToIndex(0);
           return;
         }
-        throw new Error((data as { error?: string }).error ?? res.statusText);
+        setError(json?.error ?? t('musicSetup.unableToAddUrl'));
+        return;
       }
-      const data = (await res.json()) as { music_track_id: string };
-      if (isYouTubeUrl) {
-        router.replace({
-          pathname: './youtube-player',
-          params: { sessionId, musicTrackId: data.music_track_id },
-        });
+
+      if (!json?.music_track_id) {
+        setError(t('musicSetup.trackMissingId'));
+        return;
+      }
+
+      router.replace({
+        pathname: '/session/youtube-player',
+        params: {
+          sessionId,
+          musicTrackId: json.music_track_id,
+        },
+      });
+    } catch (error) {
+      if (error instanceof ApiRequestError && error.reason === 'timeout') {
+        setError(t('musicSetup.networkTimeout'));
       } else {
-        // Quick support path for Bilibili: save link and return to session workbench.
-        router.replace({ pathname: './[id]', params: { id: sessionId } });
+        setError(t('musicSetup.networkError'));
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Request failed');
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   };
 
+  const styles = useMemo(() => createStyles(colors, tier), [colors, tier]);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Set Up Music</Text>
+      <Text style={styles.title}>{t('musicSetup.title')}</Text>
+      <Text style={styles.subtitle}>
+        {t('musicSetup.subtitle')}
+      </Text>
 
-      <View style={styles.cardsRow}>
-        <TouchableOpacity
-          style={[styles.card, uploading && styles.cardDisabled]}
-          onPress={handleUpload}
-          disabled={uploading}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.cardIcon}>📁</Text>
-          <Text style={styles.cardTitle}>Upload</Text>
-          <Text style={styles.cardSub}>audio file</Text>
-        </TouchableOpacity>
-        <View style={styles.card}>
-          <Text style={styles.cardIcon}>🔗</Text>
-          <Text style={styles.cardTitle}>YouTube Link</Text>
-          <Text style={styles.cardSub} />
-        </View>
-      </View>
-
-      <View style={styles.youtubeRow}>
-        <TextInput
-          style={styles.input}
-          placeholder="Paste YouTube URL…"
-          placeholderTextColor={theme.textSecondary}
-          value={youtubeUrl}
-          onChangeText={setYoutubeUrl}
-          autoCapitalize="none"
-          editable={!uploading}
-        />
-        <TouchableOpacity
-          style={[styles.validateBtn, uploading && styles.buttonDisabled]}
-          onPress={handleYoutubeValidate}
-          disabled={uploading}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.validateBtnText}>Validate</Text>
-        </TouchableOpacity>
-      </View>
+      <TextInput
+        style={styles.input}
+        value={youtubeUrl}
+        onChangeText={setYoutubeUrl}
+        placeholder={t('musicSetup.placeholder')}
+        placeholderTextColor={colors.muted}
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="url"
+      />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {!sessionId ? (
+        <TouchableOpacity style={styles.secondaryAction} onPress={() => router.replace('/')} activeOpacity={0.85}>
+          <Text style={styles.secondaryActionText}>{t('tabs.home')}</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.back()} disabled={loading}>
+          <Text style={styles.secondaryBtnText}>{t('musicSetup.cancel')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="#ffffff" />
+          ) : (
+            <Text style={styles.primaryBtnText}>{t('musicSetup.continue')}</Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
       <PaywallSheet bottomSheetRef={paywallSheetRef} />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.background,
-    padding: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: theme.textPrimary,
-    marginBottom: 16,
-  },
-  cardsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  card: {
-    flex: 1,
-    backgroundColor: theme.background,
-    borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
-    padding: 16,
-    alignItems: 'center',
-  },
-  cardDisabled: {
-    opacity: 0.6,
-  },
-  cardIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.textPrimary,
-  },
-  cardSub: {
-    fontSize: 12,
-    color: theme.textSecondary,
-  },
-  youtubeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  input: {
-    flex: 1,
-    height: 44,
-    borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
-    paddingHorizontal: 12,
-    color: theme.textPrimary,
-  },
-  validateBtn: {
-    paddingHorizontal: 16,
-    height: 44,
-    justifyContent: 'center',
-    backgroundColor: theme.accent,
-    borderWidth: 1,
-    borderColor: theme.textSecondary,
-    borderRadius: theme.borderRadius,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  validateBtnText: {
-    color: theme.textPrimary,
-    fontWeight: '600',
-  },
-  error: {
-    color: '#e74c3c',
-    fontSize: 14,
-    marginBottom: 8,
-  },
-});
+function createStyles(colors: ReturnType<typeof useTheme>['colors'], tier: 'phone' | 'tablet') {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.ground,
+      padding: tier === 'tablet' ? 24 : 16,
+    },
+    title: {
+      color: colors.active,
+      fontSize: uxTokens.typography.title[tier],
+      fontWeight: '800',
+      marginBottom: 6,
+    },
+    subtitle: {
+      color: colors.muted,
+      fontSize: uxTokens.typography.subtitle[tier],
+      lineHeight: 18,
+      marginBottom: 14,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: theme.borderRadius,
+      backgroundColor: colors.chrome,
+      color: colors.active,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: uxTokens.typography.body[tier],
+    },
+    error: {
+      color: '#c0392b',
+      marginTop: 10,
+      fontSize: uxTokens.typography.caption[tier],
+    },
+    secondaryAction: {
+      marginTop: 12,
+      alignSelf: 'flex-start',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.chrome,
+    },
+    secondaryActionText: {
+      color: colors.muted,
+      fontSize: uxTokens.typography.caption[tier],
+      fontWeight: '600',
+    },
+    actions: {
+      marginTop: 16,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    secondaryBtn: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: theme.borderRadius,
+      backgroundColor: colors.chrome,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+    },
+    secondaryBtnText: {
+      color: colors.muted,
+      fontSize: uxTokens.typography.body[tier],
+      fontWeight: '600',
+    },
+    primaryBtn: {
+      flex: 1,
+      borderRadius: theme.borderRadius,
+      backgroundColor: colors.active,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+      minHeight: 46,
+    },
+    primaryBtnDisabled: {
+      opacity: 0.6,
+    },
+    primaryBtnText: {
+      color: '#ffffff',
+      fontSize: uxTokens.typography.body[tier],
+      fontWeight: '700',
+    },
+  });
+}

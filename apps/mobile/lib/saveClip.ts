@@ -18,7 +18,7 @@ export async function saveClip(
   token: string,
   sectionLabel?: string,
   dualPairId?: string,
-  clipType?: string
+  clipType?: 'MINE' | 'REF' | 'voice_memo' | null
 ): Promise<SaveClipResult> {
   try {
     const existing = getClipsForSession(sessionId);
@@ -47,7 +47,7 @@ export async function saveClip(
       token,
       section_label: sectionLabel,
       dual_pair_id: dualPairId,
-      clip_type: clipType,
+      clip_type: clipType ?? undefined,
     });
 
     return { ok: true, local_id };

@@ -3,8 +3,8 @@ import { supabase } from '../lib/supabase.js';
 
 export async function requireAuth(c: Context, next: Next) {
   const authHeader = c.req.header('Authorization');
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (!token) {
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+  if (!token || token.length > 8192) {
     return c.json({ error: 'Missing or invalid Authorization header' }, 401);
   }
   const { data: { user }, error } = await supabase.auth.getUser(token);

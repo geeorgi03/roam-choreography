@@ -3,18 +3,30 @@
 > **Operational checklist**: See [DEP-2-CHECKLIST.md](./DEP-2-CHECKLIST.md) for mobile runtime configuration and Supabase deep-link auth readiness.
 > **Full deployment guide**: See [DEPLOYMENT.md](../DEPLOYMENT.md) for the production-readiness checklist.
 
+## 0. Empty Supabase? Run schema first
+
+If the database has **no tables** (reactivated roamV2, etc.):
+
+1. Copy all of `supabase/APPLY_ALL_MIGRATIONS.sql` → Supabase **SQL Editor** → **Run**
+2. Run checks in `supabase/VERIFY_SCHEMA.sql`
+3. Then continue below (API + eas.json + APK)
+
+Regenerate the bundle after migration edits: `pnpm supabase:bundle`
+
+---
+
 ## 1. Deploy the API (fix "Network request failed")
 
 The app needs a public API URL. The preview build uses `https://roam-api.onrender.com`.
 
-**Option A: Deploy to Render**
+**Option A: Deploy to Render (Node — no Docker on your PC)**
 
 1. Push your repo to GitHub.
-2. Go to [render.com](https://render.com) → New → Web Service.
-3. Connect your repo and select it.
-4. Use the `render.yaml` blueprint (or manually set):
-   - Build: Dockerfile at `apps/api/Dockerfile`, context root = repo root
-   - Runtime: Port 3001
+2. Go to [render.com](https://render.com) → **Blueprints** → sync `render.yaml`, **or** New → Web Service with **Node** runtime.
+3. Build: `chmod +x scripts/render-build-api.sh && ./scripts/render-build-api.sh`  
+   Start: `node apps/api/dist/index.js`  
+   Health: `/health`
+4. From repo root: `pnpm verify:deploy` to confirm API + Supabase URLs in `eas.json` respond.
 5. In the Render dashboard, configure the environment variables for the `roam-api` service:
 
    | Variable | Value |

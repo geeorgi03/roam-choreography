@@ -22,6 +22,10 @@ import {
   setLoopState as setLoopStateStorage,
   getLoopOpenAt,
   setLoopOpenAt as setLoopOpenAtStorage,
+  getStemFocus,
+  setStemFocus as setStemFocusStorage,
+  DEFAULT_STEM_FOCUS,
+  type StemFocusState,
 } from '../storage';
 import { cacheSession, getCachedSession } from '../sessionCache';
 import { enqueue, isNetworkError } from '../writeQueue';
@@ -97,10 +101,12 @@ export interface SessionContextValue {
   deleteMoment: (momentId: string) => Promise<boolean>;
   mergeMoment: (row: Moment) => void;
   removeMoment: (momentId: string) => void;
-  updateFormation: (momentId: string, formation: FormationData | null) => Promise<void>;
+  updateFormation: (momentId: string, formation: FormationData | null) => Promise<{ formation: FormationData | null; last_modified_at: string | null } | null>;
   updateQuality: (momentId: string, quality: QualityData | null) => Promise<void>;
   sessionMode: boolean;
   setSessionMode: (mode: boolean) => void;
+  stemFocus: StemFocusState;
+  setStemFocus: (state: StemFocusState) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -125,6 +131,9 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const [selectedClipForSheet, setSelectedClipForSheet] = useState<ClipRow | null>(null);
   const [sectionClips, setSectionClips] = useState<SectionClip[]>([]);
   const [sessionMode, setSessionModeState] = useState<boolean>(() => getSessionMode(sessionId));
+  const [stemFocus, setStemFocusState] = useState<StemFocusState>(
+    () => getStemFocus(sessionId) ?? DEFAULT_STEM_FOCUS
+  );
   const [offlineClips, setOfflineClips] = useState<ClipRow[]>([]);
   const [isOffline, setIsOffline] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
@@ -141,7 +150,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const wasPlayingBeforeSheetRef = useRef(false);
   
   // Hooks
-  const { clips, retryClip } = useClips(sessionId);
+  const { clips, retryClip } = useClips(
+    sessionId,
+    useCallback(() => {
+      setActiveSheetId('paywall');
+    }, [])
+  );
   const { musicTrack, isAnalysing } = useMusicTrackStatus(sessionId);
   const { notes, createNote, deleteNote } = useNotePins(sessionId);
   const {
@@ -388,6 +402,14 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setSessionModeState(getSessionMode(sessionId));
   }, [sessionId]);
 
+  useEffect(() => {
+    setStemFocusState(getStemFocus(sessionId));
+  }, [sessionId]);
+
+  useEffect(() => {
+    setStemFocusStorage(sessionId, stemFocus);
+  }, [stemFocus, sessionId]);
+
   // Initialize active section from storage
   useEffect(() => {
     const storedSection = getActiveSection(sessionId);
@@ -536,6 +558,10 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     setSessionModeStorage(sessionId, mode);
   }, [sessionId]);
 
+  const setStemFocusCallback = useCallback((state: StemFocusState) => {
+    setStemFocusState(state);
+  }, []);
+
   const updateSessionMeta = useCallback(async (meta: { name?: string; phrase?: string | null }) => {
     if (!sessionId || !session?.access_token) return;
 
@@ -626,6 +652,8 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     soundRef,
     sessionMode,
     setSessionMode,
+    stemFocus,
+    setStemFocus: setStemFocusCallback,
     
     // Hooks data
     clips: isOffline && clips.length === 0 ? offlineClips : clips,

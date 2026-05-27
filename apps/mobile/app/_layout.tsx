@@ -10,6 +10,9 @@
  */
 const MINIMAL_BOOT_TEST = false;
 
+import { initSentry } from '../lib/sentry';
+initSentry();
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { AppState, ActivityIndicator, StyleSheet, View, Text, TextInput, TouchableOpacity, Modal, Linking } from 'react-native';
 import { Stack, usePathname, useRootNavigationState, router } from 'expo-router';
@@ -22,9 +25,34 @@ import { getDevBypassAuth } from '../lib/devBypassAuth';
 import { API_BASE } from '../lib/api';
 import { drainQueue } from '../lib/writeQueue';
 import OfflineBanner from '../components/OfflineBanner';
+import ConnectivityBanner from '../components/ConnectivityBanner';
 import NetInfo from '@react-native-community/netinfo';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { InboxCountProvider } from '../lib/contexts/InboxCountContext';
+import { ThemeProvider } from '../lib/contexts/ThemeContext';
+import { LocaleProvider } from '../lib/i18n';
+import { ChoreographyFontsLoader } from '../components/choreography/ChoreographyFontsLoader';
+import { hasCompletedOnboarding } from '../lib/onboardingState';
+import { identifyAnalyticsUser, AnalyticsEvents, trackEvent } from '../lib/productAnalytics';
+import { setSentryUser } from '../lib/sentry';
+import { getActiveSessionId } from '../lib/storage';
+
+const LEGACY_ROUTE_REDIRECTS: Record<string, string> = {
+  '/map': '/(app)',
+  '/settings': '/profile',
+  '/recording': '/session/camera',
+};
+
+function resolveRedirectPath(pathname: string | null | undefined): string | null {
+  if (!pathname) return null;
+  const direct = LEGACY_ROUTE_REDIRECTS[pathname];
+  if (direct === '/session/camera') {
+    const sessionId = getActiveSessionId();
+    if (!sessionId) return '/(app)';
+    return `/session/camera?id=${sessionId}`;
+  }
+  return direct ?? null;
+}
 
 // Defensive require: if RNGestureHandlerModule is missing from the native binary
 // (e.g. NDK mismatch in EAS build), getEnforcing() throws at module-eval time and
@@ -66,6 +94,9 @@ class RootErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[BOOT] RootErrorBoundary caught:', error?.message, info?.componentStack);
+    void import('../lib/sentry').then(({ captureException }) => {
+      captureException(error, { componentStack: info.componentStack ?? '' });
+    });
   }
 
   render() {
@@ -193,7 +224,14 @@ function RootNavigator() {
 
   useEffect(() => {
     console.log('[BOOT] 5. RootNavigator mounted');
+    trackEvent(AnalyticsEvents.APP_OPEN);
   }, []);
+
+  useEffect(() => {
+    const userId = session?.user?.id ?? null;
+    identifyAnalyticsUser(userId);
+    setSentryUser(userId, session?.user?.email ?? null);
+  }, [session?.user?.id, session?.user?.email]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -233,7 +271,9 @@ function RootNavigator() {
       if (!supabase) return;
       const { createSessionFromUrl } = await import('../lib/authRedirect');
       const ok = await createSessionFromUrl(url, supabase);
-      if (ok) router.replace('/(app)');
+      if (ok) {
+        router.replace(hasCompletedOnboarding() ? '/(app)' : '/onboarding/welcome');
+      }
     };
     Linking.getInitialURL().then(handleUrl);
     const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url));
@@ -319,14 +359,29 @@ function RootNavigator() {
     if (error && !ignoreSessionError) return;
 
     const t = setTimeout(() => {
+      const redirected = resolveRedirectPath(pathname);
+      if (redirected) {
+        router.replace(redirected);
+        return;
+      }
       if (!session && !skipToAuth && !devBypass) {
         if (!pathname || !pathname.startsWith('/auth')) {
-          router.replace('/auth/sign-up');
+          router.replace('/auth/sign-in');
         }
         return;
       }
       if (session && pathname?.startsWith('/auth')) {
-        router.replace('/(app)');
+        router.replace(hasCompletedOnboarding() ? '/(app)' : '/onboarding/welcome');
+        return;
+      }
+      if (
+        session &&
+        !hasCompletedOnboarding() &&
+        pathname &&
+        !pathname.startsWith('/onboarding') &&
+        !pathname.startsWith('/auth')
+      ) {
+        router.replace('/onboarding/welcome');
       }
     }, 0);
     return () => clearTimeout(t);
@@ -374,6 +429,7 @@ function RootNavigator() {
       </ErrorBoundary>
       <Toast />
       <OfflineBanner />
+      <ConnectivityBanner />
       
       {pendingShareUrl && (
         <Modal
@@ -429,7 +485,13 @@ function AppTree() {
     return (
       <SafeFirstFrame>
         <View style={{ flex: 1 }}>
-          <RootNavigator />
+          <ThemeProvider>
+            <LocaleProvider>
+              <ChoreographyFontsLoader>
+                <RootNavigator />
+              </ChoreographyFontsLoader>
+            </LocaleProvider>
+          </ThemeProvider>
         </View>
       </SafeFirstFrame>
     );
@@ -437,7 +499,13 @@ function AppTree() {
   return (
     <SafeFirstFrame>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <RootNavigator />
+        <ThemeProvider>
+          <LocaleProvider>
+            <ChoreographyFontsLoader>
+              <RootNavigator />
+            </ChoreographyFontsLoader>
+          </LocaleProvider>
+        </ThemeProvider>
       </GestureHandlerRootView>
     </SafeFirstFrame>
   );

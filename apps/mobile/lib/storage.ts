@@ -38,11 +38,34 @@ try {
   console.error('[storage] Loop MMKV init failed:', e);
 }
 
+let stemFocusStorage: MMKV | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { MMKV: MMKVClass } = require('react-native-mmkv') as typeof import('react-native-mmkv');
+  stemFocusStorage = new MMKVClass({ id: 'stem-focus' });
+} catch (e) {
+  console.error('[storage] Stem focus MMKV init failed:', e);
+}
+
 const UPLOAD_QUEUE_KEY = 'upload_queue';
 const TUS_URLS_KEY = 'tus_urls';
 
 type LoupeState = { x: number; y: number; zoom: number };
 type LoopState = { start: number; end: number };
+type StemStatus = 'active' | 'muted';
+export type StemFocusState = {
+  vocals: StemStatus;
+  drums: StemStatus;
+  bass: StemStatus;
+  instruments: StemStatus;
+};
+
+export const DEFAULT_STEM_FOCUS: StemFocusState = {
+  vocals: 'active',
+  drums: 'active',
+  bass: 'active',
+  instruments: 'active',
+};
 
 export function getUploadQueue(): QueueItem[] {
   if (!storage) return [];
@@ -164,6 +187,39 @@ export function setLoopOpenAt(sessionId: string, value: number | null): void {
     return;
   }
   loopStorage.set(key, String(value));
+}
+
+export function getStemFocus(sessionId: string): StemFocusState {
+  if (!stemFocusStorage) return DEFAULT_STEM_FOCUS;
+  const raw = stemFocusStorage.getString(`stemFocus:${sessionId}`);
+  if (!raw) return DEFAULT_STEM_FOCUS;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const focus = parsed as Record<string, unknown>;
+      if (
+        (focus.vocals === 'active' || focus.vocals === 'muted') &&
+        (focus.drums === 'active' || focus.drums === 'muted') &&
+        (focus.bass === 'active' || focus.bass === 'muted') &&
+        (focus.instruments === 'active' || focus.instruments === 'muted')
+      ) {
+        return {
+          vocals: focus.vocals,
+          drums: focus.drums,
+          bass: focus.bass,
+          instruments: focus.instruments,
+        };
+      }
+    }
+    return DEFAULT_STEM_FOCUS;
+  } catch {
+    return DEFAULT_STEM_FOCUS;
+  }
+}
+
+export function setStemFocus(sessionId: string, state: StemFocusState): void {
+  if (!stemFocusStorage) return;
+  stemFocusStorage.set(`stemFocus:${sessionId}`, JSON.stringify(state));
 }
 
 const ACTIVE_SESSION_ID_KEY = 'active_session_id';

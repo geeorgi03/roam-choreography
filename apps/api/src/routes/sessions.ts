@@ -115,8 +115,10 @@ async function assertMomentsSessionAccess(
   return { status: 500, error: accessCheck.error };
 }
 
+type JsonReqContext = { req: { json: () => Promise<unknown> } };
+
 async function safeReqJson<T>(
-  c: { req: { json: <U>() => Promise<U> } } | any
+  c: JsonReqContext
 ): Promise<{ ok: true; data: T } | { ok: false }> {
   try {
     // Avoid passing type arguments to potentially `any`-typed request helpers.
@@ -203,9 +205,8 @@ app.get('/', async (c) => {
   const sessions = (data ?? []).map((row) => {
     const typedRow = row as Session & {
       clips?: Array<{ count?: number | null }> | null;
-      section_clips?: Array<{ count?: number | null }> | null;
     };
-    const { clips, section_clips, ...sessionFields } = typedRow;
+    const { clips, ...sessionFields } = typedRow;
 
     return {
       ...sessionFields,
@@ -886,10 +887,10 @@ app.put('/:id/moments/:momentId/formation', async (c) => {
 
   const { data, error } = await supabase
     .from('moments')
-    .update({ formation: formationInput ?? null })
+    .update({ formation: formationInput ?? null, last_modified_at: new Date().toISOString() })
     .eq('id', momentId)
     .eq('session_id', sessionId)
-    .select('formation')
+    .select('formation, last_modified_at')
     .maybeSingle();
 
   if (error) {
@@ -897,7 +898,10 @@ app.put('/:id/moments/:momentId/formation', async (c) => {
     return c.json({ error: error.message }, 500);
   }
   if (!data) return c.json({ error: 'Not found' }, 404);
-  return c.json({ formation: data.formation as FormationData | null });
+  return c.json({
+    formation: data.formation as FormationData | null,
+    last_modified_at: (data as { last_modified_at?: string | null }).last_modified_at ?? null,
+  });
 });
 
 /** GET /sessions/:id/moments/:momentId/quality — fetch moment quality */
@@ -1118,8 +1122,184 @@ app.delete('/:id/loops/:loopId', async (c) => {
   return c.body(null, 204);
 });
 
+/** GET /sessions/:id/drill-sequence — get ordered drill regions for session */
+app.get('/:id/drill-sequence', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const accessResult = await assertMomentsSessionAccess(sessionId, userId);
+  if (accessResult.status !== 200) {
+    return c.json({ error: accessResult.error }, accessResult.status);
+  }
+  const sequence = await getDrillSequenceBySession(sessionId);
+  return c.json(sequence);
+});
+
+/** POST /sessions/:id/drill-sequence — append one drill region */
+app.post('/:id/drill-sequence', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, user_id')
+    .eq('id', sessionId)
+    .maybeSingle();
+  if (sessionError) return c.json({ error: sessionError.message }, 500);
+  if (!sessionRow) return c.json({ error: 'Not found' }, 404);
+  if (sessionRow.user_id !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+  const parsedBody = await safeReqJson<DrillSequenceItem>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const parsedItems = parseDrillSequenceItems([parsedBody.data]);
+  if (!parsedItems) return c.json({ error: 'Invalid drill sequence item' }, 400);
+  const item = parsedItems[0];
+
+  const current = await getDrillSequenceBySession(sessionId);
+  const nextItems = [...current.items, item];
+
+  const { error } = await supabase
+    .from('drill_sequences')
+    .upsert(
+      {
+        session_id: sessionId,
+        items: nextItems,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'session_id' }
+    );
+  if (error) return c.json({ error: error.message }, 500);
+
+  return c.json({ session_id: sessionId, items: nextItems } as Pick<DrillSequence, 'session_id' | 'items'>, 201);
+});
+
+/** PATCH /sessions/:id/drill-sequence — replace ordered drill regions */
+app.patch('/:id/drill-sequence', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, user_id')
+    .eq('id', sessionId)
+    .maybeSingle();
+  if (sessionError) return c.json({ error: sessionError.message }, 500);
+  if (!sessionRow) return c.json({ error: 'Not found' }, 404);
+  if (sessionRow.user_id !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+  const parsedBody = await safeReqJson<DrillSequencePayload>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const parsedItems = parseDrillSequenceItems(parsedBody.data?.items ?? []);
+  if (parsedItems === null) return c.json({ error: 'items must be a valid drill sequence list' }, 400);
+
+  const { error } = await supabase
+    .from('drill_sequences')
+    .upsert(
+      {
+        session_id: sessionId,
+        items: parsedItems,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'session_id' }
+    );
+  if (error) return c.json({ error: error.message }, 500);
+
+  const sequence = await getDrillSequenceBySession(sessionId);
+  return c.json(sequence);
+});
+
+/** PUT /sessions/:id/drill-sequence — replace ordered drill regions */
+app.put('/:id/drill-sequence', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, user_id')
+    .eq('id', sessionId)
+    .maybeSingle();
+  if (sessionError) return c.json({ error: sessionError.message }, 500);
+  if (!sessionRow) return c.json({ error: 'Not found' }, 404);
+  if (sessionRow.user_id !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+  const parsedBody = await safeReqJson<DrillSequencePayload>(c);
+  if (!parsedBody.ok) return c.json({ error: 'Malformed JSON' }, 400);
+  const parsedItems = parseDrillSequenceItems(parsedBody.data?.items ?? []);
+  if (parsedItems === null) return c.json({ error: 'items must be a valid drill sequence list' }, 400);
+
+  const { error } = await supabase
+    .from('drill_sequences')
+    .upsert(
+      {
+        session_id: sessionId,
+        items: parsedItems,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'session_id' }
+    );
+  if (error) return c.json({ error: error.message }, 500);
+
+  const sequence = await getDrillSequenceBySession(sessionId);
+  return c.json(sequence);
+});
+
+/** DELETE /sessions/:id/drill-sequence — clear sequence */
+app.delete('/:id/drill-sequence', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const { data: sessionRow, error: sessionError } = await supabase
+    .from('sessions')
+    .select('id, user_id')
+    .eq('id', sessionId)
+    .maybeSingle();
+  if (sessionError) return c.json({ error: sessionError.message }, 500);
+  if (!sessionRow) return c.json({ error: 'Not found' }, 404);
+  if (sessionRow.user_id !== userId) return c.json({ error: 'Forbidden' }, 403);
+
+  const { error } = await supabase
+    .from('drill_sequences')
+    .delete()
+    .eq('session_id', sessionId);
+  if (error) return c.json({ error: error.message }, 500);
+  return c.body(null, 204);
+});
+
 type SectionEntry = { label: string; start_ms: number };
 type NotePinRow = { id: string; session_id: string; text: string | null; timecode_ms: number | null };
+type DrillSequenceItem = { id: string; label: string; start_ms: number; end_ms: number };
+type DrillSequence = { session_id: string; items: DrillSequenceItem[]; updated_at: string };
+type DrillSequencePayload = { items?: unknown };
+
+function parseDrillSequenceItems(input: unknown): DrillSequenceItem[] | null {
+  if (!Array.isArray(input)) return null;
+  const parsed: DrillSequenceItem[] = [];
+  for (const raw of input) {
+    if (!raw || typeof raw !== 'object') return null;
+    const typed = raw as Record<string, unknown>;
+    const id = typeof typed.id === 'string' ? typed.id.trim() : '';
+    const label = typeof typed.label === 'string' ? typed.label.trim() : '';
+    const startMs = typed.start_ms;
+    const endMs = typed.end_ms;
+    if (!id || !label) return null;
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return null;
+    const start = Math.round(startMs as number);
+    const end = Math.round(endMs as number);
+    if (end <= start || start < 0) return null;
+    parsed.push({ id, label, start_ms: start, end_ms: end });
+  }
+  return parsed;
+}
+
+async function getDrillSequenceBySession(sessionId: string): Promise<DrillSequence> {
+  const { data } = await supabase
+    .from('drill_sequences')
+    .select('session_id, items, updated_at')
+    .eq('session_id', sessionId)
+    .maybeSingle();
+  const row = data as { session_id: string; items?: unknown; updated_at?: string } | null;
+  const items = parseDrillSequenceItems(row?.items ?? []) ?? [];
+  return {
+    session_id: sessionId,
+    items,
+    updated_at: row?.updated_at ?? new Date(0).toISOString(),
+  };
+}
 
 function formatMmSs(timecodeMs: number | null | undefined): string {
   const clamped = Math.max(0, Math.floor((timecodeMs ?? 0) / 1000));

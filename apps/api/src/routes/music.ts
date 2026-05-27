@@ -38,6 +38,203 @@ const MIME_TO_EXT: Record<string, string> = {
 const YOUTUBE_URL_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i;
 const BILIBILI_URL_REGEX = /^(https?:\/\/)?(www\.)?(bilibili\.com\/video\/|b23\.tv\/)[\w/-]+/i;
 
+function splitArtistAndTitle(query: string): { artist?: string; title?: string } {
+  const normalized = query.trim();
+  if (!normalized) return {};
+  const sep = normalized.includes(' - ') ? ' - ' : normalized.includes('-') ? '-' : null;
+  if (!sep) return {};
+  const [left, ...rest] = normalized.split(sep);
+  const right = rest.join(sep).trim();
+  const artist = left.trim();
+  const title = right.trim();
+  if (!artist || !title) return {};
+  return { artist, title };
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+type LyricsHit = {
+  artist: string;
+  title: string;
+  lyrics: string;
+  format: 'lrc' | 'plain';
+};
+
+async function tryFetchLyrics(artist: string, title: string): Promise<LyricsHit | null> {
+  const res = await fetchWithTimeout(
+    `https://api.lyrics.ovh/v1/${encodeURIComponent(artist)}/${encodeURIComponent(title)}`,
+    4_000
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { lyrics?: string };
+  const lyrics = (data.lyrics ?? '').trim();
+  if (!lyrics) return null;
+  return { artist, title, lyrics, format: 'plain' };
+}
+
+async function tryFetchLyricsLrclib(artist: string, title: string): Promise<LyricsHit | null> {
+  const res = await fetchWithTimeout(
+    `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artist)}&track_name=${encodeURIComponent(title)}`,
+    4_000
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { plainLyrics?: string; syncedLyrics?: string };
+  const synced = (data.syncedLyrics ?? '').trim();
+  if (synced) return { artist, title, lyrics: synced, format: 'lrc' };
+  const lyrics = (data.plainLyrics ?? '').trim();
+  if (!lyrics) return null;
+  return { artist, title, lyrics, format: 'plain' };
+}
+
+/** GET /sessions/:id/music/lyrics?query=artist%20-%20title */
+app.get('/:id/music/lyrics', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const session = await getSessionForUser(sessionId, userId);
+  if (!session) return c.json({ error: 'Not found' }, 404);
+
+  const query = (c.req.query('query') ?? '').trim();
+  if (query.length < 2) {
+    return c.json({ error: 'query is required' }, 400);
+  }
+
+  try {
+    let lyricsProviderAttempted = false;
+    let lrclibProviderAttempted = false;
+    let lyricsProviderErrored = false;
+    let lrclibProviderErrored = false;
+
+    const direct = splitArtistAndTitle(query);
+    if (direct.artist && direct.title) {
+      try {
+        lrclibProviderAttempted = true;
+        const exactLrclib = await tryFetchLyricsLrclib(direct.artist, direct.title);
+        if (exactLrclib) return c.json({ ...exactLrclib, provider: 'lrclib' }, 200);
+      } catch {
+        lrclibProviderErrored = true;
+      }
+
+      let exact: Awaited<ReturnType<typeof tryFetchLyrics>> = null;
+      try {
+        lyricsProviderAttempted = true;
+        exact = await tryFetchLyrics(direct.artist, direct.title);
+      } catch {
+        lyricsProviderErrored = true;
+      }
+      if (exact) return c.json({ ...exact, provider: 'lyrics.ovh' }, 200);
+    }
+
+    let suggestRes: Response | null = null;
+    try {
+      lyricsProviderAttempted = true;
+      suggestRes = await fetchWithTimeout(
+        `https://api.lyrics.ovh/suggest/${encodeURIComponent(query)}`,
+        4_000
+      );
+    } catch {
+      lyricsProviderErrored = true;
+    }
+    if (suggestRes && suggestRes.ok) {
+      const suggestJson = (await suggestRes.json()) as {
+        data?: Array<{ title?: string; artist?: { name?: string } }>;
+      };
+      const candidates = Array.isArray(suggestJson.data) ? suggestJson.data.slice(0, 8) : [];
+      for (const item of candidates) {
+        const artist = item.artist?.name?.trim();
+        const title = item.title?.trim();
+        if (!artist || !title) continue;
+        try {
+          lyricsProviderAttempted = true;
+          const hit = await tryFetchLyrics(artist, title);
+          if (hit) return c.json({ ...hit, provider: 'lyrics.ovh' }, 200);
+        } catch {
+          lyricsProviderErrored = true;
+        }
+      }
+    } else if (suggestRes && !suggestRes.ok) {
+      lyricsProviderErrored = true;
+    }
+
+    try {
+      lrclibProviderAttempted = true;
+      const fallback = await tryFetchLyricsLrclib(
+        direct.artist ?? query,
+        direct.title ?? query
+      );
+      if (fallback) return c.json({ ...fallback, provider: 'lrclib' }, 200);
+    } catch {
+      lrclibProviderErrored = true;
+    }
+
+    if (
+      lyricsProviderAttempted &&
+      lrclibProviderAttempted &&
+      lyricsProviderErrored &&
+      lrclibProviderErrored
+    ) {
+      return c.json({ error: 'lyrics provider unavailable', reason: 'provider_error' }, 503);
+    }
+  } catch {
+    return c.json({ error: 'lyrics lookup failed', reason: 'provider_error' }, 500);
+  }
+
+  return c.json({ error: 'lyrics not found' }, 404);
+});
+
+/** POST /sessions/:id/music/retry — re-queue analysis for existing track (no re-upload) */
+app.post('/:id/music/retry', async (c) => {
+  const userId = c.get('userId');
+  const sessionId = c.req.param('id');
+  const session = await getSessionForUser(sessionId, userId);
+  if (!session) return c.json({ error: 'Not found' }, 404);
+
+  const gateRes = await checkMusicSegmentation(c, async () => {});
+  if (gateRes) return gateRes;
+
+  const { data: track, error: fetchError } = await supabase
+    .from('music_tracks')
+    .select('id, source_type, source_url')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (fetchError) return c.json({ error: fetchError.message }, 500);
+  if (!track) return c.json({ error: 'Nothing to retry' }, 400);
+  if (track.source_type !== 'upload' && !track.source_url) {
+    return c.json({ error: 'Nothing to retry' }, 400);
+  }
+
+  const musicTrackId = track.id as string;
+
+  const { error: updateError } = await supabase
+    .from('music_tracks')
+    .update({ analysis_status: 'pending' })
+    .eq('id', musicTrackId);
+  if (updateError) return c.json({ error: updateError.message }, 500);
+
+  const timeoutMs = 3 * 60_000;
+  const timeoutAt = new Date(Date.now() + timeoutMs).toISOString();
+  const { error: jobError } = await supabase.from('analysis_jobs').insert({
+    session_id: sessionId,
+    music_track_id: musicTrackId,
+    status: 'pending',
+    attempt_count: 0,
+    timeout_at: timeoutAt,
+  });
+  if (jobError) return c.json({ error: jobError.message }, 500);
+
+  return c.json({ music_track_id: musicTrackId, analysis_status: 'pending' }, 200);
+});
+
 /** POST /sessions/:id/music — upload file or submit YouTube URL */
 app.post('/:id/music', async (c) => {
   const userId = c.get('userId');
@@ -95,7 +292,7 @@ app.post('/:id/music', async (c) => {
     const buffer = await f.arrayBuffer();
     const { error: uploadError } = await supabase.storage
       .from('audio')
-      .upload(storagePath, buffer, { contentType: f.type });
+      .upload(storagePath, buffer, { contentType: f.type, upsert: true });
     if (uploadError) return c.json({ error: uploadError.message }, 500);
 
     const { error: upsertTrackError } = await supabase
@@ -151,7 +348,12 @@ app.post('/:id/music', async (c) => {
   }
 
   // JSON / YouTube branch
-  const body = await c.req.json<{ youtube_url?: string }>();
+  let body: { youtube_url?: string } = {};
+  try {
+    body = await c.req.json<{ youtube_url?: string }>();
+  } catch {
+    return c.json({ error: 'Malformed JSON body' }, 400);
+  }
   const youtube_url = body?.youtube_url;
   const isYouTubeUrl = typeof youtube_url === 'string' && YOUTUBE_URL_REGEX.test(youtube_url);
   const isBilibiliUrl = typeof youtube_url === 'string' && BILIBILI_URL_REGEX.test(youtube_url);

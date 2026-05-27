@@ -16,7 +16,7 @@ import { useMusicTrackStatus } from '../lib/hooks/useMusicTrackStatus';
 import { useClips } from '../lib/hooks/useClips';
 import type { SectionClip, SectionEntry } from '@roam/types';
 import type { ClipRow } from '../lib/database';
-import { API_BASE } from '../lib/api';
+import { apiRequest, ApiRequestError } from '../lib/api';
 
 type Assignment = {
   section_label: string;
@@ -49,28 +49,45 @@ export function AssemblyCanvas({ sessionId }: AssemblyCanvasProps) {
   const [selectedSection, setSelectedSection] = useState<SectionEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [assemblyRevision, setAssemblyRevision] = useState<string | null>(null);
 
   const sections = (musicTrack?.sections ?? []) as SectionEntry[];
+
+  const mapAssignments = useCallback((payload: unknown): Assignment[] => {
+    const list = Array.isArray(payload)
+      ? payload
+      : payload && typeof payload === 'object' && 'assignments' in payload
+        ? (payload as { assignments?: unknown }).assignments
+        : [];
+    return (Array.isArray(list) ? list : []).map((a) => {
+      const row = a as SectionClip;
+      return {
+        section_label: row.section_label,
+        section_start_ms: row.section_start_ms,
+        clip_id: row.clip_id,
+        position: row.position,
+      };
+    });
+  }, []);
+
+  const loadAssignments = useCallback(async () => {
+    if (!sessionId || !session?.access_token) return;
+    const res = await apiRequest(`/sessions/${sessionId}/assembly`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      timeoutMs: 8_000,
+      retries: 2,
+    });
+    setAssemblyRevision(res.headers.get('x-assembly-revision'));
+    const data = (await res.json()) as unknown;
+    setAssignments(mapAssignments(data));
+  }, [session?.access_token, sessionId, mapAssignments]);
 
   useEffect(() => {
     if (!sessionId || !session?.access_token) return;
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}/assembly`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (mounted && res.ok) {
-          const data = (await res.json()) as SectionClip[];
-          setAssignments(
-            data.map((a) => ({
-              section_label: a.section_label,
-              section_start_ms: a.section_start_ms,
-              clip_id: a.clip_id,
-              position: a.position,
-            }))
-          );
-        }
+        await loadAssignments();
       } catch {
         // ignore
       } finally {
@@ -80,46 +97,43 @@ export function AssemblyCanvas({ sessionId }: AssemblyCanvasProps) {
     return () => {
       mounted = false;
     };
-  }, [sessionId, session?.access_token]);
+  }, [sessionId, session?.access_token, loadAssignments]);
 
   const persistAssignments = useCallback(
     async (next: Assignment[]) => {
       if (!sessionId || !session?.access_token) return;
       try {
         setSaveError(null);
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}/assembly`, {
+        const res = await apiRequest(`/sessions/${sessionId}/assembly`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${session.access_token}`,
+            ...(assemblyRevision ? { 'x-assembly-revision': assemblyRevision } : {}),
           },
           body: JSON.stringify({ assignments: next }),
+          timeoutMs: 10_000,
+          retries: 1,
         });
         if (!res.ok) {
           setSaveError('Could not save assembly changes. Please try again.');
           return;
         }
 
-        // Prefer canonical server output (ordering/validation) when available.
-        try {
-          const data = (await res.json()) as SectionClip[];
-          setAssignments(
-            data.map((a) => ({
-              section_label: a.section_label,
-              section_start_ms: a.section_start_ms,
-              clip_id: a.clip_id,
-              position: a.position,
-            }))
-          );
-        } catch {
-          // If server returns no body, fall back to the requested next state.
-          setAssignments(next);
+        setAssemblyRevision(res.headers.get('x-assembly-revision'));
+        const data = (await res.json()) as unknown;
+        const mapped = mapAssignments(data);
+        setAssignments(mapped.length > 0 ? mapped : next);
+      } catch (error) {
+        if (error instanceof ApiRequestError && error.status === 409) {
+          setSaveError('Assembly changed elsewhere. Reloaded latest state.');
+          await loadAssignments();
+          return;
         }
-      } catch {
         setSaveError('Could not save assembly changes. Please check your connection and try again.');
       }
     },
-    [sessionId, session?.access_token]
+    [sessionId, session?.access_token, assemblyRevision, mapAssignments, loadAssignments]
   );
 
   const getClipsForSection = useCallback(

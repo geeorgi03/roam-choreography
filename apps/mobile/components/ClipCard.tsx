@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { theme } from '../lib/theme';
 import type { ClipRow } from '../lib/database';
@@ -19,6 +20,8 @@ export interface ClipCardProps {
 }
 
 export function ClipCard({ clip, onPress, onLongPress, onRetry, commentCount }: ClipCardProps) {
+  const animatedValue = React.useRef(new Animated.Value(1)).current;
+  
   const showThumbnail =
     clip.mux_playback_id && clip.upload_status === 'ready';
   const timeStr = clip.recorded_at
@@ -37,13 +40,34 @@ export function ClipCard({ clip, onPress, onLongPress, onRetry, commentCount }: 
     hasText(clip.notes);
   const untagged = !tagged;
 
+  const handlePressIn = () => {
+    Animated.spring(animatedValue, {
+      toValue: 0.98,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(animatedValue, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start();
+  };
+
   return (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      activeOpacity={0.8}
-    >
+    <Animated.View style={[styles.row, { transform: [{ scale: animatedValue }] }]}>
+      <TouchableOpacity
+        style={styles.touchable}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+      >
       <View style={styles.thumbWrap}>
         {clip.clip_type === 'voice_memo' ? (
           <View style={styles.voiceMemoThumb}>
@@ -109,7 +133,8 @@ export function ClipCard({ clip, onPress, onLongPress, onRetry, commentCount }: 
           )}
         </View>
       </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -117,44 +142,60 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.light.border,
+    marginHorizontal: theme.spacing['4'],
+    marginVertical: theme.spacing['1.5'],
+    paddingVertical: theme.spacing['4'],
+    paddingHorizontal: theme.spacing['5'],
+    backgroundColor: theme.light.surfaceElevated,
+    borderRadius: theme.spacing.radiusXl,
+    borderWidth: 1,
+    borderColor: theme.light.borderLight,
+    ...theme.shadows.sm,
+  },
+  touchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   thumbWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 6,
+    width: 88,
+    height: 88,
+    borderRadius: theme.spacing.radiusLg,
     overflow: 'hidden',
-    marginRight: 12,
+    marginRight: theme.spacing['4'],
+    backgroundColor: theme.light.chromeElevated,
+    borderWidth: 1,
+    borderColor: theme.light.borderLight,
+    ...theme.shadows.glassSm,
   },
   thumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 6,
+    width: 88,
+    height: 88,
+    borderRadius: theme.spacing.radiusLg,
   },
   thumbPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 6,
-    backgroundColor: theme.light.chrome,
+    width: 88,
+    height: 88,
+    borderRadius: theme.spacing.radiusLg,
+    backgroundColor: theme.light.chromeElevated,
     borderWidth: 1,
-    borderColor: theme.light.border,
+    borderColor: theme.light.borderLight,
     justifyContent: 'center',
     alignItems: 'center',
+    ...theme.shadows.glassSm,
   },
   thumbIcon: {
     color: theme.light.muted,
     fontSize: 20,
   },
   voiceMemoThumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 6,
+    width: 88,
+    height: 88,
+    borderRadius: theme.spacing.radiusLg,
     backgroundColor: theme.light.capture,
     justifyContent: 'center',
     alignItems: 'center',
+    ...theme.shadows.orangeSm,
   },
   voiceMemoIcon: {
     fontSize: 24,
@@ -163,46 +204,52 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: theme.typography.sizes.xl,
+    fontWeight: theme.typography.weights.semibold,
     fontFamily: theme.typography.displayFamily,
     color: theme.light.active,
-    marginBottom: 4,
+    marginBottom: theme.spacing['2'],
+    lineHeight: theme.typography.lineHeights.snug,
+    letterSpacing: theme.typography.letterSpacing.tight,
   },
   meta: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: theme.spacing['2'],
   },
   timestamp: {
-    fontSize: 12,
+    fontSize: theme.typography.sizes.sm,
     fontFamily: theme.typography.monoFamily,
     color: theme.light.muted,
+    letterSpacing: theme.typography.letterSpacing.wide,
   },
   pill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: theme.light.chrome,
+    paddingHorizontal: theme.spacing['3'],
+    paddingVertical: theme.spacing['1.5'],
+    borderRadius: theme.spacing.radiusMd,
+    backgroundColor: theme.light.chromeElevated,
     borderWidth: 1,
-    borderColor: theme.light.border,
+    borderColor: theme.light.borderLight,
+    ...theme.shadows.glassSm,
   },
   pillRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: theme.light.chrome,
+    gap: theme.spacing['2'],
+    paddingHorizontal: theme.spacing['3'],
+    paddingVertical: theme.spacing['1.5'],
+    borderRadius: theme.spacing.radiusMd,
+    backgroundColor: theme.light.chromeElevated,
     borderWidth: 1,
-    borderColor: theme.light.border,
+    borderColor: theme.light.borderLight,
+    ...theme.shadows.glassSm,
   },
   pillText: {
-    fontSize: 12,
+    fontSize: theme.typography.sizes.sm,
     fontFamily: theme.typography.monoFamily,
     color: theme.light.muted,
+    fontWeight: theme.typography.weights.medium,
   },
   pillRetry: {
     backgroundColor: 'transparent',
@@ -212,17 +259,22 @@ const styles = StyleSheet.create({
     color: '#e57373',
   },
   pillUntagged: {
-    backgroundColor: theme.light.amberBg,
+    backgroundColor: theme.light.amberBgLight,
+    borderColor: theme.light.amberLight,
   },
   pillUntaggedText: {
-    fontSize: 12,
+    fontSize: theme.typography.sizes.sm,
     color: theme.light.amber,
+    fontWeight: theme.typography.weights.semibold,
   },
   pillComment: {
-    backgroundColor: 'rgba(184, 134, 11, 0.3)',
+    backgroundColor: theme.light.purpleBg,
+    borderColor: theme.light.purple,
+    borderWidth: 1,
   },
   pillCommentText: {
-    fontSize: 12,
-    color: '#b8860b',
+    fontSize: theme.typography.sizes.sm,
+    color: theme.light.purple,
+    fontWeight: theme.typography.weights.semibold,
   },
 });

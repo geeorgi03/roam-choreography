@@ -9,6 +9,8 @@ import { theme } from '../../lib/theme';
 import { router } from 'expo-router';
 import { API_BASE } from '../../lib/api';
 import { useTranslation } from '../../lib/i18n';
+import { useTheme } from '../../lib/contexts/ThemeContext';
+import { IconInbox, IconMoreVertical, IconShareOut } from '../icons/SessionChromeIcons';
 
 const colors = theme.light;
 
@@ -31,13 +33,14 @@ function qualityTargetThumbnailUri(
 }
 
 const phraseBaseStyle = {
-  fontFamily: theme.typography.displayFamily,
-  fontStyle: 'italic' as const,
+  fontFamily: theme.typography.bodyFamily,
+  fontStyle: 'normal' as const,
   color: colors.muted,
 };
 
 export function FeelingStrip() {
   const { t } = useTranslation();
+  const { colors: themeColors } = useTheme();
   const { sessionName, sessionPhrase, updateSessionMeta, openSheet, qualityTarget, sessionId, session } =
     useSessionContext();
   const { count } = useInboxCount();
@@ -202,9 +205,11 @@ export function FeelingStrip() {
           style={styles.iconButton}
           onPress={() => router.push('/(app)/inbox')}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('feelingStrip.a11yInbox')}
         >
           <View style={{ position: 'relative' }}>
-            <Text style={styles.iconText}>🔔</Text>
+            <IconInbox size={22} color={themeColors.muted} />
             {count > 0 && (
               <View style={styles.inboxBadge}>
                 <Text style={styles.inboxBadgeText}>{count}</Text>
@@ -212,11 +217,23 @@ export function FeelingStrip() {
             )}
           </View>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton} onPress={() => openSheet('share')} activeOpacity={0.8}>
-          <Text style={styles.iconText}>↗</Text>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => openSheet('share')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('feelingStrip.a11yShare')}
+        >
+          <IconShareOut size={20} color={themeColors.muted} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconButton} onPress={handleOverflowMenu} activeOpacity={0.8}>
-          <Text style={styles.iconText}>⋮</Text>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={handleOverflowMenu}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={t('feelingStrip.a11yMore')}
+        >
+          <IconMoreVertical size={20} color={themeColors.muted} />
         </TouchableOpacity>
       </View>
     </View>
@@ -244,8 +261,9 @@ const styles = StyleSheet.create({
   },
   phrase: {
     ...phraseBaseStyle,
-    fontSize: 16,
+    fontSize: 15,
     marginLeft: 12,
+    fontWeight: '500',
   },
   qualityTargetRow: {
     flexDirection: 'row',
@@ -269,15 +287,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  iconText: {
-    fontSize: 14,
-    color: colors.muted,
   },
   inboxBadge: {
     position: 'absolute',

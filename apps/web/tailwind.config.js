@@ -1,19 +1,26 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./app/**/*.{ts,tsx}'],
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        'roam-ground': '#f9f7f4',
-        'roam-active': '#3a342d',
-        'roam-mine': '#7db9a8',
-        'roam-amber': '#e8a87c',
-        'roam-muted': '#9e9189',
-        'roam-border': '#e8e3dc',
-        'roam-chrome': '#ffffff',
+        'roam-shell': '#1c1c1e',
+        'roam-ground': '#09090e',
+        'roam-active': '#fafafa',
+        'roam-muted': 'rgba(255,255,255,0.35)',
+        'roam-muted-mid': 'rgba(255,255,255,0.75)',
+        'roam-primary': '#ff2d6b',
+        'roam-border': 'rgba(255,255,255,0.1)',
+        'roam-chrome': '#2c2c2e',
       },
       fontFamily: {
-        serif: ['Fraunces', 'Georgia', 'serif'],
+        display: ['var(--font-barlow)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-dm-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-dm-mono)', 'ui-monospace', 'monospace'],
+      },
+      boxShadow: {
+        tile: '0 2px 12px rgba(0,0,0,0.4)',
+        'tile-soft': '0 2px 12px rgba(0,0,0,0.2)',
       },
     },
   },

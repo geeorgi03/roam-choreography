@@ -546,7 +546,7 @@ const styles = react_native_1.StyleSheet.create({
         fontSize: 13,
     },
     parentClipLabel: {
-        color: colors.ink,
+        color: colors.active,
         fontWeight: '700',
     },
     inspiredNoteRow: {

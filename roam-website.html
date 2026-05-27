@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Roam - Choreography App for Dancers</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: #0A0908; 
+      color: #F4EBD6;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    
+    /* Header */
+    header {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: rgba(10, 9, 8, 0.95);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid #3a3530;
+      z-index: 1000;
+    }
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      font-family: Georgia, serif;
+      font-style: italic;
+      font-size: 28px;
+      color: #F4EBD6;
+      opacity: 0.8;
+    }
+    nav {
+      display: flex;
+      gap: 30px;
+    }
+    nav a {
+      color: #F4EBD6;
+      text-decoration: none;
+      font-size: 14px;
+      opacity: 0.7;
+      transition: opacity 0.3s ease;
+    }
+    nav a:hover {
+      opacity: 1;
+    }
+    
+    /* Main Content */
+    main {
+      margin-top: 80px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    
+    /* Hero Section */
+    .hero {
+      padding: 100px 0;
+      text-align: center;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(224, 110, 63, 0.1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero h1 {
+      font-family: Georgia, serif;
+      font-style: italic;
+      font-size: 56px;
+      color: #F4EBD6;
+      margin-bottom: 20px;
+      opacity: 0.8;
+    }
+    .tagline {
+      font-size: 20px;
+      color: #E06E3F;
+      margin-bottom: 40px;
+      font-style: italic;
+    }
+    .hero-description {
+      max-width: 600px;
+      margin: 0 auto 40px;
+      color: #999;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+    .cta-button {
+      display: inline-block;
+      background: #E06E3F;
+      color: white;
+      padding: 12px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    .cta-button:hover {
+      background: #d05a2f;
+      transform: translateY(-2px);
+    }
+    
+    /* Features Section */
+    .features {
+      padding: 80px 0;
+      background: rgba(30, 28, 24, 0.3);
+    }
+    .section-title {
+      font-family: Georgia, serif;
+      font-style: italic;
+      font-size: 36px;
+      color: #F4EBD6;
+      text-align: center;
+      margin-bottom: 60px;
+      opacity: 0.8;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 40px;
+    }
+    .feature-card {
+      background: #1E1C18;
+      border: 1px solid #3a3530;
+      border-radius: 12px;
+      padding: 30px;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .feature-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 30px rgba(224, 110, 63, 0.2);
+      border-color: #E06E3F;
+    }
+    .feature-icon {
+      width: 50px;
+      height: 50px;
+      background: #E06E3F;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: white;
+    }
+    .feature-title {
+      font-size: 20px;
+      color: #F4EBD6;
+      margin-bottom: 15px;
+      font-weight: 600;
+    }
+    .feature-description {
+      color: #999;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    /* Problem Section */
+    .problems {
+      padding: 80px 0;
+    }
+    .problems-grid {
+      display: grid;
+      gap: 30px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .problem-item {
+      border-left: 3px solid #E06E3F;
+      padding-left: 30px;
+      background: rgba(30, 28, 24, 0.3);
+      padding: 20px 30px;
+      border-radius: 0 8px 8px 0;
+    }
+    .problem-number {
+      color: #E06E3F;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .problem-text {
+      color: #999;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    /* Tech Stack Section */
+    .tech {
+      padding: 80px 0;
+      background: rgba(30, 28, 24, 0.3);
+    }
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 30px;
+    }
+    .tech-item {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      background: #1E1C18;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #3a3530;
+      transition: all 0.3s ease;
+    }
+    .tech-item:hover {
+      border-color: #E06E3F;
+      transform: translateY(-2px);
+    }
+    .tech-icon {
+      width: 40px;
+      height: 40px;
+      background: #E06E3F;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .tech-info h4 {
+      color: #F4EBD6;
+      margin-bottom: 5px;
+      font-size: 16px;
+    }
+    .tech-info p {
+      color: #999;
+      font-size: 12px;
+    }
+    
+    /* Screens Section */
+    .screens {
+      padding: 80px 0;
+    }
+    .screen-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 30px;
+      margin-bottom: 40px;
+    }
+    .screen-item {
+      background: #1E1C18;
+      border: 1px solid #3a3530;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+    }
+    .screen-item:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 30px rgba(224, 110, 63, 0.2);
+      border-color: #E06E3F;
+    }
+    .screen-item.zoomed {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 2000;
+      border-radius: 0;
+      cursor: zoom-out;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 9, 8, 0.95);
+    }
+    .screen-item.zoomed img {
+      max-width: 90vw;
+      max-height: 90vh;
+      object-fit: contain;
+    }
+    .screen-number {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: #E06E3F;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 10;
+    }
+    .screen-title {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(transparent, rgba(30, 28, 24, 0.9));
+      color: #F4EBD6;
+      padding: 20px 12px 12px;
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .screen-item:hover .screen-title {
+      opacity: 1;
+    }
+    .screen-item img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    
+    /* Footer */
+    footer {
+      background: rgba(30, 28, 24, 0.5);
+      border-top: 1px solid #3a3530;
+      padding: 40px 0;
+      text-align: center;
+    }
+    .footer-content {
+      color: #999;
+      font-size: 14px;
+    }
+    
+    /* Controls */
+    .controls {
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      z-index: 1001;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .control-btn {
+      background: rgba(30, 28, 24, 0.9);
+      color: #F4EBD6;
+      border: 1px solid #3a3530;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .control-btn:hover {
+      background: #E06E3F;
+      color: white;
+      border-color: #E06E3F;
+    }
+    
+    /* Navigation hint */
+    .nav-hint {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 28, 24, 0.9);
+      color: #F4EBD6;
+      padding: 12px 20px;
+      border-radius: 24px;
+      font-size: 13px;
+      border: 1px solid #3a3530;
+      z-index: 100;
+      opacity: 0;
+      animation: fadeInUp 0.5s ease forwards;
+      animation-delay: 1s;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 36px;
+      }
+      .tagline {
+        font-size: 16px;
+      }
+      nav {
+        display: none;
+      }
+      .features-grid,
+      .screen-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      .controls {
+        top: auto;
+        bottom: 80px;
+        right: 10px;
+        flex-direction: row;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <div class="logo">Roam</div>
+      <nav>
+        <a href="#overview">Overview</a>
+        <a href="#features">Features</a>
+        <a href="#problems">Problem</a>
+        <a href="#tech">Technology</a>
+        <a href="#screens">Screens</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container">
+        <h1>The Canvas for Choreography</h1>
+        <p class="tagline">"Roam remembers so the choreographer doesn't have to."</p>
+        <p class="hero-description">
+          Dance is the only major art form with no persistent memory. Roam fixes that. 
+          It holds the work so the artist can focus on creating. A mobile-first choreography 
+          app designed to help dancers and choreographers capture, organize, and refine their creative work.
+        </p>
+        <a href="#screens" class="cta-button">View Design Screens</a>
+      </div>
+    </section>
+
+    <!-- Overview Section -->
+    <section id="overview" class="features">
+      <div class="container">
+        <h2 class="section-title">What Is Roam?</h2>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">1</div>
+            <h3 class="feature-title">Capture-First Entry</h3>
+            <p class="feature-description">Record ideas instantly, organize later. One tap to record, zero setup required. No more losing brilliant moments to setup friction.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">2</div>
+            <h3 class="feature-title">Session Workbench</h3>
+            <p class="feature-description">All creation tools in one unified timeline view. Multi-track timeline with music, clips, notes, and loop regions.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">3</div>
+            <h3 class="feature-title">Voice-First Notes</h3>
+            <p class="feature-description">Pin thoughts at timecodes without breaking creative flow. Text or voice notes attached to specific moments in the music.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">4</div>
+            <h3 class="feature-title">Structured Feedback</h3>
+            <p class="feature-description">Share work with guided critique using the Liz Lerman method. Turn casual opinions into actionable feedback.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">5</div>
+            <h3 class="feature-title">Formation Mapping</h3>
+            <p class="feature-description">Visual floor marks for dancer positioning. 2D top-down view for choreographing group formations.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">6</div>
+            <h3 class="feature-title">Reference Integration</h3>
+            <p class="feature-description">Import YouTube, Bilibili, and Xiaohongshu videos directly. Mirror, slow motion, and A-B loop without leaving the app.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Problems Section -->
+    <section id="problems" class="problems">
+      <div class="container">
+        <h2 class="section-title">The Problems Roam Solves</h2>
+        <div class="problems-grid">
+          <div class="problem-item">
+            <div class="problem-number">Problem 1</div>
+            <p class="problem-text">Bilibili's A-B loop resets on every interaction. 20-30 minutes lost per session to manual re-scrubbing. This is the single highest time cost in active rehearsal.</p>
+          </div>
+          <div class="problem-item">
+            <div class="problem-number">Problem 2</div>
+            <p class="problem-text">A move spotted in a tutorial video cannot be bookmarked. It must be re-found every time. Mental overhead compounds across a session.</p>
+          </div>
+          <div class="problem-item">
+            <div class="problem-number">Problem 3</div>
+            <p class="problem-text">Person A proposes something, isn't sure of the exact form. Person B waits. No shared working memory. The idea is gone before evaluation.</p>
+          </div>
+          <div class="problem-item">
+            <div class="problem-number">Problem 4</div>
+            <p class="problem-text">Invented sections aren't attached to song structure. At assembly time, they have no home. They're left out of the final piece.</p>
+          </div>
+          <div class="problem-item">
+            <div class="problem-number">Problem 5</div>
+            <p class="problem-text">Alone in the studio with a song you know deeply, you freeze. No record of your own movements. No scaffolding to build from.</p>
+          </div>
+          <div class="problem-item">
+            <div class="problem-number">Problem 6</div>
+            <p class="problem-text">The inspiration is there, but there's no structure to hold the creative energy. No place for the half-formed thing to land before it disappears.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tech Stack Section -->
+    <section id="tech" class="tech">
+      <div class="container">
+        <h2 class="section-title">Technology Stack</h2>
+        <div class="tech-grid">
+          <div class="tech-item">
+            <div class="tech-icon">M</div>
+            <div class="tech-info">
+              <h4>Mobile</h4>
+              <p>Expo React Native - Single codebase for iOS/Android</p>
+            </div>
+          </div>
+          <div class="tech-item">
+            <div class="tech-icon">A</div>
+            <div class="tech-info">
+              <h4>API</h4>
+              <p>Node.js + Hono - Lightweight, fast backend</p>
+            </div>
+          </div>
+          <div class="tech-item">
+            <div class="tech-icon">D</div>
+            <div class="tech-info">
+              <h4>Database</h4>
+              <p>Supabase - PostgreSQL with auth & storage</p>
+            </div>
+          </div>
+          <div class="tech-item">
+            <div class="tech-icon">V</div>
+            <div class="tech-info">
+              <h4>Video</h4>
+              <p>Mux - Upload, encoding, CDN playback</p>
+            </div>
+          </div>
+          <div class="tech-item">
+            <div class="tech-icon">W</div>
+            <div class="tech-info">
+              <h4>Web</h4>
+              <p>Next.js - Share pages with SSR</p>
+            </div>
+          </div>
+          <div class="tech-item">
+            <div class="tech-icon">P</div>
+            <div class="tech-info">
+              <h4>Python</h4>
+              <p>Audio Analysis - BPM detection, beat grids</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screens Section -->
+    <section id="screens" class="screens">
+      <div class="container">
+        <h2 class="section-title">App Design Screens</h2>
+        <div class="screen-grid">
+          <div class="screen-item" data-screen="1">
+            <div class="screen-number">01</div>
+            <div class="screen-title">Onboarding & Home Screen</div>
+            <img src="App Build/ROAM_Design_Screens Complete_page-0001.jpg" alt="Screen 1">
+          </div>
+          <div class="screen-item" data-screen="2">
+            <div class="screen-number">02</div>
+            <div class="screen-title">Session Creation & Music Setup</div>
+            <img src="App Build/ROAM_Design_Screens Complete_page-0002.jpg" alt="Screen 2">
+          </div>
+          <div class="screen-item" data-screen="3">
+            <div class="screen-number">03</div>
+            <div class="screen-title">Session Workbench Timeline</div>
+            <img src="App Build/ROAM_Design_Screens Complete_page-0003.jpg" alt="Screen 3">
+          </div>
+          <div class="screen-item" data-screen="4">
+            <div class="screen-number">04</div>
+            <div class="screen-title">Capture & Recording</div>
+            <img src="App Build/ROAM_Design_Screens Complete_page-0004.jpg" alt="Screen 4">
+          </div>
+          <div class="screen-item" data-screen="5">
+            <div class="screen-number">05</div>
+            <div class="screen-title">Clip Organization & Tagging</div>
+            <img src="App Build/ROAM_Design_Screens Complete_page-0005.jpg" alt="Screen 5">
+          </div>
+          <div class="screen-item" data-screen="6">
+            <div class="screen-number">06</div>
+            <div class="screen-title">Song Mapping & Sections</div>
+            <img src="App Build/ROAM_Design_Screens Complete_page-0006.jpg" alt="Screen 6">
+          </div>
+          <div class="screen-item" data-screen="7">
+            <div class="screen-number">07</div>
+            <div class="screen-title">Feedback & Sharing</div>
+            <img src="App Build/ROAM_Design_Screens Complete_page-0007.jpg" alt="Screen 7">
+          </div>
+          <div class="screen-item" data-screen="8">
+            <div class="screen-number">08</div>
+            <div class="screen-title">Library & Search</div>
+            <img src="App Build/ROAM_Design_Screens Complete_page-0008.jpg" alt="Screen 8">
+          </div>
+          <div class="screen-item" data-screen="9">
+            <div class="screen-number">09</div>
+            <div class="screen-title">Advanced Features</div>
+            <img src="App Build/ROAM_Design_Screens Complete_page-0009.jpg" alt="Screen 9">
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-content">
+        <p>© 2026 Roam - Built for choreographers, by people who understand the creative process.</p>
+        <p>Source: App Build folder</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="control-btn" onclick="toggleGrid()">Grid View</button>
+    <button class="control-btn" onclick="toggleFullscreen()">Fullscreen</button>
+  </div>
+
+  <!-- Navigation Hint -->
+  <div class="nav-hint">
+    Click any screen to zoom, ESC to exit, arrow keys to navigate
+  </div>
+
+  <script>
+    let currentZoomed = null;
+    let currentScreenIndex = 0;
+    const screens = document.querySelectorAll('.screen-item');
+    let isGridView = false;
+
+    // Smooth scrolling for navigation
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+
+    // Zoom functionality
+    screens.forEach((screen, index) => {
+      screen.addEventListener('click', function(e) {
+        if (currentZoomed === this) {
+          exitZoom();
+        } else {
+          enterZoom(this, index);
+        }
+      });
+    });
+
+    function enterZoom(screen, index) {
+      exitZoom();
+      currentZoomed = screen;
+      currentScreenIndex = index;
+      screen.classList.add('zoomed');
+      document.body.style.overflow = 'hidden';
+      hideHint();
+    }
+
+    function exitZoom() {
+      if (currentZoomed) {
+        currentZoomed.classList.remove('zoomed');
+        currentZoomed = null;
+        document.body.style.overflow = '';
+      }
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', function(e) {
+      switch(e.key) {
+        case 'Escape':
+          exitZoom();
+          break;
+        case 'ArrowRight':
+          navigateScreen(1);
+          break;
+        case 'ArrowLeft':
+          navigateScreen(-1);
+          break;
+      }
+    });
+
+    function navigateScreen(direction) {
+      if (currentZoomed) {
+        currentScreenIndex += direction;
+        if (currentScreenIndex < 0) currentScreenIndex = screens.length - 1;
+        if (currentScreenIndex >= screens.length) currentScreenIndex = 0;
+        enterZoom(screens[currentScreenIndex], currentScreenIndex);
+      }
+    }
+
+    // Toggle grid view
+    function toggleGrid() {
+      isGridView = !isGridView;
+      const grid = document.querySelector('.screen-grid');
+      if (isGridView) {
+        grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
+      } else {
+        grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(350px, 1fr))';
+      }
+    }
+
+    // Fullscreen
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    // Hide hint
+    function hideHint() {
+      const hint = document.querySelector('.nav-hint');
+      if (hint && hint.style.opacity !== '0') {
+        hint.style.opacity = '0';
+        setTimeout(() => hint.remove(), 500);
+      }
+    }
+
+    // Hide hint on interaction
+    document.addEventListener('click', hideHint);
+    document.addEventListener('keydown', hideHint);
+
+    // Touch support for mobile
+    let touchStartX = 0;
+    document.addEventListener('touchstart', function(e) {
+      touchStartX = e.touches[0].clientX;
+    });
+
+    document.addEventListener('touchend', function(e) {
+      if (currentZoomed) {
+        const touchEndX = e.changedTouches[0].clientX;
+        const deltaX = touchEndX - touchStartX;
+        if (Math.abs(deltaX) > 50) {
+          navigateScreen(deltaX > 0 ? -1 : 1);
+        }
+      }
+    });
+
+    // Header scroll effect
+    let lastScroll = 0;
+    window.addEventListener('scroll', () => {
+      const currentScroll = window.pageYOffset;
+      const header = document.querySelector('header');
+      
+      if (currentScroll > 100) {
+        header.style.background = 'rgba(10, 9, 8, 0.98)';
+      } else {
+        header.style.background = 'rgba(10, 9, 8, 0.95)';
+      }
+      
+      lastScroll = currentScroll;
+    });
+  </script>
+</body>
+</html>

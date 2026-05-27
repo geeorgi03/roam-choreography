@@ -11,9 +11,32 @@ try {
   // MMKV unavailable — runtime override won't persist
 }
 
+/** Stale overrides from old builds / local dev that break production APKs. */
+const BLOCKED_API_HOSTS = [
+  'roam-api.onrender.com',
+  'localhost',
+  '127.0.0.1',
+  '10.0.2.2',
+];
+
+function isBlockedApiOverride(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return BLOCKED_API_HOSTS.some((blocked) => host === blocked || host.endsWith(`.${blocked}`));
+  } catch {
+    return true;
+  }
+}
+
 function resolveApiBase(): string {
   const override = _mmkv?.getString(API_URL_STORAGE_KEY);
-  if (override) return override;
+  if (override) {
+    if (isBlockedApiOverride(override)) {
+      _mmkv?.delete(API_URL_STORAGE_KEY);
+    } else {
+      return override;
+    }
+  }
 
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
@@ -44,4 +67,106 @@ export function setApiBaseOverride(url: string | null): void {
 /** Get the current override (null if using default). */
 export function getApiBaseOverride(): string | null {
   return _mmkv?.getString(API_URL_STORAGE_KEY) ?? null;
+}
+
+export type ApiErrorReason = 'offline' | 'timeout' | 'http' | 'network' | 'unknown';
+
+export class ApiRequestError extends Error {
+  readonly reason: ApiErrorReason;
+  readonly status?: number;
+  readonly bodyText?: string;
+
+  constructor(message: string, opts: { reason: ApiErrorReason; status?: number; bodyText?: string }) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.reason = opts.reason;
+    this.status = opts.status;
+    this.bodyText = opts.bodyText;
+  }
+}
+
+type ApiRequestOptions = RequestInit & {
+  timeoutMs?: number;
+  retries?: number;
+  retryDelayMs?: number;
+  shouldRetry?: (ctx: { attempt: number; error: ApiRequestError }) => boolean;
+};
+
+function jitteredBackoff(baseDelayMs: number, attempt: number): number {
+  const exp = Math.min(5, Math.max(0, attempt - 1));
+  const raw = baseDelayMs * 2 ** exp;
+  const jitter = 0.85 + Math.random() * 0.3;
+  return Math.round(raw * jitter);
+}
+
+/** Default fetch timeout — Render cold starts on mobile can exceed 10s. */
+export const DEFAULT_API_TIMEOUT_MS = 35_000;
+
+function mergeAbortSignals(signal?: AbortSignal | null, timeoutMs = DEFAULT_API_TIMEOUT_MS): {
+  controller: AbortController;
+  timeoutId: ReturnType<typeof setTimeout>;
+} {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), timeoutMs);
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+    } else {
+      signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+    }
+  }
+  return { controller, timeoutId };
+}
+
+export async function apiRequest(path: string, options: ApiRequestOptions = {}): Promise<Response> {
+  const {
+    timeoutMs = DEFAULT_API_TIMEOUT_MS,
+    retries = 2,
+    retryDelayMs = 300,
+    shouldRetry,
+    signal,
+    ...init
+  } = options;
+
+  let lastError: ApiRequestError | null = null;
+  for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
+    const { controller, timeoutId } = mergeAbortSignals(signal, timeoutMs);
+    try {
+      const res = await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal });
+      if (!res.ok) {
+        const bodyText = await res.text().catch(() => '');
+        const httpError = new ApiRequestError(
+          `Request failed with status ${res.status}`,
+          { reason: 'http', status: res.status, bodyText }
+        );
+        const canRetry =
+          res.status >= 500 ||
+          res.status === 408 ||
+          res.status === 429;
+        if (attempt <= retries && canRetry) {
+          await new Promise((resolve) => setTimeout(resolve, jitteredBackoff(retryDelayMs, attempt)));
+          continue;
+        }
+        throw httpError;
+      }
+      return res;
+    } catch (error) {
+      const isAbort = error instanceof Error && error.name === 'AbortError';
+      const mapped = error instanceof ApiRequestError
+        ? error
+        : new ApiRequestError(
+            isAbort ? 'Request timed out' : 'Network request failed',
+            { reason: isAbort ? 'timeout' : 'network' }
+          );
+      lastError = mapped;
+      const canRetry = shouldRetry ? shouldRetry({ attempt, error: mapped }) : mapped.reason !== 'http';
+      if (attempt <= retries && canRetry) {
+        await new Promise((resolve) => setTimeout(resolve, jitteredBackoff(retryDelayMs, attempt)));
+        continue;
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+  throw lastError ?? new ApiRequestError('Unknown request error', { reason: 'unknown' });
 }

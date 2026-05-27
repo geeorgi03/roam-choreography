@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Roam Choreography Workspace</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- ── TOP BAR ──────────────────────────────────────────────────── -->
+    <header class="topbar">
+      <span class="brand">ROAM</span>
+      <div class="session-pill" id="sessionPill">No Session</div>
+      <div class="topbar-right">
+        <label for="language" id="languageLabel" class="sr-only">Language</label>
+        <select id="language" class="lang-select">
+          <option value="en">EN</option>
+          <option value="zh-CN">中文</option>
+          <option value="ko">한국어</option>
+          <option value="ja">日本語</option>
+          <option value="km">ខ្មែរ</option>
+        </select>
+      </div>
+      <span id="title" class="sr-only">Roam Choreography Workspace</span>
+    </header>
+
+    <div class="workspace">
+
+      <!-- ═══════════════════════════════════════════════════════════
+           LEFT PANEL — STUDIO (always visible, 60%)
+           Loop · Music · Video
+      ═══════════════════════════════════════════════════════════════ -->
+      <div class="panel-studio">
+
+        <!-- ── A-B LOOP CONTROLS ──────────────────────────────────── -->
+        <div class="studio-block loop-block">
+          <div class="loop-header">
+            <h3>A-B Loop</h3>
+            <p id="bpmStatus" class="meta">BPM: not measured</p>
+          </div>
+          <div class="loop-buttons">
+            <button id="setMusicLoopA" class="loop-set-btn">Set A</button>
+            <div class="loop-indicator"><div class="loop-dot"></div></div>
+            <button id="setMusicLoopB" class="loop-set-btn">Set B</button>
+          </div>
+          <div class="loop-opts-row">
+            <label class="check"><input id="musicLoopEnabled" type="checkbox"> Loop active</label>
+            <span class="meta">Speed <span id="musicSpeedValue">1.00×</span></span>
+            <input id="musicSpeed" type="range" min="0.25" max="2" step="0.05" value="1" style="flex:1;min-width:60px">
+          </div>
+          <div class="loop-actions">
+            <button id="tapBpm" class="secondary compact-btn">Tap BPM</button>
+            <button id="analyzeBpm" class="secondary compact-btn">Analyze BPM</button>
+          </div>
+        </div>
+
+        <!-- ── MUSIC ──────────────────────────────────────────────── -->
+        <div class="studio-block">
+          <h3>Music</h3>
+          <input id="musicFile" type="file" accept="audio/*">
+          <audio id="musicPlayer" controls preload="metadata"></audio>
+        </div>
+
+        <!-- ── VIDEO ──────────────────────────────────────────────── -->
+        <div class="studio-block">
+          <h3 id="mediaLabTitle">Video Reference</h3>
+          <div class="grid2">
+            <input id="videoUrlInput" placeholder="Direct video URL (mp4 / webm)">
+            <button id="loadVideoUrl">Load</button>
+          </div>
+          <div class="video-opts">
+            <label class="check"><input id="videoMirrorEnabled" type="checkbox"> Mirror</label>
+            <label class="check"><input id="videoLoopEnabled" type="checkbox"> A-B Loop</label>
+            <label class="check"><input id="syncVideoToReference" type="checkbox" checked> Sync</label>
+          </div>
+          <div class="video-loop-row">
+            <span class="meta">Speed <span id="videoSpeedValue">1.00×</span></span>
+            <input id="videoSpeed" type="range" min="0.25" max="2" step="0.05" value="1" style="flex:1;min-width:60px">
+            <button id="setVideoLoopA" class="secondary compact-btn">Set A</button>
+            <button id="setVideoLoopB" class="secondary compact-btn">Set B</button>
+          </div>
+          <div class="grid2" style="margin-top:8px">
+            <button id="saveVideoTimeToReference" class="secondary">Save Time → Ref</button>
+            <button id="openVideoExternally" class="secondary">Open External</button>
+          </div>
+          <p id="videoSourceType" class="meta">Source: none</p>
+          <video id="videoPlayer" controls preload="metadata"></video>
+          <p id="mediaStatus" class="meta">No media loaded.</p>
+        </div>
+
+      </div><!-- .panel-studio -->
+
+
+      <!-- ═══════════════════════════════════════════════════════════
+           RIGHT PANEL — WORKSPACE (40%)
+           Session name always visible · Tabs switch content
+      ═══════════════════════════════════════════════════════════════ -->
+      <div class="panel-map">
+
+        <!-- ── SESSION HEADER (always visible) ──────────────────── -->
+        <div class="map-header">
+          <h2 class="session-name" id="sessionTitle">Session Setup</h2>
+          <div class="sync-badge" id="syncBadge">
+            <div class="sync-dot"></div>
+            <span id="syncBannerShort">Checking…</span>
+          </div>
+        </div>
+
+        <!-- ── TAB NAV ────────────────────────────────────────────── -->
+        <nav class="map-nav" aria-label="Workspace sections">
+          <button class="nav-item active" data-panel="session">Session</button>
+          <button class="nav-item" data-panel="roster">Roster</button>
+          <button class="nav-item" data-panel="studio">Refs</button>
+          <button class="nav-item" data-panel="progress">Progress</button>
+          <button class="nav-item" data-panel="share">Share</button>
+          <button class="nav-item" data-panel="sync">Sync</button>
+        </nav>
+
+        <!-- ── PANEL CONTENT ─────────────────────────────────────── -->
+        <div class="map-content">
+
+          <!-- Global feedback -->
+          <p id="feedback" class="feedback" aria-live="polite"></p>
+          <!-- Hidden sync banner — text mirrored to syncBadge by JS -->
+          <p id="syncBanner" class="feedback info hidden" aria-live="polite"></p>
+
+          <!-- SESSION ────────────────────────────────────────────── -->
+          <section class="panel active" data-panel="session">
+            <div class="card">
+              <h3 id="sessionCreateTitle">Start a Session</h3>
+              <div class="grid2">
+                <input id="sessionName" placeholder="Session name">
+                <button id="createSession">Create</button>
+              </div>
+              <p id="activeSessionText" class="meta" style="margin-top:8px">No active session</p>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <h3 id="onboardingTitle">First Session Checklist</h3>
+              <ul id="onboardingList" class="list"></ul>
+              <button id="completeOnboarding" class="secondary" style="margin-top:12px">Mark Complete</button>
+            </div>
+          </section>
+
+          <!-- ROSTER ─────────────────────────────────────────────── -->
+          <section class="panel" data-panel="roster">
+            <div class="card">
+              <h3 id="dancerTitle">Dancers</h3>
+              <div class="grid3">
+                <input id="dancerName" placeholder="Name">
+                <input id="dancerRole" placeholder="Role">
+                <button id="addDancer">Add</button>
+              </div>
+              <ul id="dancerList" class="list"></ul>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <h3 id="sectionTitle">Song Sections</h3>
+              <div class="grid3">
+                <input id="sectionName" placeholder="Section name">
+                <select id="sectionStatus">
+                  <option value="empty">empty</option>
+                  <option value="in-progress">in-progress</option>
+                  <option value="ready">ready</option>
+                </select>
+                <button id="addSection">Add</button>
+              </div>
+              <ul id="sectionList" class="list"></ul>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <h3 id="assignTitle">Assignments</h3>
+              <div class="assign-grid">
+                <select id="assignSection"></select>
+                <select id="assignDancer"></select>
+                <select id="assignStatus">
+                  <option value="unseen">unseen</option>
+                  <option value="in-progress">in-progress</option>
+                  <option value="ready">ready</option>
+                </select>
+                <input id="assignDueDate" type="date">
+                <button id="createAssignment">Assign</button>
+              </div>
+              <ul id="assignmentList" class="list"></ul>
+            </div>
+          </section>
+
+          <!-- REFS ───────────────────────────────────────────────── -->
+          <section class="panel" data-panel="studio">
+            <div class="card">
+              <h3 id="referenceTitle">References</h3>
+              <div class="ref-grid">
+                <select id="refSection"></select>
+                <input id="refUrl" placeholder="Video URL">
+                <input id="refTimestamp" placeholder="Timestamp (e.g. 00:32)">
+                <button id="addReference">Save</button>
+              </div>
+              <ul id="referenceList" class="list"></ul>
+            </div>
+          </section>
+
+          <!-- PROGRESS ───────────────────────────────────────────── -->
+          <section class="panel" data-panel="progress">
+            <div class="card">
+              <h3 id="mySectionsTitle">My Sections</h3>
+              <select id="mySectionsDancer"></select>
+              <ul id="mySectionsList" class="list"></ul>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <h3 id="analyticsTitle">Rehearsal Analytics</h3>
+              <div id="analyticsGrid" class="analytics-grid"></div>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <h3 id="takesTitle">Takes Log</h3>
+              <div class="takes-grid">
+                <select id="takeSection"></select>
+                <select id="takeType">
+                  <option value="MINE">MINE</option>
+                  <option value="REF">REF</option>
+                </select>
+                <input id="takeDuration" type="number" min="1" placeholder="Duration (sec)">
+                <input id="takeNotes" placeholder="Note (optional)">
+                <button id="addTake">Log Take</button>
+              </div>
+              <ul id="takeList" class="list"></ul>
+            </div>
+          </section>
+
+          <!-- SHARE ──────────────────────────────────────────────── -->
+          <section class="panel" data-panel="share">
+            <div class="card">
+              <h3 id="shareTitle">Share Pack</h3>
+              <div class="grid2">
+                <select id="shareSection"></select>
+                <button id="generateSharePack">Generate</button>
+              </div>
+              <textarea id="sharePayload" rows="5" placeholder="Share payload appears here" style="margin-top:8px"></textarea>
+              <div class="grid2" style="margin-top:8px">
+                <button id="copySharePack" class="secondary">Copy Pack</button>
+                <button id="importSharePack" class="secondary">Import Pack</button>
+              </div>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <h3 id="growthTitle">Invite</h3>
+              <div class="grid3">
+                <input id="referralCode" placeholder="Referral code" readonly>
+                <button id="generateReferral" class="secondary">Generate</button>
+                <button id="copyReferralLink" class="secondary">Copy Link</button>
+              </div>
+              <div class="grid3" style="margin-top:10px">
+                <input id="inviteEmail" type="email" placeholder="Teammate email">
+                <button id="sendInvite">Send Invite</button>
+                <p id="inviteStatus" class="meta">No invites sent</p>
+              </div>
+              <div class="grid3" style="margin-top:10px">
+                <input id="waitlistName" placeholder="Name">
+                <input id="waitlistEmail" type="email" placeholder="Email">
+                <button id="joinWaitlist" class="secondary">Join Waitlist</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- SYNC ───────────────────────────────────────────────── -->
+          <section class="panel" data-panel="sync">
+            <div class="card">
+              <h3>Supabase Connection</h3>
+              <div class="grid2">
+                <input id="supabaseUrl" placeholder="https://xxx.supabase.co">
+                <input id="supabaseAnonKey" placeholder="Anon key">
+              </div>
+              <div class="grid2" style="margin-top:8px">
+                <input id="authEmail" type="email" placeholder="Email">
+                <input id="authPassword" type="password" placeholder="Password">
+              </div>
+              <div class="grid3" style="margin-top:8px">
+                <button id="saveCloudConfig">Save Config</button>
+                <button id="signUpCloud" class="secondary">Sign Up</button>
+                <button id="signInCloud" class="secondary">Sign In</button>
+              </div>
+              <div class="grid3" style="margin-top:8px">
+                <button id="pullCloud" class="secondary">Pull</button>
+                <button id="pushCloud">Push</button>
+                <button id="signOutCloud" class="secondary">Sign Out</button>
+              </div>
+              <div class="grid2" style="margin-top:8px">
+                <button id="flushCloudQueue" class="secondary">Flush Pending</button>
+                <button id="downloadOpsSnapshot" class="secondary">Download Snapshot</button>
+              </div>
+              <div class="grid2" style="margin-top:10px">
+                <p id="cloudStatus" class="meta">Cloud not configured</p>
+                <p id="cloudQueueStatus" class="meta">Pending writes: 0</p>
+              </div>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <h3>Feedback</h3>
+              <div class="grid4">
+                <input id="feedbackName" placeholder="Name">
+                <input id="feedbackRole" placeholder="Role">
+                <input id="feedbackScore" type="number" min="1" max="10" placeholder="Score 1–10">
+                <button id="submitFeedback">Submit</button>
+              </div>
+              <textarea id="feedbackNotes" rows="3" placeholder="What worked? What was hard?" style="margin-top:8px"></textarea>
+              <p id="feedbackStatus" class="meta" style="margin-top:6px">No feedback captured.</p>
+            </div>
+            <div class="card" style="margin-top:12px">
+              <h3 id="cloudTitle">Growth Analytics</h3>
+              <div id="growthFunnel" class="analytics-grid"></div>
+              <h4 style="margin:12px 0 6px;font-size:0.8rem;color:var(--text-2)">Weekly</h4>
+              <div id="weeklyReport" class="analytics-grid"></div>
+              <h4 style="margin:12px 0 6px;font-size:0.8rem;color:var(--text-2)">Reliability</h4>
+              <div id="reliabilityReport" class="analytics-grid"></div>
+            </div>
+          </section>
+
+        </div><!-- .map-content -->
+      </div><!-- .panel-map -->
+
+    </div><!-- .workspace -->
+  </div><!-- .app-shell -->
+
+  <script src="./vendor/supabase.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
