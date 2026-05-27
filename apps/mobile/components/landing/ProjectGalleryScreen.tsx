@@ -16,6 +16,7 @@ import { MonoCaps } from '../choreography/ChoreographyPrimitives';
 import type { ThemePalette } from '../../lib/contexts/ThemeContext';
 import { GALLERY_SHELL_BG, thumbColorsForIndex } from '../../lib/projectGalleryTheme';
 import { useTranslation } from '../../lib/i18n';
+import { getDeviceTier, uxTokens } from '../../lib/designTokens';
 
 export type ProjectGalleryProps = {
   sessions: Session[];
@@ -52,13 +53,14 @@ function GalleryBody({
   const [filter, setFilter] = useState<FilterId>('all');
 
   const cols = width >= 900 ? 4 : width >= 600 ? 3 : 2;
+  const tier = getDeviceTier(width);
   const gap = 16;
   const pad = 20;
   const tileWidth = (width - pad * 2 - gap * (cols - 1)) / cols;
 
   const styles = useMemo(
-    () => createStyles(colors, fonts.display, fonts.body, fonts.mono),
-    [colors, fonts.display, fonts.body, fonts.mono]
+    () => createStyles(colors, fonts.display, fonts.body, fonts.mono, tier),
+    [colors, fonts.display, fonts.body, fonts.mono, tier]
   );
 
   const filtered = useMemo(() => {
@@ -187,7 +189,8 @@ function createStyles(
   colors: ThemePalette,
   displayFont: string,
   bodyFont: string,
-  monoFont: string
+  monoFont: string,
+  tier: 'phone' | 'tablet'
 ) {
   return StyleSheet.create({
     root: {
@@ -199,13 +202,13 @@ function createStyles(
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: 20,
-      height: 56,
+      height: uxTokens.chrome.headerHeight[tier],
     },
     brand: {
       fontFamily: displayFont,
-      fontSize: 28,
+      fontSize: tier === 'tablet' ? 36 : 32,
       fontWeight: '900',
-      letterSpacing: -0.5,
+      letterSpacing: -0.8,
       color: '#fff',
     },
     headerActions: {
@@ -215,19 +218,25 @@ function createStyles(
     headerActionRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 18,
+      gap: 10,
+      backgroundColor: 'rgba(255,255,255,0.06)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.09)',
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
     },
     headerLink: {
       fontFamily: bodyFont,
-      fontSize: 15,
+      fontSize: uxTokens.typography.body[tier],
       fontWeight: '500',
       color: 'rgba(255,255,255,0.75)',
     },
     plusBtn: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: 'rgba(255,255,255,0.15)',
+      width: tier === 'tablet' ? 30 : 26,
+      height: tier === 'tablet' ? 30 : 26,
+      borderRadius: uxTokens.radius.pill,
+      backgroundColor: 'rgba(255,255,255,0.12)',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -307,13 +316,13 @@ function createStyles(
     },
     tileTitle: {
       fontFamily: bodyFont,
-      fontSize: 13,
+      fontSize: uxTokens.typography.body[tier],
       fontWeight: '500',
       color: 'rgba(255,255,255,0.9)',
     },
     tileSub: {
       fontFamily: bodyFont,
-      fontSize: 11,
+      fontSize: uxTokens.typography.caption[tier],
       color: 'rgba(255,255,255,0.35)',
       marginTop: 2,
     },

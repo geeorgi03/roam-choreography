@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useChoreographyTheme } from '../../lib/contexts/ChoreographyThemeContext';
@@ -12,6 +13,7 @@ import type { ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { useTranslation } from '../../lib/i18n';
 import { MonoCaps } from './ChoreographyPrimitives';
+import { getDeviceTier, uxTokens } from '../../lib/designTokens';
 
 export type ChoreographyViewId = 'work' | 'practice' | 'map' | 'library' | 'explore';
 
@@ -20,19 +22,28 @@ const NAV: { id: ChoreographyViewId; labelKey: string }[] = [
   { id: 'practice', labelKey: 'choreo.nav.practiceBeta' },
   { id: 'map', labelKey: 'choreo.nav.map' },
   { id: 'library', labelKey: 'choreo.nav.library' },
-  { id: 'explore', labelKey: 'choreo.nav.explore' },
 ];
 
 type Props = {
   view: ChoreographyViewId;
   onChangeView: (v: ChoreographyViewId) => void;
   onSettings?: () => void;
+  workCollapsed?: boolean;
+  onToggleWorkCollapsed?: () => void;
 };
 
-export function ChoreographyTopChrome({ view, onChangeView, onSettings }: Props) {
+export function ChoreographyTopChrome({
+  view,
+  onChangeView,
+  onSettings,
+  workCollapsed = false,
+  onToggleWorkCollapsed,
+}: Props) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const tier = getDeviceTier(width);
   const colors = useChoreographyTheme();
-  const styles = useMemo(() => createStyles(colors, insets.top), [colors, insets.top]);
+  const styles = useMemo(() => createStyles(colors, insets.top, tier), [colors, insets.top, tier]);
   const { sessionName } = useSessionContext();
   const { t } = useTranslation();
 
@@ -43,6 +54,13 @@ export function ChoreographyTopChrome({ view, onChangeView, onSettings }: Props)
         <Text style={styles.sessionName} numberOfLines={1}>
           {sessionName}
         </Text>
+        {view === 'work' && onToggleWorkCollapsed ? (
+          <Pressable onPress={onToggleWorkCollapsed} style={styles.collapseBtn} hitSlop={8}>
+            <MonoCaps style={{ color: colors.active }}>
+              {workCollapsed ? t('choreo.workbench.expand') : t('choreo.workbench.collapse')}
+            </MonoCaps>
+          </Pressable>
+        ) : null}
         <Pressable onPress={onSettings} style={styles.settingsBtn} hitSlop={10}>
           <Text style={styles.settingsIcon}>⚙</Text>
         </Pressable>
@@ -71,22 +89,26 @@ export function ChoreographyTopChrome({ view, onChangeView, onSettings }: Props)
   );
 }
 
-function createStyles(colors: ThemePalette, topInset: number) {
+function createStyles(colors: ThemePalette, topInset: number, tier: 'phone' | 'tablet') {
   return StyleSheet.create({
     root: {
-      paddingTop: topInset + 4,
-      paddingBottom: 8,
-      paddingHorizontal: 12,
+      paddingTop: topInset + uxTokens.spacing.sm,
+      paddingBottom: uxTokens.spacing.sm,
+      paddingHorizontal: uxTokens.spacing.md,
       backgroundColor: colors.ground,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      marginBottom: 8,
+      gap: uxTokens.spacing.sm,
+      marginBottom: uxTokens.spacing.sm,
       minHeight: 36,
+      backgroundColor: colors.surfaceGlass,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: uxTokens.radius.md,
+      paddingHorizontal: uxTokens.spacing.md,
+      paddingVertical: uxTokens.spacing.sm,
     },
     logoDot: {
       width: 10,
@@ -102,7 +124,7 @@ function createStyles(colors: ThemePalette, topInset: number) {
     },
     sessionName: {
       flex: 1,
-      fontSize: 16,
+      fontSize: uxTokens.typography.title[tier] - 3,
       fontWeight: '700',
       color: colors.active,
     },
@@ -138,24 +160,43 @@ function createStyles(colors: ThemePalette, topInset: number) {
       borderColor: colors.primary,
     },
     settingsBtn: {
-      padding: 4,
+      paddingHorizontal: 10,
+      paddingVertical: uxTokens.spacing.xs,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    collapseBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: uxTokens.spacing.xs,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
     },
     settingsIcon: {
-      fontSize: 18,
+      fontSize: uxTokens.typography.nav[tier],
       color: colors.muted,
     },
     navRow: {
       flexDirection: 'row',
-      gap: 4,
+      gap: 6,
+      backgroundColor: colors.surfaceGlassDark,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 999,
+      padding: 4,
     },
     navItem: {
-      paddingHorizontal: 14,
-      paddingVertical: 8,
+      paddingHorizontal: uxTokens.spacing.md,
+      paddingVertical: uxTokens.spacing.xs + 1,
+      borderRadius: 999,
     },
     navItemActive: {
-      borderBottomWidth: 2,
-      borderBottomColor: colors.primary,
-      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor: colors.primaryBg,
     },
   });
 }

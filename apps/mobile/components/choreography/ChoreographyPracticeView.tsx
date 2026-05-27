@@ -1,17 +1,33 @@
-import React, { useMemo } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import React, { useMemo, useEffect } from 'react';
+import { View, StyleSheet, Text, useWindowDimensions } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useChoreographyTheme } from '../../lib/contexts/ChoreographyThemeContext';
 import type { ThemePalette } from '../../lib/contexts/ThemeContext';
 import { useSessionContext } from '../../lib/contexts/SessionContext';
 import { MonoCaps } from './ChoreographyPrimitives';
 import { ChoreographyMuxVideo } from './ChoreographyMuxVideo';
+import { PracticeSelfCamera } from './PracticeSelfCamera';
 import { useTranslation } from '../../lib/i18n';
+import { AnalyticsEvents, trackEvent } from '../../lib/productAnalytics';
+import { getDeviceTier, uxTokens } from '../../lib/designTokens';
 
 export function ChoreographyPracticeView() {
   const colors = useChoreographyTheme();
+  const { width } = useWindowDimensions();
+  const tier = getDeviceTier(width);
   const { t } = useTranslation();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const { musicTrack } = useSessionContext();
+  const router = useRouter();
+  const styles = useMemo(() => createStyles(colors, tier), [colors, tier]);
+  const { musicTrack, sessionId } = useSessionContext();
+
+  useEffect(() => {
+    trackEvent(AnalyticsEvents.PRACTICE_VIEW_OPEN, { sessionId });
+  }, [sessionId]);
+
+  const openSelfCamera = () => {
+    trackEvent(AnalyticsEvents.PRACTICE_RECORD_START, { sessionId });
+    router.push(`/session/camera?id=${sessionId}`);
+  };
 
   return (
     <View style={styles.root}>
@@ -37,8 +53,8 @@ export function ChoreographyPracticeView() {
         </View>
         <View style={styles.selfPane}>
           <MonoCaps style={styles.paneLabel}>{t('choreo.practice.selfLabel')}</MonoCaps>
-          <View style={styles.selfPlaceholder}>
-            <Text style={styles.selfPlaceholderText}>{t('choreo.practice.selfPlaceholder')}</Text>
+          <View style={styles.selfCameraWrap}>
+            <PracticeSelfCamera enabled onRequestFullRecord={openSelfCamera} />
           </View>
         </View>
       </View>
@@ -46,17 +62,17 @@ export function ChoreographyPracticeView() {
   );
 }
 
-function createStyles(colors: ThemePalette) {
+function createStyles(colors: ThemePalette, tier: 'phone' | 'tablet') {
   return StyleSheet.create({
     root: {
       flex: 1,
       backgroundColor: colors.ground,
-      paddingHorizontal: 16,
-      paddingTop: 12,
+      paddingHorizontal: tier === 'tablet' ? 20 : 16,
+      paddingTop: uxTokens.spacing.sm,
     },
     header: {
-      marginBottom: 16,
-      gap: 6,
+      marginBottom: uxTokens.spacing.md,
+      gap: uxTokens.spacing.xs,
     },
     betaTag: {
       alignSelf: 'flex-start',
@@ -67,18 +83,18 @@ function createStyles(colors: ThemePalette) {
       color: colors.primary,
     },
     title: {
-      fontSize: 18,
+      fontSize: uxTokens.typography.title[tier],
       fontWeight: '700',
       color: colors.active,
     },
     subtitle: {
-      fontSize: 12,
+      fontSize: uxTokens.typography.caption[tier],
       color: colors.muted,
     },
     row: {
       flex: 1,
       flexDirection: 'row',
-      gap: 12,
+      gap: uxTokens.spacing.sm,
     },
     refPane: {
       flex: 1,
@@ -97,6 +113,9 @@ function createStyles(colors: ThemePalette) {
       overflow: 'hidden',
       backgroundColor: '#000',
     },
+    selfCameraWrap: {
+      flex: 1,
+    },
     emptyPane: {
       flex: 1,
       borderRadius: 16,
@@ -110,21 +129,5 @@ function createStyles(colors: ThemePalette) {
       textAlign: 'center',
       paddingHorizontal: 12,
     },
-    selfPlaceholder: {
-      flex: 1,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 16,
-    },
-    selfPlaceholderText: {
-      fontSize: 12,
-      color: colors.muted,
-      textAlign: 'center',
-    },
   });
 }
-

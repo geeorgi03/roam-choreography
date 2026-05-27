@@ -5,6 +5,7 @@ import {
   ScrollView,
   Pressable,
   Text,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { SectionEntry } from '@roam/types';
@@ -23,13 +24,16 @@ import { ChoreographyDrawCanvas } from './ChoreographyDrawCanvas';
 import { ChoreographyComposeView } from './ChoreographyComposeView';
 import { useChoreographyFonts } from '../../lib/hooks/useChoreographyFonts';
 import { useTranslation } from '../../lib/i18n';
+import { getDeviceTier, uxTokens } from '../../lib/designTokens';
 
 function WorkbenchBody() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const tier = getDeviceTier(width);
   const colors = useChoreographyTheme();
   const fonts = useChoreographyFonts();
   const { t } = useTranslation();
-  const styles = useMemo(() => createStyles(colors, fonts.display), [colors, fonts.display]);
+  const styles = useMemo(() => createStyles(colors, fonts.display, tier), [colors, fonts.display, tier]);
   const {
     musicTrack,
     activeSection,
@@ -195,14 +199,14 @@ export function ChoreographyWorkbenchView() {
   );
 }
 
-function createStyles(colors: ThemePalette, displayFont: string) {
+function createStyles(colors: ThemePalette, displayFont: string, tier: 'phone' | 'tablet') {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.ground },
     canvas: { flex: 1 },
     sectionScroll: {
       position: 'absolute',
-      top: 12,
-      left: 12,
+      top: uxTokens.spacing.sm,
+      left: uxTokens.spacing.sm,
       right: 72,
       maxHeight: 44,
       zIndex: 2,
@@ -210,24 +214,24 @@ function createStyles(colors: ThemePalette, displayFont: string) {
     sectionScrollContent: { gap: 8, paddingRight: 12 },
     canvasTopRight: {
       position: 'absolute',
-      top: 12,
+      top: uxTokens.spacing.sm,
       right: 56,
-      gap: 8,
+      gap: uxTokens.spacing.xs,
       zIndex: 2,
       alignItems: 'flex-end',
     },
     toolChip: { paddingHorizontal: 10, paddingVertical: 8 },
     videoArea: {
       flex: 1,
-      marginTop: 56,
-      marginBottom: 100,
+      marginTop: tier === 'tablet' ? 64 : 56,
+      marginBottom: tier === 'tablet' ? 116 : 100,
     },
     bottomFloat: {
       position: 'absolute',
       bottom: 16,
-      left: 12,
+      left: uxTokens.spacing.sm,
       right: 56,
-      gap: 12,
+      gap: uxTokens.spacing.sm,
       zIndex: 3,
       flexDirection: 'row',
       alignItems: 'center',
@@ -237,8 +241,8 @@ function createStyles(colors: ThemePalette, displayFont: string) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
+      paddingHorizontal: tier === 'tablet' ? 22 : 18,
+      paddingVertical: tier === 'tablet' ? 13 : 11,
       borderRadius: 999,
       borderWidth: 2,
       borderColor: colors.primary,
@@ -251,7 +255,7 @@ function createStyles(colors: ThemePalette, displayFont: string) {
       backgroundColor: colors.primary,
     },
     recordLabel: {
-      fontSize: 12,
+      fontSize: uxTokens.typography.nav[tier],
       fontWeight: '900',
       letterSpacing: 2,
       color: colors.primary,
